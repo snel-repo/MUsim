@@ -7,12 +7,12 @@ import matplotlib.pyplot as plt
 class MUsim():
 
     def __init__(self):
-        init_force_profile = np.linspace(0,50,1000)
         self.units = [[],[]]
         self.num_units = 10
         self.sample_rate = 1000 # Hz
-        self.force_profile = init_force_profile
-        self.spike_prob = 0.02 # set to achieve ~10hz (a typical MU rate)
+        self.init_force_profile = np.linspace(0,5,1000)
+        self.force_profile = self.init_force_profile
+        self.spike_prob = 0.08 # set to achieve ~50hz (for typical MU rates)
 
     def set_spiking_probability(self,thresholded_forces):
         p = self.spike_prob
@@ -20,7 +20,7 @@ class MUsim():
         scaled_unit_response_curves = (unit_response_curves*p)+(1-p)
         return scaled_unit_response_curves
 
-    def recruit(self,threshmax=50,threshmin=10):
+    def recruit(self,threshmax=7,threshmin=1):
         """ first argument is number of units,
             second argument gives the force array.
             MU thresholds will be distributed from one-tailed Gaussian
@@ -33,8 +33,8 @@ class MUsim():
         num_units = self.num_units
         force_profile = self.force_profile
         # thresholds from one-tailed normal dist (produces more small, low threshold units)
-        MUthresholds = np.clip((threshmax*abs(np.random.randn(num_units)/2)).round(),threshmin,threshmax)
-        
+        MUthresholds = np.clip((np.round(threshmax*abs(np.random.randn(num_units)/2),decimals=4)),threshmin,threshmax)
+      
         # units[0] holds thresh of each unit,
         # units[1] holds response curves from each neuron
         units[0] = MUthresholds
@@ -43,7 +43,9 @@ class MUsim():
         # subtract each respective threshold to get unique response
         units[1] = self.set_spiking_probability(thresholded_forces)
         
-        self.units = units
+        spike_sorted_cols = self.units[0].argsort()
+        self.units[1] = units[1][:,spike_sorted_cols]
+        self.units[0] = units[0][spike_sorted_cols]
         return units
 
     def simulate_trial(self):
@@ -70,11 +72,11 @@ class MUsim():
         #             spikes[ii,jj] = 0 # prevent 2 spikes in a row
         #         else:
         #             spikes[ii,jj] = 1 if selection > iUnit_curve[ jj ] else 0 # get spikes
-        spike_sorted_cols = self.units[0].argsort()
-        self.spikes = spikes[:,spike_sorted_cols]
+        # spike_sorted_cols = self.units[0].argsort()
+        self.spikes = spikes #[:,spike_sorted_cols]
         return self.spikes
 
-    def simulate_session(self,trials=100):
+    def simulate_session(self,trials=50):
         # NEED TO ADD ABILITY TO SAVE SESSIONS, (e.g., sess1,sess2)
         data_shape = (len(self.force_profile),self.num_units,trials)
         self.session = np.zeros(data_shape)
@@ -89,16 +91,16 @@ class MUsim():
         thresholded_forces = all_forces - self.units[0]
         # subtract each respective threshold to get unique response
         self.units[1] = self.set_spiking_probability(thresholded_forces)
+        self.force_profile = force_profile # set new force profile value
 
     def reset_force(self):
         self.force_profile = self.init_force_profile
 
-    def convolve(self,sigma=20,target='spikes'):
+    def convolve(self,sigma=40,target='spikes'): # default smoothing value of 40 bins
         if target is 'spikes':
             self.smooth_spikes = np.zeros(self.spikes.shape)
             for iUnit in range(self.num_units):
                self.smooth_spikes[:,iUnit] = gaussian_filter1d(self.spikes[:,iUnit],sigma)
-            self.smooth_spikes = self.smooth_spikes*(2/np.max(self.smooth_spikes)) # normalize to 2mV
             return self.smooth_spikes
         elif target is 'session':
             trials = self.session.shape[2]
@@ -107,10 +109,15 @@ class MUsim():
             for iUnit in range(self.num_units):
                 for iTrial in range(trials):
                     self.smooth_session[:,iUnit,iTrial] = gaussian_filter1d(self.session[:,iUnit,iTrial],sigma)
-            self.smooth_session = self.smooth_session*(2/np.max(self.smooth_session)) # normalize to 2mV
             return self.smooth_session
 
     def vis(self,target='curves',legend=False):
+        """
+        target string inputs available for visualization:
+            - 'curves': for the current MU response curves to the last force_profile
+            - 'spikes': for the spike outputs from the last force response simulation
+            - 'smooth': for the convolved outputs from the last force response simulation
+        """
         if target is 'curves':
             # plot unit response curves 
             plt.rcParams["axes.prop_cycle"] = plt.cycler("color", plt.cm.jet(np.linspace(0,1,self.num_units)))
@@ -120,7 +127,6 @@ class MUsim():
             plt.show()
         elif target is 'spikes':
             plt.rcParams["axes.prop_cycle"] = plt.cycler("color", plt.cm.jet(np.linspace(0,1,self.num_units)))
-            spike_sorted_cols = self.units[0].argsort()
             for ii in range(self.num_units):
                 plt.plot(self.spikes[:,ii]-ii)
             plt.title("spikes present across population")
