@@ -8,6 +8,10 @@ from scipy.io import loadmat
 # initialize simulation object, mu_test
 mu_test = MUsim()
 
+#########################################################
+#########################################################
+#########################################################
+# TRADITIONAL MODE (SIZE PRINCIPLE)
 # %% RECRUIT NEW MOTOR UNITS
 num_units = 10
 mu_test.num_units = num_units
@@ -98,3 +102,38 @@ plt.title("Force Profiles for the 2 Simulations")
 plt.legend(["yank=1","yank=2"])
 plt.ylabel("Simulated Force (a.u.)")
 plt.xlabel("Time (ms)")
+
+# %%
+#######################################################
+#######################################################
+#  DYNAMIC MODE
+#################
+# %% RECRUIT DYNAMIC UNITS
+num_units = 10
+mu_test.num_units = num_units
+# units = mu_test.recruit(tmax,tmin)
+units = mu_test.recruit(MUmode="dynamic")
+#%%
+plt.hist(units[0],2*num_units)
+plt.title('thresholds across '+str(num_units)+' generated units')
+plt.show()
+# plot unit response curves 
+if num_units<15:
+    mu_test.vis(legend=True)
+else:
+    mu_test.vis()
+
+# %% APPLY NEW FORCE
+mu_test.reset_force()
+new_force = np.sin(mu_test.init_force_profile)
+mu_test.apply_new_force(new_force)
+spikes = mu_test.simulate_trial()
+plt.imshow(spikes.T,aspect=len(mu_test.force_profile)/mu_test.num_units)
+plt.colorbar()
+plt.title("spikes from each motor unit")
+plt.xlabel("spikes present over time (ms)")
+plt.ylabel("motor unit activities sorted by threshold")
+plt.show()
+# plot unit response curves 
+mu_test.vis()
+# %%

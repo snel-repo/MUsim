@@ -7,12 +7,19 @@ import matplotlib.pyplot as plt
 class MUsim():
 
     def __init__(self):
+        self.MUmode="traditional" # "traditional" for size-principle obediance, "dynamic" for yank-dependent thresholds
         self.units = [[],[]]
         self.num_units = 10
         self.sample_rate = 1000 # Hz
-        self.init_force_profile = np.linspace(0,5,1000)
+        self.init_force_profile = np.linspace(0,5,self.sample_rate)
         self.force_profile = self.init_force_profile
+        self.yank_profile = np.round(self.sample_rate*np.diff(self.force_profile),decimals=12)
+        # repeat last yank_profile value to make same length as force_profile
+        self.yank_profile = np.append(self.yank_profile,self.yank_profile[-1]) 
+        self.yank_effect = .1 # scales the effect of yank on MU thresholds
         self.spike_prob = 0.08 # set to achieve ~50hz (for typical MU rates)
+        self.threshmax = 7
+        self.threshmin = 1
 
     def set_spiking_probability(self,thresholded_forces):
         p = self.spike_prob
@@ -20,11 +27,26 @@ class MUsim():
         scaled_unit_response_curves = (unit_response_curves*p)+(1-p)
         return scaled_unit_response_curves
 
-    def recruit(self,threshmax=7,threshmin=1):
-        """ first argument is number of units,
-            second argument gives the force array.
-            MU thresholds will be distributed from one-tailed Gaussian
+    def get_dynamic_thresholds(self,threshmax,threshmin):
+        MUthresholds_orig = np.clip((np.round(threshmax*abs(np.random.randn(self.num_units)/2),decimals=4)),threshmin,threshmax)
+        MUsubmin = MUthresholds_orig-threshmin
+        threshrange = threshmax-threshmin
+        MUthresholds_flip = (1-(MUsubmin/threshrange))*threshrange*threshmin # values flip within range
+        MUthresholds_flip_rep = np.repeat(MUthresholds_flip,len(self.force_profile)).reshape(len(MUthresholds_flip),len(self.force_profile))
+        MUthresholds_orig_rep = np.repeat(MUthresholds_orig,len(self.force_profile)).reshape(len(MUthresholds_orig),len(self.force_profile))
+        clipped_yank = np.clip(self.yank_effect*self.yank_profile,0,10) # average below, weighted by the force slope
+        # weighted average of flip with yank, elementwise
+        MUthresholds = np.mean([MUthresholds_orig_rep.T,(MUthresholds_flip_rep*clipped_yank).T],axis=0)
+        # import pdb; pdb.set_trace()
+        return MUthresholds
 
+    def recruit(self,MUmode="traditional"):
+        """ 
+            threshmax: fixed maximum threshold for the generated units' response curves
+            threshmin: second argument is  fixed minimum threshold for the generated units' response curves
+            MUmode: decide whether unit thresholds are fixed or dynamic
+
+            MU thresholds will be distributed from one-tailed Gaussian, to simulate more small units, low threshold units
             Returns: list of lists,
                 units[0] holds thresh of each unit,
                 units[1] holds response curves from each neuron
@@ -32,20 +54,27 @@ class MUsim():
         units = self.units
         num_units = self.num_units
         force_profile = self.force_profile
-        # thresholds from one-tailed normal dist (produces more small, low threshold units)
-        MUthresholds = np.clip((np.round(threshmax*abs(np.random.randn(num_units)/2),decimals=4)),threshmin,threshmax)
-      
-        # units[0] holds thresh of each unit,
-        # units[1] holds response curves from each neuron
+        yank_effect = self.yank_effect # scales effect of yank on threshold
+        threshmax = self.threshmax
+        threshmin = self.threshmin
+
+        if MUmode is "traditional":
+            MUthresholds = np.clip((np.round(threshmax*abs(np.random.randn(num_units)/2),decimals=4)),threshmin,threshmax)
+        elif MUmode is "dynamic":
+            MUthresholds = self.get_dynamic_thresholds(threshmax,threshmin)
         units[0] = MUthresholds
         all_forces = np.repeat(force_profile,num_units).reshape((len(force_profile),num_units))
         thresholded_forces = all_forces - MUthresholds
         # subtract each respective threshold to get unique response
         units[1] = self.set_spiking_probability(thresholded_forces)
-        
-        spike_sorted_cols = self.units[0].argsort()
+        if MUmode is "traditional":
+            spike_sorted_cols = self.units[0].argsort()
+            self.units[0] = units[0][spike_sorted_cols]
+        elif MUmode is "dynamic":
+            spike_sorted_cols = self.units[0].mean(axis=0).argsort()
+            self.units[0] = units[0][:,spike_sorted_cols]
         self.units[1] = units[1][:,spike_sorted_cols]
-        self.units[0] = units[0][spike_sorted_cols]
+        self.MUmode = MUmode # record the last recruitment mode
         return units
 
     def simulate_trial(self):
@@ -60,20 +89,11 @@ class MUsim():
             selection = np.random.random(unit_response_curves.shape)
             spike_idxs = np.where(selection>unit_response_curves)
             spikes = np.zeros(unit_response_curves.shape)
-            spikes[spike_idxs] = 1 # assigne spikes
+            spikes[spike_idxs] = 1 # assign spikes
         except:
             if len(self.units[0])==0:
                 raise Exception("unit response curve empty. run '.recruit()' method to define motor units.")
-        # generate spike frequencies according to poisson process
-        # for ii,iUnit_curve in enumerate( unit_curves ):
-        #     for jj,jSpike in enumerate( iUnit_curve ):
-        #         selection = np.random.random()
-        #         if spikes[ii,jj-1] is 1:
-        #             spikes[ii,jj] = 0 # prevent 2 spikes in a row
-        #         else:
-        #             spikes[ii,jj] = 1 if selection > iUnit_curve[ jj ] else 0 # get spikes
-        # spike_sorted_cols = self.units[0].argsort()
-        self.spikes = spikes #[:,spike_sorted_cols]
+        self.spikes = spikes
         return self.spikes
 
     def simulate_session(self,trials=50):
@@ -84,14 +104,26 @@ class MUsim():
             self.session[:,:,iTrial] = self.simulate_trial()
         return self.session
 
-    def apply_new_force(self,force_profile):
+    def apply_new_force(self,input_force_profile):
+        """
+        feed in a new 1D force profile to apply to all recruited motor units
+        """
         if len(self.units[0])==0:
             self.simulate_trial()
-        all_forces = np.repeat(force_profile,self.num_units).reshape((len(force_profile),self.num_units))
-        thresholded_forces = all_forces - self.units[0]
+        all_forces = np.repeat(input_force_profile,self.num_units).reshape((len(input_force_profile),self.num_units))
+        if self.MUmode is "traditional":
+            thresholded_forces = all_forces - self.units[0]
+        elif self.MUmode is "dynamic": # everything must be updated for dynamic
+            self.yank_profile = np.round(self.sample_rate*np.diff(input_force_profile),decimals=12) # update yank_profile
+            self.yank_profile = np.append(self.yank_profile,self.yank_profile[-1]) # repeat yank_profile[-1] value            
+            MUthresholds = self.get_dynamic_thresholds(self.threshmax,self.threshmin)
+            thresholded_forces = all_forces - MUthresholds
+            self.units[1] = self.set_spiking_probability(thresholded_forces)
+            self.units[0] = MUthresholds
+
         # subtract each respective threshold to get unique response
         self.units[1] = self.set_spiking_probability(thresholded_forces)
-        self.force_profile = force_profile # set new force profile value
+        self.force_profile = input_force_profile # set new force profile value
 
     def reset_force(self):
         self.force_profile = self.init_force_profile
@@ -122,7 +154,11 @@ class MUsim():
             # plot unit response curves 
             plt.rcParams["axes.prop_cycle"] = plt.cycler("color", plt.cm.jet(np.linspace(0,1,self.num_units)))
             plt.plot(self.units[1])
-            if legend: plt.legend(self.units[0],title='thresholds')
+            if legend:
+                if self.MUmode is "traditional":
+                    plt.legend(self.units[0],title='thresholds')
+                elif self.MUmode is "dynamic":
+                    plt.legend(self.units[0].mean(axis=0).round(decimals=4),title='thresholds')
             plt.title("randomly generated unit response curves")
             plt.show()
         elif target is 'spikes':
