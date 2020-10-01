@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 class MUsim():
 
     def __init__(self):
-        self.MUmode="traditional" # "traditional" for size-principle obediance, "dynamic" for yank-dependent thresholds
+        self.MUmode="static" # "static" for size-principle obediance, "dynamic" for yank-dependent thresholds
         self.units = [[],[]]
         self.num_units = 10
         self.sample_rate = 1000 # Hz
@@ -43,7 +43,7 @@ class MUsim():
             MUthresholds[yank_no_flip_idxs] = MUthresholds_orig[yank_no_flip_idxs] # set original values
         return MUthresholds
 
-    def recruit(self,MUmode="traditional"):
+    def recruit(self,MUmode="static"):
         """ 
             threshmax: fixed maximum threshold for the generated units' response curves
             threshmin: second argument is  fixed minimum threshold for the generated units' response curves
@@ -60,7 +60,7 @@ class MUsim():
         threshmax = self.threshmax
         threshmin = self.threshmin
 
-        if MUmode is "traditional":
+        if MUmode is "static":
             MUthresholds = np.clip((np.round(threshmax*abs(np.random.randn(num_units)/2),decimals=4)),threshmin,threshmax)
         elif MUmode is "dynamic":
             MUthresholds = self.get_dynamic_thresholds(threshmax,threshmin,new=True)
@@ -69,7 +69,7 @@ class MUsim():
         thresholded_forces = all_forces - MUthresholds
         # subtract each respective threshold to get unique response
         units[1] = self.set_spiking_probability(thresholded_forces)
-        if MUmode is "traditional":
+        if MUmode is "static":
             spike_sorted_cols = self.units[0].argsort()
             self.units[0] = units[0][spike_sorted_cols]
         elif MUmode is "dynamic":
@@ -114,7 +114,7 @@ class MUsim():
         if len(self.units[0])==0:
             self.simulate_trial()
         all_forces = np.repeat(input_force_profile,self.num_units).reshape((len(input_force_profile),self.num_units))
-        if self.MUmode is "traditional":
+        if self.MUmode is "static":
             thresholded_forces = all_forces - self.units[0]
         elif self.MUmode is "dynamic": # everything must be updated for dynamic
             self.yank_profile = np.round(self.sample_rate*np.diff(input_force_profile),decimals=10) # update yank_profile
@@ -157,7 +157,7 @@ class MUsim():
             plt.rcParams["axes.prop_cycle"] = plt.cycler("color", plt.cm.jet(np.linspace(0,1,self.num_units)))
             plt.plot(self.units[1])
             if legend:
-                if self.MUmode is "traditional":
+                if self.MUmode is "static":
                     plt.legend(self.units[0],title='thresholds')
                 elif self.MUmode is "dynamic":
                     plt.legend(self.units[0].mean(axis=0).round(decimals=4),title='thresholds')

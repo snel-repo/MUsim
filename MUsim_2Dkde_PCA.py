@@ -1,15 +1,10 @@
 # %% IMPORT packages
-import os
-import sys
-import pandas as pd
 import numpy as np
 import scipy.stats
-import jupyter
-import IPython
+from sklearn.decomposition import PCA
 import matplotlib.pyplot as plt
 import plotly.express as px
 import plotly.graph_objects as go
-import plotly.subplots as psub
 from MUsim import MUsim
 
 # Define confidence interval calculation
@@ -37,13 +32,12 @@ def get_confidence(normalized_KDE_densities,confidence_value):
 # Define Simulation Parameters 
 num_trials_to_simulate = 50
 num_units_to_simulate = 10
-gaussian_bw = 40        # choose smoothing bandwidth
-unit1 = 0; unit2 = -1           # choose unit to analyze
-yankval1 = 1; yankval2 = 3    # choose yank to analyze
+gaussian_bw = 40            # choose smoothing bandwidth
+yankval1 = 1; yankval2 = 3  # choose yank to analyze
 ########################################################
 mu = MUsim()            # INSTANTIATE SIMULATION OBJECT
 mu.num_units = num_units_to_simulate
-units = mu.recruit(MUmode='static')    # RECRUIT
+units = mu.recruit(MUmode='dynamic')    # RECRUIT
 force_profile = yankval1*mu.force_profile # APPLY FORCE PROFILE (NON-DEFAULT)
 mu.apply_new_force(force_profile)
 session1 = mu.simulate_session(num_trials_to_simulate) # APPLY DEFAULT FORCE PROFILE
@@ -54,31 +48,53 @@ force_profile = yankval2*mu.force_profile # APPLY FORCE PROFILE (NON-DEFAULT)
 mu.apply_new_force(force_profile)
 session2 = mu.simulate_session(num_trials_to_simulate)
 yank2 = mu.convolve(gaussian_bw, target="session") # SMOOTH SPIKES FOR SESSION 2
-# %% COMPUTE UNIT DATA MATRICES
-# Get 2 aligned channels of data
-mu1_y1 = np.hstack(yank1[:,unit1,:])
-mu2_y1 = np.hstack(yank1[:,unit2,:])
-mu1_y2 = np.hstack(yank2[:,unit1,:])
-mu2_y2 = np.hstack(yank2[:,unit2,:])
+
+# %% COMPUTE PCA OBJECT on all MU data
+yank1_stack = np.hstack(yank1)
+yank2_stack = np.hstack(yank2)
+yank12_stack = np.hstack((yank1_stack,yank2_stack)).T
+
+# run for all components to see VAF
+num_comp_test = 10
+pca = PCA(n_components=num_comp_test)
+fit = pca.fit(yank12_stack)
+print("explained variance: "+str(fit.explained_variance_ratio_))
+plt.scatter(range(num_comp_test),fit.explained_variance_ratio_)
+plt.plot(np.cumsum(fit.explained_variance_ratio_),c='darkorange')
+plt.hlines(0.7,0,num_comp_test,colors='k',linestyles="dashed")
+plt.title("explained variance for each additional unit")
+plt.legend(["cumulative","individual"])
+plt.xlabel("units")
+
+# run for only 2 components, that capture most variance
+num_comp_proj = 2
+pca = PCA(n_components=num_comp_proj)
+fit = pca.fit(yank12_stack)
+
+# %% PROJECT FROM FIT
+proj12_y1 = pca.transform(yank1_stack.T)
+proj12_y2 = pca.transform(yank2_stack.T)
+# %% COMPUTE TRIAL AVERAGES
+# reshape into trials
+proj12_y1_trials = proj12_y1.T.reshape((len(force_profile),num_comp_proj,num_trials_to_simulate))
+proj12_y2_trials = proj12_y2.T.reshape((len(force_profile),num_comp_proj,num_trials_to_simulate))
 
 # get condition-averaged traces for each
-mu1_y1_ave = np.mean(mu1_y1.reshape((len(mu.force_profile),num_trials_to_simulate)),axis=1)
-mu2_y1_ave = np.mean(mu2_y1.reshape((len(mu.force_profile),num_trials_to_simulate)),axis=1)
-mu1_y2_ave = np.mean(mu1_y2.reshape((len(mu.force_profile),num_trials_to_simulate)),axis=1)
-mu2_y2_ave = np.mean(mu2_y2.reshape((len(mu.force_profile),num_trials_to_simulate)),axis=1)
+proj12_y1_ave_x = proj12_y1[:,0].reshape((len(force_profile),num_trials_to_simulate)).mean(axis=1)
+proj12_y1_ave_y = proj12_y1[:,1].reshape((len(force_profile),num_trials_to_simulate)).mean(axis=1)
+proj12_y2_ave_x = proj12_y2[:,0].reshape((len(force_profile),num_trials_to_simulate)).mean(axis=1)
+proj12_y2_ave_y = proj12_y2[:,1].reshape((len(force_profile),num_trials_to_simulate)).mean(axis=1)
 
 ## Format data vectors into D x N shape
-mu12_y1 = np.vstack([mu1_y1,mu2_y1])
-mu12_y2 = np.vstack([mu1_y2,mu2_y2])
-mu12_y12 = np.hstack((mu12_y1,mu12_y2))
-
-# %% GET KDE OBJECTS, fit on each matrix
-kde10 = scipy.stats.gaussian_kde(mu12_y1)
-kde20 = scipy.stats.gaussian_kde(mu12_y2)
+proj12_y12 = np.hstack((proj12_y1,proj12_y2))
 
 # get mins, maxes for both datasets
-x_both_min, y_both_min = mu12_y12[0,:].min(), mu12_y12[1,:].min()
-x_both_max, y_both_max = mu12_y12[0,:].max(), mu12_y12[1,:].max()
+x_both_min, y_both_min = proj12_y12[(0,2),:].min(), proj12_y12[(1,3),:].min()
+x_both_max, y_both_max = proj12_y12[(0,2),:].max(), proj12_y12[(1,3),:].max()
+
+# %% GET KDE OBJECTS, fit on each matrix
+kde10 = scipy.stats.gaussian_kde(proj12_y1.T)
+kde20 = scipy.stats.gaussian_kde(proj12_y2.T)
 
 # Evaluate kde on a grid
 xi, yi = np.mgrid[x_both_min:x_both_max:100j, y_both_min:y_both_max:100j]
@@ -86,8 +102,8 @@ coords = np.vstack([item.ravel() for item in [xi, yi]])
 density_y1 = kde10(coords).reshape(xi.shape)
 density_y2 = kde20(coords).reshape(xi.shape)
 
-density_y1_pts = kde10(mu12_y1)
-density_y2_pts = kde20(mu12_y2)
+density_y1_pts = kde10(proj12_y1.T)
+density_y2_pts = kde20(proj12_y2.T)
 
 # normalize these to get probabilities
 d_y1_norm = density_y1/np.sum(density_y1)
@@ -100,8 +116,8 @@ d_y2_norm_pts = density_y2_pts/np.sum(density_y2_pts)
 fig = go.Figure()
 # data yank 2
 fig.add_trace(go.Scatter(
-    x = mu12_y2[0],
-    y = mu12_y2[1],
+    x = proj12_y2[:,0],
+    y = proj12_y2[:,1],
     mode="markers",
     marker=dict(
         size=.75,
@@ -110,10 +126,11 @@ fig.add_trace(go.Scatter(
         ),
     name = "yank="+str(yankval2)
 ))
+
 # data yank 1
 fig.add_trace(go.Scatter(
-    x = mu12_y1[0],
-    y = mu12_y1[1],
+    x = proj12_y1[:,0],
+    y = proj12_y1[:,1],
     mode="markers",
     marker=dict(
         size=.75,
@@ -124,8 +141,8 @@ fig.add_trace(go.Scatter(
 ))
 # trial average yank 2
 fig.add_trace(go.Scatter(
-    x = mu1_y2_ave,
-    y = mu2_y2_ave,
+    x = proj12_y2_ave_x,
+    y = proj12_y2_ave_y,
     mode="lines",
     line=dict(
         width=1,
@@ -135,8 +152,8 @@ fig.add_trace(go.Scatter(
 ))
 # trial average yank 1
 fig.add_trace(go.Scatter(
-    x = mu1_y1_ave,
-    y = mu2_y1_ave,
+    x = proj12_y1_ave_x,
+    y = proj12_y1_ave_y,
     mode="lines",
     line=dict(
         width=1,
@@ -150,9 +167,9 @@ fig.update_yaxes(
   )
 fig.update_layout(
     legend=dict(title="Force Profiles:"),
-    title="Simulated trajectories in 2-unit State Space",
-    xaxis=dict(title=dict(text="'small' unit")),
-    yaxis=dict(title=dict(text="'large' unit")),
+    title="Simulated population trajectories in 2D PCA Space",
+    xaxis=dict(title=dict(text="First PC")),
+    yaxis=dict(title=dict(text="Second PC")),
     width=600,
     height=500
 )
