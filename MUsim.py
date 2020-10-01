@@ -16,7 +16,6 @@ class MUsim():
         self.yank_profile = np.round(self.sample_rate*np.diff(self.force_profile),decimals=12)
         # repeat last yank_profile value to make same length as force_profile
         self.yank_profile = np.append(self.yank_profile,self.yank_profile[-1]) 
-        self.yank_effect = .1 # scales the effect of yank on MU thresholds
         self.spike_prob = 0.08 # set to achieve ~50hz (for typical MU rates)
         self.threshmax = 7
         self.threshmin = 1
@@ -27,17 +26,15 @@ class MUsim():
         scaled_unit_response_curves = (unit_response_curves*p)+(1-p)
         return scaled_unit_response_curves
 
-    def get_dynamic_thresholds(self,threshmax,threshmin):
-        MUthresholds_orig = np.clip((np.round(threshmax*abs(np.random.randn(self.num_units)/2),decimals=4)),threshmin,threshmax)
-        MUsubmin = MUthresholds_orig-threshmin
-        threshrange = threshmax-threshmin
-        MUthresholds_flip = (1-(MUsubmin/threshrange))*threshrange*threshmin # values flip within range
-        MUthresholds_flip_rep = np.repeat(MUthresholds_flip,len(self.force_profile)).reshape(len(MUthresholds_flip),len(self.force_profile))
-        MUthresholds_orig_rep = np.repeat(MUthresholds_orig,len(self.force_profile)).reshape(len(MUthresholds_orig),len(self.force_profile))
-        clipped_yank = np.clip(self.yank_effect*self.yank_profile,0,10) # average below, weighted by the force slope
-        # weighted average of flip with yank, elementwise
-        MUthresholds = np.mean([MUthresholds_orig_rep.T,(MUthresholds_flip_rep*clipped_yank).T],axis=0)
-        # import pdb; pdb.set_trace()
+    def get_dynamic_thresholds(self,threshmax,threshmin,new=False):
+        if new is True:
+            MUthresholds_gen = np.clip((np.round(threshmax*abs(np.random.randn(self.num_units)/2),decimals=4)),threshmin,threshmax)
+            MUthresholds = np.repeat(MUthresholds_gen,len(self.force_profile)).reshape(len(MUthresholds_gen),len(self.force_profile)).T
+        else:
+            MUthresholds_orig = self.MUthreshold_memory.T
+            MUthresholds_flip = -(MUthresholds_orig-threshmax-threshmin) # values flip within range
+            # weighted average, adjust dominance of normal vs. flip values
+            MUthresholds = ((MUthresholds_orig+(MUthresholds_flip*self.yank_profile))/self.yank_profile).T 
         return MUthresholds
 
     def recruit(self,MUmode="traditional"):
@@ -53,15 +50,14 @@ class MUsim():
         """ 
         units = self.units
         num_units = self.num_units
-        force_profile = self.force_profile
-        yank_effect = self.yank_effect # scales effect of yank on threshold
+        force_profile = self.init_force_profile
         threshmax = self.threshmax
         threshmin = self.threshmin
 
         if MUmode is "traditional":
             MUthresholds = np.clip((np.round(threshmax*abs(np.random.randn(num_units)/2),decimals=4)),threshmin,threshmax)
         elif MUmode is "dynamic":
-            MUthresholds = self.get_dynamic_thresholds(threshmax,threshmin)
+            MUthresholds = self.get_dynamic_thresholds(threshmax,threshmin,new=True)
         units[0] = MUthresholds
         all_forces = np.repeat(force_profile,num_units).reshape((len(force_profile),num_units))
         thresholded_forces = all_forces - MUthresholds
@@ -71,8 +67,9 @@ class MUsim():
             spike_sorted_cols = self.units[0].argsort()
             self.units[0] = units[0][spike_sorted_cols]
         elif MUmode is "dynamic":
-            spike_sorted_cols = self.units[0].mean(axis=0).argsort()
+            spike_sorted_cols = self.units[0].mean(axis=0).argsort()[::-1]
             self.units[0] = units[0][:,spike_sorted_cols]
+            self.MUthreshold_memory = self.units[0]
         self.units[1] = units[1][:,spike_sorted_cols]
         self.MUmode = MUmode # record the last recruitment mode
         return units
@@ -114,7 +111,7 @@ class MUsim():
         if self.MUmode is "traditional":
             thresholded_forces = all_forces - self.units[0]
         elif self.MUmode is "dynamic": # everything must be updated for dynamic
-            self.yank_profile = np.round(self.sample_rate*np.diff(input_force_profile),decimals=12) # update yank_profile
+            self.yank_profile = np.round(self.sample_rate*np.diff(input_force_profile),decimals=10) # update yank_profile
             self.yank_profile = np.append(self.yank_profile,self.yank_profile[-1]) # repeat yank_profile[-1] value            
             MUthresholds = self.get_dynamic_thresholds(self.threshmax,self.threshmin)
             thresholded_forces = all_forces - MUthresholds

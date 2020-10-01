@@ -4,7 +4,6 @@ import numpy as np
 from scipy.special import expit
 from scipy.ndimage import gaussian_filter1d
 import matplotlib.pyplot as plt
-from scipy.io import loadmat
 # initialize simulation object, mu_test
 mu_test = MUsim()
 
@@ -35,8 +34,7 @@ plt.ylabel("motor unit activities sorted by threshold")
 plt.show()
 
 # %% APPLY NEW FORCE
-yank_factor = 1
-new_force = yank_factor*mu_test.force_profile
+new_force = 1.5*mu_test.force_profile
 mu_test.apply_new_force(new_force)
 spikes = mu_test.simulate_trial()
 plt.imshow(spikes.T,aspect=len(mu_test.force_profile)/mu_test.num_units)
@@ -49,7 +47,6 @@ plt.show()
 mu_test.vis(legend=True)
 # %% PLOT SPIKES AND COUNT
 plt.rcParams["axes.prop_cycle"] = plt.cycler("color", plt.cm.jet(np.linspace(0,1,num_units)))
-spike_sorted_cols = mu_test.units[0].argsort()
 for ii in range(mu_test.num_units):
     plt.plot(mu_test.spikes[:,ii]-ii)
 
@@ -108,7 +105,15 @@ plt.xlabel("Time (ms)")
 #######################################################
 #  DYNAMIC MODE
 #################
-# %% RECRUIT DYNAMIC UNITS
+# %% import
+from MUsim import MUsim
+import numpy as np
+from scipy.special import expit
+from scipy.ndimage import gaussian_filter1d
+import matplotlib.pyplot as plt
+# initialize simulation object, mu_test
+mu_test = MUsim()
+# RECRUIT DYNAMIC UNITS
 num_units = 10
 mu_test.num_units = num_units
 # units = mu_test.recruit(tmax,tmin)
@@ -125,15 +130,29 @@ else:
 
 # %% APPLY NEW FORCE
 mu_test.reset_force()
-new_force = np.sin(mu_test.init_force_profile)
+new_force = 1.25*(mu_test.init_force_profile)
 mu_test.apply_new_force(new_force)
 spikes = mu_test.simulate_trial()
-plt.imshow(spikes.T,aspect=len(mu_test.force_profile)/mu_test.num_units)
-plt.colorbar()
-plt.title("spikes from each motor unit")
+# plt.imshow(spikes.T,aspect=len(mu_test.force_profile)/mu_test.num_units)
+# plt.colorbar()
+# plt.title("spikes from each motor unit")
+# plt.xlabel("spikes present over time (ms)")
+# plt.ylabel("motor unit activities sorted by threshold")
+# plt.show()
+
+# plot unit response curves 
+mu_test.vis(legend=True)
+mu_test.vis('spikes')
+# %% PLOT SPIKES AND COUNT
+plt.rcParams["axes.prop_cycle"] = plt.cycler("color", plt.cm.jet(np.linspace(0,1,num_units)))
+for ii in range(mu_test.num_units):
+    plt.plot(mu_test.spikes[:,ii]-ii)
+
+plt.title("spikes present across population")
+rates = np.sum(mu_test.spikes,axis=0)/len(mu_test.force_profile)*mu_test.sample_rate
 plt.xlabel("spikes present over time (ms)")
 plt.ylabel("motor unit activities sorted by threshold")
+plt.legend(rates,title="rate (Hz)",loc="lower left")
 plt.show()
-# plot unit response curves 
-mu_test.vis()
+
 # %%

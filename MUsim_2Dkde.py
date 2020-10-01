@@ -37,8 +37,8 @@ def get_confidence(normalized_KDE_densities,confidence_value):
 # Define Simulation Parameters 
 num_trials_to_simulate = 50
 gaussian_bw = 40        # choose smoothing bandwidth
-unit1 = 0; unit2 = -1            # choose unit to analyze
-yankval1 = 0.5; yankval2 = 1    # choose yank to analyze
+unit1 = 0; unit2 = -1           # choose unit to analyze
+yankval1 = 1; yankval2 = 2    # choose yank to analyze
 ########################################################
 mu = MUsim()            # INSTANTIATE SIMULATION OBJECT
 units = mu.recruit()    # RECRUIT
@@ -56,8 +56,8 @@ yank2 = mu.convolve(gaussian_bw, target="session") # SMOOTH SPIKES FOR SESSION 2
 # Get 2 aligned channels of data
 mu1_y1 = np.hstack(yank1[:,unit1,:])
 mu2_y1 = np.hstack(yank1[:,unit2,:])
-mu1_y2 = np.hstack(yank2[:,unit1,:])
-mu2_y2 = np.hstack(yank2[:,unit2,:])
+mu1_y2 = np.hstack(yank2[:,unit2,:])
+mu2_y2 = np.hstack(yank2[:,unit1,:])
 
 # get condition-averaged traces for each
 mu1_y1_ave = np.mean(mu1_y1.reshape((len(mu.force_profile),num_trials_to_simulate)),axis=1)
