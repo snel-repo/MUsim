@@ -13,9 +13,10 @@ class MUsim():
         self.sample_rate = 1000 # Hz
         self.init_force_profile = np.linspace(0,5,self.sample_rate)
         self.force_profile = self.init_force_profile
-        self.yank_profile = np.round(self.sample_rate*np.diff(self.force_profile),decimals=12)
+        self.yank_profile = np.round(self.sample_rate*np.diff(self.force_profile),decimals=10)
         # repeat last yank_profile value to make same length as force_profile
-        self.yank_profile = np.append(self.yank_profile,self.yank_profile[-1]) 
+        self.yank_profile = np.append(self.yank_profile,self.yank_profile[-1])
+        self.yank_flip_thresh = 10 # controls when the order flips 
         self.spike_prob = 0.08 # set to achieve ~50hz (for typical MU rates)
         self.threshmax = 7
         self.threshmin = 1
@@ -31,10 +32,15 @@ class MUsim():
             MUthresholds_gen = np.clip((np.round(threshmax*abs(np.random.randn(self.num_units)/2),decimals=4)),threshmin,threshmax)
             MUthresholds = np.repeat(MUthresholds_gen,len(self.force_profile)).reshape(len(MUthresholds_gen),len(self.force_profile)).T
         else:
-            MUthresholds_orig = self.MUthreshold_memory.T
+            MUthresholds_orig = self.MUthreshold_original
             MUthresholds_flip = -(MUthresholds_orig-threshmax-threshmin) # values flip within range
-            # weighted average, adjust dominance of normal vs. flip values
-            MUthresholds = ((MUthresholds_orig+(MUthresholds_flip*self.yank_profile))/self.yank_profile).T 
+            MUthresholds = np.nan*np.zeros(MUthresholds_orig.shape) # place holder
+
+            yank_mat = np.repeat(self.yank_profile,self.num_units).reshape(len(self.yank_profile),self.num_units)
+            yank_flip_idxs = np.where(yank_mat>=self.yank_flip_thresh)
+            yank_no_flip_idxs = np.where(yank_mat<self.yank_flip_thresh)
+            MUthresholds[yank_flip_idxs] = MUthresholds_flip[yank_flip_idxs] # set flips
+            MUthresholds[yank_no_flip_idxs] = MUthresholds_orig[yank_no_flip_idxs] # set original values
         return MUthresholds
 
     def recruit(self,MUmode="traditional"):
@@ -67,9 +73,9 @@ class MUsim():
             spike_sorted_cols = self.units[0].argsort()
             self.units[0] = units[0][spike_sorted_cols]
         elif MUmode is "dynamic":
-            spike_sorted_cols = self.units[0].mean(axis=0).argsort()[::-1]
+            spike_sorted_cols = self.units[0].mean(axis=0).argsort()
             self.units[0] = units[0][:,spike_sorted_cols]
-            self.MUthreshold_memory = self.units[0]
+            self.MUthreshold_original = self.units[0] # save original
         self.units[1] = units[1][:,spike_sorted_cols]
         self.MUmode = MUmode # record the last recruitment mode
         return units
@@ -115,7 +121,6 @@ class MUsim():
             self.yank_profile = np.append(self.yank_profile,self.yank_profile[-1]) # repeat yank_profile[-1] value            
             MUthresholds = self.get_dynamic_thresholds(self.threshmax,self.threshmin)
             thresholded_forces = all_forces - MUthresholds
-            self.units[1] = self.set_spiking_probability(thresholded_forces)
             self.units[0] = MUthresholds
 
         # subtract each respective threshold to get unique response

@@ -130,7 +130,7 @@ else:
 
 # %% APPLY NEW FORCE
 mu_test.reset_force()
-new_force = 1.25*(mu_test.init_force_profile)
+new_force = 2*(mu_test.init_force_profile)
 mu_test.apply_new_force(new_force)
 spikes = mu_test.simulate_trial()
 # plt.imshow(spikes.T,aspect=len(mu_test.force_profile)/mu_test.num_units)
