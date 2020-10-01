@@ -9,7 +9,9 @@ class MUsim():
     def __init__(self):
         self.MUmode="static" # "static" for size-principle obediance, "dynamic" for yank-dependent thresholds
         self.units = [[],[]]
+        self.spikes = []
         self.num_units = 10
+        self.num_trials = 1
         self.sample_rate = 1000 # Hz
         self.init_force_profile = np.linspace(0,5,self.sample_rate)
         self.force_profile = self.init_force_profile
@@ -91,13 +93,12 @@ class MUsim():
         try:
             selection = np.random.random(unit_response_curves.shape)
             spike_idxs = np.where(selection>unit_response_curves)
-            spikes = np.zeros(unit_response_curves.shape)
-            spikes[spike_idxs] = 1 # assign spikes
+            self.spikes.append(np.zeros(unit_response_curves.shape))
+            self.spikes[-1][spike_idxs] = 1 # assign spikes
         except:
             if len(self.units[0])==0:
                 raise Exception("unit response curve empty. run '.recruit()' method to define motor units.")
-        self.spikes = spikes
-        return self.spikes
+        return self.spikes[-1]
 
     def simulate_session(self,trials=50):
         # NEED TO ADD ABILITY TO SAVE SESSIONS, (e.g., sess1,sess2)
@@ -105,6 +106,7 @@ class MUsim():
         self.session = np.zeros(data_shape)
         for iTrial in range(trials):
             self.session[:,:,iTrial] = self.simulate_trial()
+        self.num_trials = trials
         return self.session
 
     def apply_new_force(self,input_force_profile):
@@ -145,38 +147,55 @@ class MUsim():
                     self.smooth_session[:,iUnit,iTrial] = gaussian_filter1d(self.session[:,iUnit,iTrial],sigma)
             return self.smooth_session
 
-    def vis(self,target='curves',legend=False):
+    def vis(self,target='curves',legend=True,unit=0,trial=0):
         """
         target string inputs available for visualization:
             - 'curves': for the current MU response curves to the last force_profile
             - 'spikes': for the spike outputs from the last force response simulation
             - 'smooth': for the convolved outputs from the last force response simulation
+            - 'unit': for visulizing selected unit activations across all trials
         """
         if target is 'curves':
             # plot unit response curves 
             plt.rcParams["axes.prop_cycle"] = plt.cycler("color", plt.cm.jet(np.linspace(0,1,self.num_units)))
             plt.plot(self.units[1])
+            if self.num_units>15: # prevent chart overflow
+                legend=False
             if legend:
                 if self.MUmode is "static":
                     plt.legend(self.units[0],title='thresholds')
                 elif self.MUmode is "dynamic":
                     plt.legend(self.units[0].mean(axis=0).round(decimals=4),title='thresholds')
             plt.title("randomly generated unit response curves")
+            plt.xlabel("time (ms)")
+            plt.ylabel("probability of no spikes")
             plt.show()
         elif target is 'spikes':
             plt.rcParams["axes.prop_cycle"] = plt.cycler("color", plt.cm.jet(np.linspace(0,1,self.num_units)))
             for ii in range(self.num_units):
-                plt.plot(self.spikes[:,ii]-ii)
-            plt.title("spikes present across population")
-            rates = np.sum(self.spikes,axis=0)/len(self.force_profile)*self.sample_rate
+                plt.plot(self.spikes[trial][:,ii]-ii)
+            plt.title("spikes present across population during trial #"+str(trial))
+            rates = np.sum(self.spikes[trial],axis=0)/len(self.force_profile)*self.sample_rate
             plt.xlabel("spikes present over time (ms)")
             plt.ylabel("motor unit activities sorted by threshold")
+            if self.num_units>15: # prevent chart overflow
+                legend=False
             if legend: plt.legend(rates,title="rate (Hz)",loc="lower left")
             plt.show()
         elif target is 'smooth':
             for ii in range(self.num_units):
                 try:
-                    plt.plot(self.smooth_spikes[:,ii]-ii)
+                    plt.plot(self.smooth_spikes[:,ii]-ii/10)
                 except:
-                    plt.plot(self.smooth_session[:,ii,0]-ii)
+                    plt.plot(self.smooth_session[:,ii,0]-ii/10)
                 plt.title("smoothed spikes present across population")
+                plt.xlabel("time (ms)")
+                plt.ylabel("activation level (smoothed spikes)")                
+            plt.show()
+        elif target is 'unit':
+            plt.plot(self.smooth_session[:,unit,:],color='skyblue',alpha=.2)
+            plt.plot(np.mean(self.smooth_session[:,unit,:],axis=1),color='darkblue')
+            plt.title("smoothed rates for unit #"+str(unit)+" across "+str(self.num_trials)+" trials")
+            plt.xlabel("time (ms)")
+            plt.ylabel("activation level (smoothed spikes)")
+            plt.show()
