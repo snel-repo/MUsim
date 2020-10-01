@@ -2,6 +2,7 @@
 import numpy as np
 import scipy.stats
 from sklearn.decomposition import PCA
+from sklearn.preprocessing import StandardScaler
 import matplotlib.pyplot as plt
 import plotly.express as px
 import plotly.graph_objects as go
@@ -30,14 +31,14 @@ def get_confidence(normalized_KDE_densities,confidence_value):
 # %% SIMULATE MOTOR UNIT RESPONSES TO YANK 1 AND YANK 2
 ########################################################
 # Define Simulation Parameters 
-num_trials_to_simulate = 50
+num_trials_to_simulate = 25
 num_units_to_simulate = 10
 gaussian_bw = 40            # choose smoothing bandwidth
 yankval1 = 1; yankval2 = 3  # choose yank to analyze
 ########################################################
 mu = MUsim()            # INSTANTIATE SIMULATION OBJECT
 mu.num_units = num_units_to_simulate
-units = mu.recruit(MUmode='dynamic')    # RECRUIT
+units = mu.recruit(MUmode='static')    # RECRUIT
 force_profile = yankval1*mu.force_profile # APPLY FORCE PROFILE (NON-DEFAULT)
 mu.apply_new_force(force_profile)
 session1 = mu.simulate_session(num_trials_to_simulate) # APPLY DEFAULT FORCE PROFILE
@@ -54,6 +55,10 @@ yank1_stack = np.hstack(yank1)
 yank2_stack = np.hstack(yank2)
 yank12_stack = np.hstack((yank1_stack,yank2_stack)).T
 
+# standardize all unit activities
+scaler = StandardScaler()
+yank12_stack = StandardScaler().fit_transform(yank12_stack)
+
 # run for all components to see VAF
 num_comp_test = 10
 pca = PCA(n_components=num_comp_test)
@@ -62,9 +67,9 @@ print("explained variance: "+str(fit.explained_variance_ratio_))
 plt.scatter(range(num_comp_test),fit.explained_variance_ratio_)
 plt.plot(np.cumsum(fit.explained_variance_ratio_),c='darkorange')
 plt.hlines(0.7,0,num_comp_test,colors='k',linestyles="dashed")
-plt.title("explained variance for each additional unit")
+plt.title("explained variance for each additional PC")
 plt.legend(["cumulative","individual"])
-plt.xlabel("units")
+plt.xlabel("principal components")
 
 # run for only 2 components, that capture most variance
 num_comp_proj = 2
@@ -86,18 +91,20 @@ proj12_y2_ave_x = proj12_y2[:,0].reshape((len(force_profile),num_trials_to_simul
 proj12_y2_ave_y = proj12_y2[:,1].reshape((len(force_profile),num_trials_to_simulate)).mean(axis=1)
 
 ## Format data vectors into D x N shape
-proj12_y12 = np.hstack((proj12_y1,proj12_y2))
+proj12_y12 = np.vstack((proj12_y1,proj12_y2))
 
 # get mins, maxes for both datasets
-x_both_min, y_both_min = proj12_y12[(0,2),:].min(), proj12_y12[(1,3),:].min()
-x_both_max, y_both_max = proj12_y12[(0,2),:].max(), proj12_y12[(1,3),:].max()
+x_both_min, y_both_min = proj12_y12[:,0].min(), proj12_y12[:,1].min()
+x_both_max, y_both_max = proj12_y12[:,0].max(), proj12_y12[:,1].max()
 
 # %% GET KDE OBJECTS, fit on each matrix
 kde10 = scipy.stats.gaussian_kde(proj12_y1.T)
 kde20 = scipy.stats.gaussian_kde(proj12_y2.T)
 
 # Evaluate kde on a grid
-xi, yi = np.mgrid[x_both_min:x_both_max:100j, y_both_min:y_both_max:100j]
+grid_margin = 20 # percent
+gm_coef = (grid_margin/100)+1 # grid margin coefficient to extend grid beyond all edges
+xi, yi = np.mgrid[(gm_coef*x_both_min):(gm_coef*x_both_max):100j, (gm_coef*y_both_min):(gm_coef*y_both_max):100j]
 coords = np.vstack([item.ravel() for item in [xi, yi]]) 
 density_y1 = kde10(coords).reshape(xi.shape)
 density_y2 = kde20(coords).reshape(xi.shape)
