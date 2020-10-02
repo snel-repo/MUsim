@@ -34,7 +34,10 @@ def get_confidence(normalized_KDE_densities,confidence_value):
 num_trials_to_simulate = 25
 num_units_to_simulate = 10
 gaussian_bw = 40            # choose smoothing bandwidth
-yankval1 = 1; yankval2 = 3  # choose yank to analyze
+yankval1 = 1; yankval2 = 1  # choose yank to analyze
+# want to shuffle the second session's thresholds?
+# if not, set False below
+shuffle_second_MU_thresholds=True
 ########################################################
 mu = MUsim()            # INSTANTIATE SIMULATION OBJECT
 mu.num_units = num_units_to_simulate
@@ -53,6 +56,8 @@ yank2 = mu.convolve(gaussian_bw, target="session") # SMOOTH SPIKES FOR SESSION 2
 # %% COMPUTE PCA OBJECT on all MU data
 yank1_stack = np.hstack(yank1)
 yank2_stack = np.hstack(yank2)
+if shuffle_second_MU_thresholds is True:
+    np.random.shuffle(yank2_stack) #shuffle in place
 yank12_stack = np.hstack((yank1_stack,yank2_stack)).T
 
 # standardize all unit activities
@@ -98,19 +103,19 @@ x_both_min, y_both_min = proj12_y12[:,0].min(), proj12_y12[:,1].min()
 x_both_max, y_both_max = proj12_y12[:,0].max(), proj12_y12[:,1].max()
 
 # %% GET KDE OBJECTS, fit on each matrix
-kde10 = scipy.stats.gaussian_kde(proj12_y1.T)
-kde20 = scipy.stats.gaussian_kde(proj12_y2.T)
+kde1 = scipy.stats.gaussian_kde(proj12_y1.T)
+kde2 = scipy.stats.gaussian_kde(proj12_y2.T)
 
 # Evaluate kde on a grid
 grid_margin = 20 # percent
 gm_coef = (grid_margin/100)+1 # grid margin coefficient to extend grid beyond all edges
 xi, yi = np.mgrid[(gm_coef*x_both_min):(gm_coef*x_both_max):100j, (gm_coef*y_both_min):(gm_coef*y_both_max):100j]
 coords = np.vstack([item.ravel() for item in [xi, yi]]) 
-density_y1 = kde10(coords).reshape(xi.shape)
-density_y2 = kde20(coords).reshape(xi.shape)
+density_y1 = kde1(coords).reshape(xi.shape)
+density_y2 = kde2(coords).reshape(xi.shape)
 
-density_y1_pts = kde10(proj12_y1.T)
-density_y2_pts = kde20(proj12_y2.T)
+density_y1_pts = kde1(proj12_y1.T)
+density_y2_pts = kde2(proj12_y2.T)
 
 # normalize these to get probabilities
 d_y1_norm = density_y1/np.sum(density_y1)
@@ -193,10 +198,10 @@ figCI10 = px.imshow(CI_10.T,title="Yank="+str(yankval1)+", 95% CI",width=500,hei
 figCI20 = px.imshow(CI_20.T,title="Yank="+str(yankval2)+", 95% CI",width=500,height=500,origin='lower')
 figCI10.show(); figCI20.show()
 # %%
-O_10in20 = np.sum(CI_20*d_y1_norm)
-O_20in10 = np.sum(CI_10*d_y2_norm)
+O_1in2 = np.sum(CI_20*d_y1_norm)
+O_2in1 = np.sum(CI_10*d_y2_norm)
 
-fig_O_10in20 = px.imshow((CI_20*d_y1_norm).T,title="Yank="+str(yankval1)+" density inside 95%CI of Yank="+str(yankval2)+": "+str(np.round(O_10in20,decimals=4)),width=500,height=500,origin='lower')
-fig_O_20in10 = px.imshow((CI_10*d_y2_norm).T,title="Yank="+str(yankval2)+" density inside 95%CI of Yank="+str(yankval1)+": "+str(np.round(O_20in10,decimals=4)),width=500,height=500,origin='lower')
-fig_O_10in20.show(); fig_O_20in10.show()
+fig_O_1in2 = px.imshow((CI_20*d_y1_norm).T,title="Yank="+str(yankval1)+" density inside 95%CI of Yank="+str(yankval2)+": "+str(np.round(O_1in2,decimals=4)),width=500,height=500,origin='lower')
+fig_O_2in1 = px.imshow((CI_10*d_y2_norm).T,title="Yank="+str(yankval2)+" density inside 95%CI of Yank="+str(yankval1)+": "+str(np.round(O_2in1,decimals=4)),width=500,height=500,origin='lower')
+fig_O_1in2.show(); fig_O_2in1.show()
 # %% 
