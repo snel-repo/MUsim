@@ -121,17 +121,17 @@ while len(overlap_results)<=9:
     overlap_results.append(np.hstack((O_1in2,O_2in1)))
     print("loop: "+str(len(overlap_results))+". Results are: "+str(overlap_results[-1]))
 
-# %%
 overlap_results = np.vstack(overlap_results)
 
 import plotly.express as px
 px.line(overlap_results)
 # %%
  # saving:
-f = open("overlap_y1-y3-stat-noshuff.txt", "w")
+f = open("overlap_y1-y3-dyn-noshuff.txt", "w")
 f.write("#           OneInTwo            TwoInOne\n")        # column names
 np.savetxt(f, overlap_results)
 f.close()
 # %% loading:
-loaded_overlap_data = np.loadtxt("data.txt")
+stat_noshuf = np.loadtxt("overlap_y1-y3-stat-noshuff.txt")
+stat_shuf = np.loadtxt("overlap_y1-y3-stat-shuff.txt")
 # %%

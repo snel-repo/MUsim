@@ -43,7 +43,7 @@ yankval1 = 1; yankval2 = 3    # choose yank to analyze
 ########################################################
 mu = MUsim()            # INSTANTIATE SIMULATION OBJECT
 mu.num_units = num_units_to_simulate
-units = mu.recruit(MUmode='static')    # RECRUIT
+units = mu.recruit(MUmode='dynamic')    # RECRUIT
 force_profile = yankval1*mu.force_profile # APPLY FORCE PROFILE (NON-DEFAULT)
 mu.apply_new_force(force_profile)
 session1 = mu.simulate_session(num_trials_to_simulate) # APPLY DEFAULT FORCE PROFILE
@@ -151,8 +151,8 @@ fig.update_yaxes(
     scaleratio = 1,
   )
 fig.update_layout(
-    legend=dict(title="Force Profiles:"),
-    title="Simulated trajectories in 2-unit State Space",
+    legend=dict(title="force profiles:"),
+    title="simulated trajectories in 2-unit state-space",
     xaxis=dict(title=dict(text="'small' unit")),
     yaxis=dict(title=dict(text="'large' unit")),
     width=600,

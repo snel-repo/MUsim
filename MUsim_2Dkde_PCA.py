@@ -31,13 +31,13 @@ def get_confidence(normalized_KDE_densities,confidence_value):
 # %% SIMULATE MOTOR UNIT RESPONSES TO YANK 1 AND YANK 2
 ########################################################
 # Define Simulation Parameters 
-num_trials_to_simulate = 25
+num_trials_to_simulate = 20
 num_units_to_simulate = 10
 gaussian_bw = 40            # choose smoothing bandwidth
-yankval1 = 1; yankval2 = 1  # choose yank to analyze
+yankval1 = 1; yankval2 = 3  # choose yank to analyze
 # want to shuffle the second session's thresholds?
 # if not, set False below
-shuffle_second_MU_thresholds=True
+shuffle_second_MU_thresholds=False
 ########################################################
 mu = MUsim()            # INSTANTIATE SIMULATION OBJECT
 mu.num_units = num_units_to_simulate
@@ -47,7 +47,7 @@ mu.apply_new_force(force_profile)
 session1 = mu.simulate_session(num_trials_to_simulate) # APPLY DEFAULT FORCE PROFILE
 yank1 = mu.convolve(gaussian_bw, target="session") # SMOOTH SPIKES FOR SESSION 1
 
-mu.reset_force() # RESET FORCE BACK TO DEFAULT
+mu.reset_force() # RESET FORCE PROFILE BACK TO DEFAULT
 force_profile = yankval2*mu.force_profile # APPLY FORCE PROFILE (NON-DEFAULT)
 mu.apply_new_force(force_profile)
 session2 = mu.simulate_session(num_trials_to_simulate)

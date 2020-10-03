@@ -10,6 +10,8 @@ class MUsim():
         self.MUmode="static" # "static" for size-principle obediance, "dynamic" for yank-dependent thresholds
         self.units = [[],[]]
         self.spikes = []
+        # self.smooth_spikes = []
+        # self.smooth_session = []
         self.num_units = 10
         self.num_trials = 1
         self.sample_rate = 1000 # Hz
@@ -125,7 +127,6 @@ class MUsim():
             thresholded_forces = all_forces - MUthresholds
             self.units[0] = MUthresholds
 
-        # subtract each respective threshold to get unique response
         self.units[1] = self.set_spiking_probability(thresholded_forces)
         self.force_profile = input_force_profile # set new force profile value
 
@@ -134,9 +135,9 @@ class MUsim():
 
     def convolve(self,sigma=40,target='spikes'): # default smoothing value of 40 bins
         if target is 'spikes':
-            self.smooth_spikes = np.zeros(self.spikes.shape)
+            self.smooth_spikes = np.zeros(self.spikes[-1].shape)
             for iUnit in range(self.num_units):
-               self.smooth_spikes[:,iUnit] = gaussian_filter1d(self.spikes[:,iUnit],sigma)
+               self.smooth_spikes[:,iUnit] = gaussian_filter1d(self.spikes[-1][:,iUnit],sigma)
             return self.smooth_spikes
         elif target is 'session':
             trials = self.session.shape[2]
@@ -173,24 +174,26 @@ class MUsim():
         elif target is 'spikes':
             plt.rcParams["axes.prop_cycle"] = plt.cycler("color", plt.cm.jet(np.linspace(0,1,self.num_units)))
             for ii in range(self.num_units):
-                plt.plot(self.spikes[trial][:,ii]-ii)
-            plt.title("spikes present across population during trial #"+str(trial))
-            rates = np.sum(self.spikes[trial],axis=0)/len(self.force_profile)*self.sample_rate
+                plt.plot(self.spikes[-1][:,ii]-ii)
+            plt.title("spikes present across population during trial")
+            rates = np.sum(self.spikes[-1],axis=0)/len(self.force_profile)*self.sample_rate
             plt.xlabel("spikes present over time (ms)")
             plt.ylabel("motor unit activities sorted by threshold")
             if self.num_units>15: # prevent chart overflow
                 legend=False
             if legend: plt.legend(rates,title="rate (Hz)",loc="lower left")
+            plt.tick_params(labelleft=False)
             plt.show()
         elif target is 'smooth':
             for ii in range(self.num_units):
                 try:
-                    plt.plot(self.smooth_spikes[:,ii]-ii/10)
+                    plt.plot(self.smooth_session[:,ii,trial]-ii/10)
                 except:
-                    plt.plot(self.smooth_session[:,ii,0]-ii/10)
-                plt.title("smoothed spikes present across population")
-                plt.xlabel("time (ms)")
-                plt.ylabel("activation level (smoothed spikes)")                
+                    plt.plot(self.smooth_spikes[:,ii]-ii/10)
+            plt.title("smoothed spikes present across population during trial")
+            plt.xlabel("time (ms)")
+            plt.ylabel("activation level (smoothed spikes)")
+            plt.tick_params(labelleft=False)
             plt.show()
         elif target is 'unit':
             plt.plot(self.smooth_session[:,unit,:],color='skyblue',alpha=.2)
