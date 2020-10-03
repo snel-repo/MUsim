@@ -1,8 +1,6 @@
 # %% IMPORT packages
 import numpy as np
 from scipy.stats import gaussian_kde
-from sklearn.decomposition import PCA
-from sklearn.preprocessing import StandardScaler
 import matplotlib.pyplot as plt
 import plotly.express as px
 import plotly.graph_objects as go
@@ -28,12 +26,13 @@ def get_confidence(normalized_KDE_densities,confidence_value):
     CI = bit_mask
     return CI
 
-# %% SIMULATE MOTOR UNIT RESPONSES TO SESSION 1 AND SESSION 2
+# %% SIMULATE MOTOR UNIT RESPONSES TO PROFILE 1 AND PROFILE 2
 ########################################################
 # Define Simulation Parameters 
 num_trials_to_simulate = 20
 num_units_to_simulate = 10
 gaussian_bw = 40                # choose smoothing bandwidth
+unit1 = 0; unit2 = -1           # choose units to analyze
 maxforce1 = 5; maxforce2 = 15   # choose max force to analyze, default is 5
 # want to shuffle the second session's thresholds?
 # if not, set False below
@@ -47,91 +46,66 @@ mu.apply_new_force(force_profile)
 session1 = mu.simulate_session(num_trials_to_simulate) # APPLY DEFAULT FORCE PROFILE
 session1_smooth = mu.convolve(gaussian_bw, target="session") # SMOOTH SPIKES FOR SESSION 1
 
-mu.reset_force() # RESET FORCE PROFILE BACK TO DEFAULT
+mu.reset_force() # RESET FORCE BACK TO DEFAULT
 force_profile = maxforce2/mu.init_force_profile.max()*mu.force_profile # APPLY LINEAR FORCE PROFILE (NON-DEFAULT)
 mu.apply_new_force(force_profile)
 session2 = mu.simulate_session(num_trials_to_simulate)
 session2_smooth = mu.convolve(gaussian_bw, target="session") # SMOOTH SPIKES FOR SESSION 2
-
-# %% COMPUTE PCA OBJECT on all MU data
+# %% COMPUTE UNIT DATA MATRICES
+# Get 2 aligned channels of data
 session1_smooth_stack = np.hstack(session1_smooth)
 session2_smooth_stack = np.hstack(session2_smooth)
 if shuffle_second_MU_thresholds is True:
     np.random.shuffle(session2_smooth_stack) #shuffle in place
-session12_smooth_stack = np.hstack((session1_smooth_stack,session2_smooth_stack)).T
 
-# standardize all unit activities
-scaler = StandardScaler()
-session12_smooth_stack = StandardScaler().fit_transform(session12_smooth_stack)
-
-# run for top 10 components to see VAF development
-num_comp_test = 10
-pca = PCA(n_components=num_comp_test)
-fit = pca.fit(session12_smooth_stack)
-print("explained variance: "+str(fit.explained_variance_ratio_*100))
-plt.scatter(range(num_comp_test),fit.explained_variance_ratio_*100)
-plt.plot(np.cumsum(fit.explained_variance_ratio_*100),c='darkorange')
-plt.hlines(70,0,num_comp_test,colors='k',linestyles="dashed") # show 70% VAF line
-plt.title("explained variance for each additional PC")
-plt.legend(["cumulative","individual","70% e.v."])
-plt.xlabel("principal components")
-plt.ylabel("explained variance (% e.v.)")
-plt.show()
-
-# run for only 2 components, that capture most variance
-num_comp_proj = 2
-pca = PCA(n_components=num_comp_proj)
-fit = pca.fit(session12_smooth_stack)
-
-# %% PROJECT FROM FIT
-proj12_y1 = pca.transform(session1_smooth_stack.T)
-proj12_y2 = pca.transform(session2_smooth_stack.T)
-# %% COMPUTE TRIAL AVERAGES
-# reshape into trials
-proj12_y1_trials = proj12_y1.T.reshape((len(force_profile),num_comp_proj,num_trials_to_simulate))
-proj12_y2_trials = proj12_y2.T.reshape((len(force_profile),num_comp_proj,num_trials_to_simulate))
+mu1_session1 = session1_smooth_stack[unit1,:]
+mu2_session1 = session1_smooth_stack[unit2,:]
+mu1_session2 = session2_smooth_stack[unit1,:]
+mu2_session2 = session2_smooth_stack[unit2,:]
 
 # get condition-averages for each
-proj12_y1_ave_x = proj12_y1[:,0].reshape((len(force_profile),num_trials_to_simulate)).mean(axis=1)
-proj12_y1_ave_y = proj12_y1[:,1].reshape((len(force_profile),num_trials_to_simulate)).mean(axis=1)
-proj12_y2_ave_x = proj12_y2[:,0].reshape((len(force_profile),num_trials_to_simulate)).mean(axis=1)
-proj12_y2_ave_y = proj12_y2[:,1].reshape((len(force_profile),num_trials_to_simulate)).mean(axis=1)
+mu1_session1_ave = mu1_session1.reshape((len(mu.force_profile),num_trials_to_simulate)).mean(axis=1)
+mu2_session1_ave = mu2_session1.reshape((len(mu.force_profile),num_trials_to_simulate)).mean(axis=1)
+mu1_session2_ave = mu1_session2.reshape((len(mu.force_profile),num_trials_to_simulate)).mean(axis=1)
+mu2_session2_ave = mu2_session2.reshape((len(mu.force_profile),num_trials_to_simulate)).mean(axis=1)
 
 ## Format data vectors into D x N shape
-proj12_y12 = np.vstack((proj12_y1,proj12_y2))
-
-# get mins, maxes for both datasets
-x_both_min, y_both_min = proj12_y12[:,0].min(), proj12_y12[:,1].min()
-x_both_max, y_both_max = proj12_y12[:,0].max(), proj12_y12[:,1].max()
+mu12_session1 = np.vstack([mu1_session1,mu2_session1])
+mu12_session2 = np.vstack([mu1_session2,mu2_session2])
+mu12_session12 = np.hstack((mu12_session1,mu12_session2))
 
 # %% GET KDE OBJECTS, fit on each matrix
-kde1 = gaussian_kde(proj12_y1.T)
-kde2 = gaussian_kde(proj12_y2.T)
+kde10 = gaussian_kde(mu12_session1)
+kde20 = gaussian_kde(mu12_session2)
+
+# get mins, maxes for both datasets
+x_both_min, y_both_min = mu12_session12[0,:].min(), mu12_session12[1,:].min()
+x_both_max, y_both_max = mu12_session12[0,:].max(), mu12_session12[1,:].max()
 
 # Evaluate kde on a grid
 grid_margin = 20 # percent
 gm_coef = (grid_margin/100)+1 # grid margin coefficient to extend grid beyond all edges
 xi, yi = np.mgrid[(gm_coef*x_both_min):(gm_coef*x_both_max):100j, (gm_coef*y_both_min):(gm_coef*y_both_max):100j]
 coords = np.vstack([item.ravel() for item in [xi, yi]]) 
-density_y1 = kde1(coords).reshape(xi.shape)
-density_y2 = kde2(coords).reshape(xi.shape)
+density_session1 = kde10(coords).reshape(xi.shape)
+density_session2 = kde20(coords).reshape(xi.shape)
 
-density_y1_pts = kde1(proj12_y1.T)
-density_y2_pts = kde2(proj12_y2.T)
+density_session1_pts = kde10(mu12_session1)
+density_session2_pts = kde20(mu12_session2)
 
 # normalize these to get probabilities
-d_y1_norm = density_y1/np.sum(density_y1)
-d_y2_norm = density_y2/np.sum(density_y2)
+d_session1_norm = density_session1/np.sum(density_session1)
+d_session2_norm = density_session2/np.sum(density_session2)
 
-d_y1_norm_pts = density_y1_pts/np.sum(density_y1_pts)
-d_y2_norm_pts = density_y2_pts/np.sum(density_y2_pts)
+d_session1_norm_pts = density_session1_pts/np.sum(density_session1_pts)
+d_session2_norm_pts = density_session2_pts/np.sum(density_session2_pts)
 
 # %% PLOT SIMULATED DATA
 fig = go.Figure()
 # data session 2
 fig.add_trace(go.Scatter(
-    x = proj12_y2[:,0],
-    y = proj12_y2[:,1],
+    x = mu12_session2[0],
+    y = mu12_session2[1],
     mode="markers",
     marker=dict(
         size=.75,
@@ -140,11 +114,10 @@ fig.add_trace(go.Scatter(
         ),
     name = "yank="+str(maxforce2)
 ))
-
 # data session 1
 fig.add_trace(go.Scatter(
-    x = proj12_y1[:,0],
-    y = proj12_y1[:,1],
+    x = mu12_session1[0],
+    y = mu12_session1[1],
     mode="markers",
     marker=dict(
         size=.75,
@@ -155,8 +128,8 @@ fig.add_trace(go.Scatter(
 ))
 # trial average session 2
 fig.add_trace(go.Scatter(
-    x = proj12_y2_ave_x,
-    y = proj12_y2_ave_y,
+    x = mu1_session2_ave,
+    y = mu2_session2_ave,
     mode="lines",
     line=dict(
         width=1,
@@ -166,8 +139,8 @@ fig.add_trace(go.Scatter(
 ))
 # trial average session 1
 fig.add_trace(go.Scatter(
-    x = proj12_y1_ave_x,
-    y = proj12_y1_ave_y,
+    x = mu1_session1_ave,
+    y = mu2_session1_ave,
     mode="lines",
     line=dict(
         width=1,
@@ -181,29 +154,29 @@ fig.update_yaxes(
   )
 fig.update_layout(
     legend=dict(title="linear force profiles:"),
-    title="simulated population trajectories in 2D PCA space",
-    xaxis=dict(title=dict(text="First PC")),
-    yaxis=dict(title=dict(text="Second PC")),
+    title="simulated trajectories in 2-unit state-space",
+    xaxis=dict(title=dict(text="'small' unit")),
+    yaxis=dict(title=dict(text="'large' unit")),
     width=600,
     height=500
 )
 fig.show()
 # %%
-fig10 = px.imshow(d_y1_norm.T,title="2D PDF, yank="+str(maxforce1),width=500,height=500,origin='lower')
-fig20 = px.imshow(d_y2_norm.T,title="2D PDF, yank="+str(maxforce2),width=500,height=500,origin='lower')
+fig10 = px.imshow(d_session1_norm.T,title="2D PDF, yank="+str(maxforce1),width=500,height=500,origin='lower')
+fig20 = px.imshow(d_session2_norm.T,title="2D PDF, yank="+str(maxforce2),width=500,height=500,origin='lower')
 fig10.show(); fig20.show()
 # %%
-CI_10 = get_confidence(d_y1_norm,.95)
-CI_20 = get_confidence(d_y2_norm,.95)
+CI_10 = get_confidence(d_session1_norm,.95)
+CI_20 = get_confidence(d_session2_norm,.95)
 # %% plot Computed CI's for each dataset
 figCI10 = px.imshow(CI_10.T,title="yank="+str(maxforce1)+", 95% CI",width=500,height=500,origin='lower')
 figCI20 = px.imshow(CI_20.T,title="yank="+str(maxforce2)+", 95% CI",width=500,height=500,origin='lower')
 figCI10.show(); figCI20.show()
 # %%
-O_1in2 = np.sum(CI_20*d_y1_norm)
-O_2in1 = np.sum(CI_10*d_y2_norm)
+O_10in20 = np.sum(CI_20*d_session1_norm)
+O_20in10 = np.sum(CI_10*d_session2_norm)
 
-fig_O_1in2 = px.imshow((CI_20*d_y1_norm).T,title="yank="+str(maxforce1)+" density inside 95%CI of yank="+str(maxforce2)+": "+str(np.round(O_1in2,decimals=4)),width=500,height=500,origin='lower')
-fig_O_2in1 = px.imshow((CI_10*d_y2_norm).T,title="yank="+str(maxforce2)+" density inside 95%CI of yank="+str(maxforce1)+": "+str(np.round(O_2in1,decimals=4)),width=500,height=500,origin='lower')
-fig_O_1in2.show(); fig_O_2in1.show()
+fig_O_10in20 = px.imshow((CI_20*d_session1_norm).T,title="yank="+str(maxforce1)+" density inside 95%CI of yank="+str(maxforce2)+": "+str(np.round(O_10in20,decimals=4)),width=500,height=500,origin='lower')
+fig_O_20in10 = px.imshow((CI_10*d_session2_norm).T,title="yank="+str(maxforce2)+" density inside 95%CI of yank="+str(maxforce1)+": "+str(np.round(O_20in10,decimals=4)),width=500,height=500,origin='lower')
+fig_O_10in20.show(); fig_O_20in10.show()
 # %% 

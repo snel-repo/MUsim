@@ -17,9 +17,10 @@ class MUsim():
         self.sample_rate = 1000 # Hz
         self.init_force_profile = np.linspace(0,5,self.sample_rate)
         self.force_profile = self.init_force_profile
-        self.yank_profile = np.round(self.sample_rate*np.diff(self.force_profile),decimals=10)
+        self.init_yank_profile = np.round(self.sample_rate*np.diff(self.force_profile),decimals=10)
         # repeat last yank_profile value to make same length as force_profile
-        self.yank_profile = np.append(self.yank_profile,self.yank_profile[-1])
+        self.init_yank_profile = np.append(self.init_yank_profile,self.init_yank_profile[-1])
+        self.yank_profile = self.init_yank_profile
         self.yank_flip_thresh = 10 # controls when the order flips 
         self.spike_prob = 0.08 # set to achieve ~50hz (for typical MU rates)
         self.threshmax = 7
@@ -202,3 +203,12 @@ class MUsim():
             plt.xlabel("time (ms)")
             plt.ylabel("activation level (smoothed spikes)")
             plt.show()
+        elif target is 'force':
+            plt.plot(self.init_force_profile)
+            plt.plot(self.init_yank_profile)
+            plt.plot(self.force_profile)
+            plt.plot(self.yank_profile)
+            plt.legend(["default force","default yank","current force","current yank"])
+            plt.title("force and yank profiles for simulation")
+            plt.ylabel("simulated force (a.u.)")
+            plt.xlabel("time (ms)")

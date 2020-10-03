@@ -1,9 +1,7 @@
 # %% import
-from MUsim import MUsim
 import numpy as np
-from scipy.special import expit
-from scipy.ndimage import gaussian_filter1d
 import matplotlib.pyplot as plt
+from MUsim import MUsim
 # initialize simulation object, mu_test
 mu_test = MUsim()
 
@@ -79,11 +77,13 @@ plt.show()
 # %% PLOT FORCE PROFILES
 
 plt.plot(mu_test.init_force_profile)
-plt.plot(3*mu_test.init_force_profile)
-plt.title("sample force profiles for the simulations")
-plt.legend(["yank=1","yank=3"])
-plt.ylabel("Simulated Force (a.u.)")
-plt.xlabel("Time (ms)")
+plt.plot(mu_test.init_yank_profile)
+plt.plot(mu_test.force_profile)
+plt.plot(mu_test.yank_profile)
+plt.legend(["default force","default yank","current force","current yank"])
+plt.title("force and yank profiles for simulation")
+plt.ylabel("simulated force (a.u.)")
+plt.xlabel("time (ms)")
 
 # %%
 #######################################################
@@ -91,11 +91,9 @@ plt.xlabel("Time (ms)")
 #  DYNAMIC MODE
 #################
 # %% import
-from MUsim import MUsim
 import numpy as np
-from scipy.special import expit
-from scipy.ndimage import gaussian_filter1d
 import matplotlib.pyplot as plt
+from MUsim import MUsim
 # initialize simulation object, mu_test
 mu_test = MUsim()
 # RECRUIT DYNAMIC UNITS
