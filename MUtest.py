@@ -1,141 +1,112 @@
-# %% import
+# %% IMPORT NECESSARY PACKAGES
 import numpy as np
 import matplotlib.pyplot as plt
 from MUsim import MUsim
-# initialize simulation object, mu_test
-mu_test = MUsim()
-
 #########################################################
 #########################################################
 #########################################################
 # TRADITIONAL MODE (SIZE PRINCIPLE)
-# %% RECRUIT NEW MOTOR UNITS
+# INITIALIZE SIMULATION OBJECT, mu_test_static
+mu_test_static = MUsim()
+# RECRUIT NEW MOTOR UNITS
 num_units = 10
-mu_test.num_units = num_units
-# units = mu_test.recruit(tmax,tmin)
-units = mu_test.recruit()
-plt.hist(units[0],2*num_units)
-plt.title('thresholds across '+str(num_units)+' generated units')
-plt.show()
-# plot unit response curves 
-if num_units<15:
-    mu_test.vis(legend=True)
-else:
-    mu_test.vis()
-# %% SIMULATE MOTOR UNITS FOR TRIAL
-spikes = mu_test.simulate_trial()
-plt.imshow(spikes.T,aspect=len(mu_test.force_profile)/mu_test.num_units)
-plt.colorbar()
-plt.title("spikes from each motor unit")
-plt.xlabel("spikes present over time (ms)")
-plt.ylabel("motor unit activities sorted by threshold")
-plt.show()
+mu_test_static.num_units = num_units
+static_units = mu_test_static.recruit()
+# %% PLOT THRESHOLD DISTRIBUTION, FORCE PROFILE, AND INDIVIDUAL UNIT RESPONSES
+mu_test_static.see('thresholds') # plot binned thresholds across all units
+mu_test_static.see('force') # plot default applied force
+mu_test_static.see() # plot unit response curves 
 
-# %% APPLY NEW FORCE
-new_force = 3*mu_test.init_force_profile
-mu_test.apply_new_force(new_force)
-spikes = mu_test.simulate_trial()
-plt.imshow(spikes.T,aspect=len(mu_test.init_force_profile)/mu_test.num_units)
-plt.colorbar()
-plt.title("spikes from each motor unit")
-plt.xlabel("spikes present over time (ms)")
-plt.ylabel("motor unit activities sorted by threshold")
-plt.show()
-# plot unit response curves 
-mu_test.vis(legend=True)
-# %% PLOT SPIKES AND COUNT
-mu_test.vis('spikes')
+# %% SIMULATE MOTOR UNITS SPIKE RESPONSE TO DEFAULT FORCE
+spikes1 = mu_test_static.simulate_spikes()
+mu_test_static.see('spikes') # plot spike response
 
-# %% CONVOLVE AND PLOT
-smooth = mu_test.convolve()
-mu_test.vis('smooth')
+# %% CONVOLVE AND PLOT SMOOTHED RESPONSE
+smooth = mu_test_static.convolve()
+mu_test_static.see('activity') # plot smoothed spike response
+# %% APPLY NEW FORCE, VIEW RESPONSE
+new_force_profile = 3*mu_test_static.init_force_profile
+mu_test_static.apply_new_force(new_force_profile)
+spikes2 = mu_test_static.simulate_spikes()
+mu_test_static.see('force') # plot new applied force
+mu_test_static.see() # plot unit response curves
+mu_test_static.see('spikes') # plot spike response
+
+# %% CONVOLVE AND PLOT SMOOTHED RESPONSE
+smooth = mu_test_static.convolve()
+mu_test_static.see('activity')
 
 # %% SIMULATE SESSION (MANY TRIALS)
-results = mu_test.simulate_session(100)
-# %% CONVOLVE ENTIRE SESSION
-smooth_results = mu_test.convolve(target='session')
+num_trials_to_simulate = 20
+mu_test_static.num_trials = num_trials_to_simulate
+results = mu_test_static.simulate_session()
+# CONVOLVE ENTIRE SESSION
+smooth_results = mu_test_static.convolve(target='session')
+num_units_to_view = 4
+select_units = np.linspace(0,mu_test_static.num_units-1,num_units_to_view).astype(int)
+mu_test_static.see('unit',unit=select_units[0])
+mu_test_static.see('unit',unit=select_units[1])
+mu_test_static.see('unit',unit=select_units[2])
+mu_test_static.see('unit',unit=select_units[3])
 
-plt.plot(smooth_results[:,0,:],color='blue',alpha=.2)
-plt.plot(np.mean(smooth_results[:,0,:],axis=1),color='k')
-plt.title("'small' unit smoothed rates across 100 trials")
-plt.show()
-
-plt.plot(smooth_results[:,4,:],color='green',alpha=.2)
-plt.plot(np.mean(smooth_results[:,4,:],axis=1),color='k')
-plt.title("'medium' unit smoothed rates across 100 trials")
-plt.show()
-
-plt.plot(smooth_results[:,8,:],color='red',alpha=.2)
-plt.plot(np.mean(smooth_results[:,8,:],axis=1),color='k')
-plt.title("'large' unit smoothed rates across 100 trials")
-plt.show()
-
-plt.plot(smooth_results[:,9,:],color='maroon',alpha=.2)
-plt.plot(np.mean(smooth_results[:,9,:],axis=1),color='k')
-plt.title("'XL' unit smoothed rates across 100 trials")
-plt.show()
-# %% PLOT FORCE PROFILES
-
-plt.plot(mu_test.init_force_profile)
-plt.plot(mu_test.init_yank_profile)
-plt.plot(mu_test.force_profile)
-plt.plot(mu_test.yank_profile)
-plt.legend(["default force","default yank","current force","current yank"])
-plt.title("force and yank profiles for simulation")
-plt.ylabel("simulated force (a.u.)")
-plt.xlabel("time (ms)")
-
-# %%
-#######################################################
-#######################################################
-#  DYNAMIC MODE
-#################
-# %% import
+# %% IMPORT NECESSARY PACKAGES
 import numpy as np
 import matplotlib.pyplot as plt
 from MUsim import MUsim
-# initialize simulation object, mu_test
-mu_test = MUsim()
+#########################################################
+#########################################################
+#########################################################
+# DYNAMIC MODE (THRESHOLD REVERSAL)
+# INITIALIZE SIMULATION OBJECT, mu_test_dyn
+mu_test_dyn = MUsim()
 # RECRUIT DYNAMIC UNITS
 num_units = 10
-mu_test.num_units = num_units
-# units = mu_test.recruit(tmax,tmin)
-units = mu_test.recruit(MUmode="dynamic")
-#%%
-plt.hist(units[0],2*num_units)
-plt.title('thresholds across '+str(num_units)+' generated units')
-plt.show()
-# plot unit response curves 
-if num_units<15:
-    mu_test.vis(legend=True)
-else:
-    mu_test.vis()
+mu_test_dyn.num_units = num_units
+# units = mu_test_dyn.recruit(tmax,tmin)
+dyn_units = mu_test_dyn.recruit(MUmode="dynamic")
+# %% PLOT THRESHOLD DISTRIBUTION, FORCE PROFILE, AND INDIVIDUAL UNIT RESPONSES
+mu_test_dyn.see('thresholds') # plot binned thresholds across all units
+mu_test_dyn.see('force') # plot default applied force
+mu_test_dyn.see() # plot unit response curves 
 
-# %% APPLY NEW FORCE
-mu_test.reset_force()
-new_force = 1*(mu_test.init_force_profile)
-mu_test.apply_new_force(new_force)
-spikes = mu_test.simulate_trial()
-# plt.imshow(spikes.T,aspect=len(mu_test.force_profile)/mu_test.num_units)
-# plt.colorbar()
-# plt.title("spikes from each motor unit")
-# plt.xlabel("spikes present over time (ms)")
-# plt.ylabel("motor unit activities sorted by threshold")
-# plt.show()
+# %% SIMULATE MOTOR UNITS SPIKE RESPONSE TO DEFAULT FORCE
+spikes1 = mu_test_dyn.simulate_spikes()
+mu_test_dyn.see('spikes') # plot spike response
 
-# plot unit response curves 
-mu_test.vis(legend=True)
-mu_test.vis('spikes')
-# %% PLOT SPIKES AND COUNT
-plt.rcParams["axes.prop_cycle"] = plt.cycler("color", plt.cm.jet(np.linspace(0,1,num_units)))
-for ii in range(mu_test.num_units):
-    plt.plot(mu_test.spikes[:,ii]-ii)
+# %% CONVOLVE AND PLOT SMOOTHED RESPONSE
+smooth = mu_test_dyn.convolve()
+mu_test_dyn.see('activity') # plot smoothed spike response
+# %% APPLY NEW FORCE, VIEW RESPONSE
+new_force_profile = 3*(mu_test_dyn.init_force_profile)
+mu_test_dyn.apply_new_force(new_force_profile)
+spikes2 = mu_test_dyn.simulate_spikes()
+mu_test_dyn.see('force') # plot new applied force
+mu_test_dyn.see() # plot unit response curves
+mu_test_dyn.see('spikes') # plot spike response
 
-plt.title("spikes present across population")
-rates = np.sum(mu_test.spikes,axis=0)/len(mu_test.force_profile)*mu_test.sample_rate
-plt.xlabel("spikes present over time (ms)")
-plt.ylabel("motor unit activities sorted by threshold")
-plt.legend(rates,title="rate (Hz)",loc="lower left")
-plt.show()
+# %% APPLY NON-LINEAR FORCE, VIEW RESPONSE
+new_force_profile = -3*np.cos(mu_test_dyn.init_force_profile)
+mu_test_dyn.apply_new_force(new_force_profile)
+spikes2 = mu_test_dyn.simulate_spikes()
+mu_test_dyn.see('force') # plot new applied force
+mu_test_dyn.see() # plot unit response curves
+mu_test_dyn.see('spikes') # plot spike response
+
+# %% CONVOLVE AND PLOT SMOOTHED RESPONSE
+smooth = mu_test_dyn.convolve()
+mu_test_dyn.see('activity')
+
+# %% SIMULATE SESSION (MANY TRIALS)
+num_trials_to_simulate = 20
+mu_test_dyn.num_trials = num_trials_to_simulate
+results = mu_test_dyn.simulate_session()
+# CONVOLVE ENTIRE SESSION
+smooth_results = mu_test_dyn.convolve(target='session')
+num_units_to_view = 4
+select_units = np.linspace(0,mu_test_dyn.num_units-1,num_units_to_view).astype(int)
+mu_test_dyn.see('unit',unit=select_units[0])
+mu_test_dyn.see('unit',unit=select_units[1])
+mu_test_dyn.see('unit',unit=select_units[2])
+mu_test_dyn.see('unit',unit=select_units[3])
 
 # %%

@@ -37,20 +37,24 @@ maxforce1 = 5; maxforce2 = 15   # choose max force to analyze, default is 5
 # want to shuffle the second session's thresholds?
 # if not, set False below
 shuffle_second_MU_thresholds=False
-########################################################
-mu = MUsim()            # INSTANTIATE SIMULATION OBJECT
-mu.num_units = num_units_to_simulate
-units = mu.recruit(MUmode='static')    # RECRUIT
-force_profile = maxforce1/mu.init_force_profile.max()*mu.force_profile # APPLY LINEAR FORCE PROFILE (NON-DEFAULT)
-mu.apply_new_force(force_profile)
-session1 = mu.simulate_session(num_trials_to_simulate) # APPLY DEFAULT FORCE PROFILE
-session1_smooth = mu.convolve(gaussian_bw, target="session") # SMOOTH SPIKES FOR SESSION 1
-
-mu.reset_force() # RESET FORCE BACK TO DEFAULT
-force_profile = maxforce2/mu.init_force_profile.max()*mu.force_profile # APPLY LINEAR FORCE PROFILE (NON-DEFAULT)
-mu.apply_new_force(force_profile)
-session2 = mu.simulate_session(num_trials_to_simulate)
-session2_smooth = mu.convolve(gaussian_bw, target="session") # SMOOTH SPIKES FOR SESSION 2
+#############################################################################################
+# RUN 2 DIFFERENT SESSIONS
+mu = MUsim()                            # INSTANTIATE SIMULATION OBJECT
+mu.num_units = num_units_to_simulate    # SET NUMBER OF UNITS TO SIMULATE
+mu.num_trials = num_trials_to_simulate  # SET NUMBER OF TRIALS TO SIMULATE
+units = mu.recruit(MUmode='static')     # RECRUIT
+# FIRST SESSION
+force_profile = maxforce1/mu.init_force_profile.max()*mu.force_profile  # SCALE DEFAULT FORCE
+mu.apply_new_force(force_profile)       # SET SCALED LINEAR FORCE PROFILE
+session1 = mu.simulate_session()        # GENERATE SPIKE RESPONSES FOR EACH UNIT
+session1_smooth = mu.convolve(gaussian_bw, target="session")  # SMOOTH SPIKES FOR SESSION 1
+# SECOND SESSION
+mu.reset_force                          # RESET FORCE BACK TO DEFAULT
+force_profile = maxforce2/mu.init_force_profile.max()*mu.force_profile  # SCALE DEFAULT FORCE
+mu.apply_new_force(force_profile)       # SET SCALED LINEAR FORCE PROFILE
+session2 = mu.simulate_session()        # GENERATE SPIKE RESPONSES FOR EACH UNIT
+session2_smooth = mu.convolve(gaussian_bw, target="session")  # SMOOTH SPIKES FOR SESSION 2
+#############################################################################################
 # %% COMPUTE UNIT DATA MATRICES
 # Get 2 aligned channels of data
 session1_smooth_stack = np.hstack(session1_smooth)
