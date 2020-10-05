@@ -233,7 +233,7 @@ class MUsim():
                 legend=False
                 print("could not plot legend with more than 10 MUs.")
             counts = np.sum(self.spikes[trial],axis=0)/len(self.force_profile)*self.sample_rate
-            # plot spiking activity and space them out by integer offsets (with -ii)
+            # plot spikes and space them out by integer offsets (with -ii)
             fig = plt.figure()
             ax = fig.add_subplot(1, 1, 1)
             for ii in range(self.num_units):
@@ -245,14 +245,14 @@ class MUsim():
             plt.xlabel("spikes present over time (ms)")
             plt.ylabel("motor unit activities sorted by threshold")
             plt.show()
-        elif target is 'activity':
+        elif target is 'smooth':
             for ii in range(self.num_units):
                 if len(self.smooth_session)!=0:
-                    max_activity_val = self.smooth_session[-1].max()/2
-                    plt.plot(self.smooth_session[:,ii,trial]/max_activity_val+ii)
+                    max_smooth_val = self.smooth_session[-1].max()/2
+                    plt.plot(self.smooth_session[-1][:,ii,trial]/max_smooth_val+ii)
                 elif len(self.smooth_spikes)!=0:
-                    max_activity_val = self.smooth_spikes[-1].max()/2
-                    plt.plot(self.smooth_spikes[trial][:,ii]/max_activity_val+ii)
+                    max_smooth_val = self.smooth_spikes[-1].max()/2
+                    plt.plot(self.smooth_spikes[trial][:,ii]/max_smooth_val+ii)
                 else:
                     raise Exception("there is no smoothed spiking data. run '.convolve()' method to smooth spikes.")
             plt.title("smoothed spikes present across population during trial")
