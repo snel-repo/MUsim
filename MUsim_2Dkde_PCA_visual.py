@@ -1,12 +1,13 @@
 # %% IMPORT packages
 import numpy as np
 from scipy.stats import gaussian_kde
+from multiprocessing import Pool
+import matplotlib.pyplot as plt
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
-import matplotlib.pyplot as plt
+from MUsim import MUsim
 import plotly.express as px
 import plotly.graph_objects as go
-from MUsim import MUsim
 
 # Define confidence interval calculation
 def get_confidence(normalized_KDE_densities,confidence_value):
@@ -28,6 +29,15 @@ def get_confidence(normalized_KDE_densities,confidence_value):
     CI = bit_mask
     return CI
 
+# define functions and start pool for multiprocessing KDE fits
+def kde_fit(data):
+    kde_obj = gaussian_kde(data)
+    return kde_obj
+def kde_grid(kde_obj,coords_in,grid_shape):
+    density = kde_obj(coords_in).reshape(grid_shape)
+    return density
+pool = Pool(processes=2)
+
 # %% SIMULATE MOTOR UNIT RESPONSES TO SESSION 1 AND SESSION 2
 ########################################################
 # Define Simulation Parameters 
@@ -35,7 +45,7 @@ num_trials_to_simulate = 20
 num_units_to_simulate = 10
 noise_level = 0
 gaussian_bw = 40                # choose smoothing bandwidth
-maxforce1 = 5; maxforce2 = 15   # choose max force to analyze, default is 5
+maxforce1 = 5; maxforce2 = 20   # choose max force to analyze, default is 5
 # want to shuffle the second session's thresholds?
 # if not, set False below
 shuffle_second_MU_thresholds=False
@@ -89,54 +99,55 @@ pca = PCA(n_components=num_comp_proj)
 fit = pca.fit(session12_smooth_stack)
 
 # %% PROJECT FROM FIT
-proj12_y1 = pca.transform(session1_smooth_stack.T)
-proj12_y2 = pca.transform(session2_smooth_stack.T)
+proj12_session1 = pca.transform(session1_smooth_stack.T)
+proj12_session2 = pca.transform(session2_smooth_stack.T)
 # %% COMPUTE TRIAL AVERAGES
 # reshape into trials
-proj12_y1_trials = proj12_y1.T.reshape((len(force_profile),num_comp_proj,num_trials_to_simulate))
-proj12_y2_trials = proj12_y2.T.reshape((len(force_profile),num_comp_proj,num_trials_to_simulate))
+proj12_session1_trials = proj12_session1.T.reshape((len(force_profile),num_comp_proj,num_trials_to_simulate))
+proj12_session2_trials = proj12_session2.T.reshape((len(force_profile),num_comp_proj,num_trials_to_simulate))
 
 # get condition-averages for each
-proj12_y1_ave_x = proj12_y1[:,0].reshape((len(force_profile),num_trials_to_simulate)).mean(axis=1)
-proj12_y1_ave_y = proj12_y1[:,1].reshape((len(force_profile),num_trials_to_simulate)).mean(axis=1)
-proj12_y2_ave_x = proj12_y2[:,0].reshape((len(force_profile),num_trials_to_simulate)).mean(axis=1)
-proj12_y2_ave_y = proj12_y2[:,1].reshape((len(force_profile),num_trials_to_simulate)).mean(axis=1)
+proj12_session1_ave_x = proj12_session1[:,0].reshape((len(force_profile),num_trials_to_simulate)).mean(axis=1)
+proj12_session1_ave_y = proj12_session1[:,1].reshape((len(force_profile),num_trials_to_simulate)).mean(axis=1)
+proj12_session2_ave_x = proj12_session2[:,0].reshape((len(force_profile),num_trials_to_simulate)).mean(axis=1)
+proj12_session2_ave_y = proj12_session2[:,1].reshape((len(force_profile),num_trials_to_simulate)).mean(axis=1)
 
 ## Format data vectors into D x N shape
-proj12_y12 = np.vstack((proj12_y1,proj12_y2))
+proj12_session12 = np.vstack((proj12_session1,proj12_session2))
 
 # get mins, maxes for both datasets
-x_both_min, y_both_min = proj12_y12[:,0].min(), proj12_y12[:,1].min()
-x_both_max, y_both_max = proj12_y12[:,0].max(), proj12_y12[:,1].max()
+x_both_min, y_both_min = proj12_session12[:,0].min(), proj12_session12[:,1].min()
+x_both_max, y_both_max = proj12_session12[:,0].max(), proj12_session12[:,1].max()
 
-# %% GET KDE OBJECTS, fit on each matrix
-kde1 = gaussian_kde(proj12_y1.T)
-kde2 = gaussian_kde(proj12_y2.T)
+# %% GET KDE OBJECTS, for each matrix
+proj_list = [proj12_session1.T,proj12_session2.T]
+kde_objs_list = pool.map(kde_fit,proj_list)
+kde1, kde2 = kde_objs_list
 
 # Evaluate kde on a grid
-grid_margin = 20 # percent
+grid_margin = 10 # percent
 gm = grid_margin/100 # grid margin value to extend grid beyond all edges
 xi, yi = np.mgrid[(x_both_min-gm):(x_both_max+gm):100j, (y_both_min-gm):(y_both_max+gm):100j]
 coords = np.vstack([item.ravel() for item in [xi, yi]]) 
-density_y1 = kde1(coords).reshape(xi.shape)
-density_y2 = kde2(coords).reshape(xi.shape)
+density_session1 = kde1(coords).reshape(xi.shape)
+density_session2 = kde2(coords).reshape(xi.shape)
 
-density_y1_pts = kde1(proj12_y1.T)
-density_y2_pts = kde2(proj12_y2.T)
+density_session1_pts = kde1(proj12_session1.T)
+density_session2_pts = kde2(proj12_session2.T)
 
 # normalize these to get probabilities
-d_y1_norm = density_y1/np.sum(density_y1)
-d_y2_norm = density_y2/np.sum(density_y2)
+d_session1_norm = density_session1/np.sum(density_session1)
+d_session2_norm = density_session2/np.sum(density_session2)
 
-d_y1_norm_pts = density_y1_pts/np.sum(density_y1_pts)
-d_y2_norm_pts = density_y2_pts/np.sum(density_y2_pts)
+d_session1_norm_pts = density_session1_pts/np.sum(density_session1_pts)
+d_session2_norm_pts = density_session2_pts/np.sum(density_session2_pts)
 
 # %% PLOT SIMULATED DATA
 fig = go.Figure()
 # data session 2
 fig.add_trace(go.Scatter(
-    x = proj12_y2[:,0],
-    y = proj12_y2[:,1],
+    x = proj12_session2[:,0],
+    y = proj12_session2[:,1],
     mode="markers",
     marker=dict(
         size=.75,
@@ -148,8 +159,8 @@ fig.add_trace(go.Scatter(
 
 # data session 1
 fig.add_trace(go.Scatter(
-    x = proj12_y1[:,0],
-    y = proj12_y1[:,1],
+    x = proj12_session1[:,0],
+    y = proj12_session1[:,1],
     mode="markers",
     marker=dict(
         size=.75,
@@ -160,8 +171,8 @@ fig.add_trace(go.Scatter(
 ))
 # trial average session 2
 fig.add_trace(go.Scatter(
-    x = proj12_y2_ave_x,
-    y = proj12_y2_ave_y,
+    x = proj12_session2_ave_x,
+    y = proj12_session2_ave_y,
     mode="lines",
     line=dict(
         width=1,
@@ -171,8 +182,8 @@ fig.add_trace(go.Scatter(
 ))
 # trial average session 1
 fig.add_trace(go.Scatter(
-    x = proj12_y1_ave_x,
-    y = proj12_y1_ave_y,
+    x = proj12_session1_ave_x,
+    y = proj12_session1_ave_y,
     mode="lines",
     line=dict(
         width=1,
@@ -192,23 +203,23 @@ fig.update_layout(
     width=600,
     height=500
 )
-fig.show()
+fig.show(config=dict(staticPlot=True)) # not interactive to avoid slowness
 # %%
-fig10 = px.imshow(d_y1_norm.T,title="2D PDF, yank="+str(maxforce1),width=500,height=500,origin='lower')
-fig20 = px.imshow(d_y2_norm.T,title="2D PDF, yank="+str(maxforce2),width=500,height=500,origin='lower')
+fig10 = px.imshow(d_session1_norm.T,title="2D PDF, yank="+str(maxforce1),width=500,height=500,origin='lower')
+fig20 = px.imshow(d_session2_norm.T,title="2D PDF, yank="+str(maxforce2),width=500,height=500,origin='lower')
 fig10.show(); fig20.show()
 # %%
-CI_10 = get_confidence(d_y1_norm,.95)
-CI_20 = get_confidence(d_y2_norm,.95)
+CI_10 = get_confidence(d_session1_norm,.95)
+CI_20 = get_confidence(d_session2_norm,.95)
 # %% plot Computed CI's for each dataset
 figCI10 = px.imshow(CI_10.T,title="yank="+str(maxforce1)+", 95% CI",width=500,height=500,origin='lower')
 figCI20 = px.imshow(CI_20.T,title="yank="+str(maxforce2)+", 95% CI",width=500,height=500,origin='lower')
 figCI10.show(); figCI20.show()
 # %%
-O_1in2 = np.sum(CI_20*d_y1_norm)
-O_2in1 = np.sum(CI_10*d_y2_norm)
+O_1in2 = np.sum(CI_20*d_session1_norm)
+O_2in1 = np.sum(CI_10*d_session2_norm)
 
-fig_O_1in2 = px.imshow((CI_20*d_y1_norm).T,title="yank="+str(maxforce1)+" density inside 95%CI of yank="+str(maxforce2)+": "+str(np.round(O_1in2,decimals=4)),width=500,height=500,origin='lower')
-fig_O_2in1 = px.imshow((CI_10*d_y2_norm).T,title="yank="+str(maxforce2)+" density inside 95%CI of yank="+str(maxforce1)+": "+str(np.round(O_2in1,decimals=4)),width=500,height=500,origin='lower')
+fig_O_1in2 = px.imshow((CI_20*d_session1_norm).T,title="yank="+str(maxforce1)+" density inside 95%CI of yank="+str(maxforce2)+": "+str(np.round(O_1in2,decimals=4)),width=500,height=500,origin='lower')
+fig_O_2in1 = px.imshow((CI_10*d_session2_norm).T,title="yank="+str(maxforce2)+" density inside 95%CI of yank="+str(maxforce1)+": "+str(np.round(O_2in1,decimals=4)),width=500,height=500,origin='lower')
 fig_O_1in2.show(); fig_O_2in1.show()
 # %% 

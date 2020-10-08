@@ -1,12 +1,12 @@
 # %% IMPORT packages
 import numpy as np
-from multiprocessing import Pool
-from functools import partial
 from scipy.stats import gaussian_kde
+from multiprocessing import Pool
+import matplotlib.pyplot as plt
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
-import plotly.express as px
 from MUsim import MUsim
+from functools import partial
 
 # Define confidence interval calculation
 def get_confidence(normalized_KDE_densities,confidence_value):
@@ -28,28 +28,31 @@ def get_confidence(normalized_KDE_densities,confidence_value):
     CI = bit_mask
     return CI
 
-# start pool and define function for multiprocessing KDE fits
-pool = Pool(processes=2)
-def kde_crunch(kde_obj,coords_in,grid_shape):
+# define functions and start pool for multiprocessing KDE fits
+def kde_fit(data):
+    kde_obj = gaussian_kde(data)
+    return kde_obj
+def kde_grid(kde_obj,coords_in,grid_shape):
     density = kde_obj(coords_in).reshape(grid_shape)
     return density
+pool = Pool(processes=2)
 
 
 # %% SIMULATE MOTOR UNIT RESPONSES TO SESSION 1 AND SESSION 2
 #############################################################################################
 # Define Simulation Parameters 
-num_sessions_to_simulate = 5
+explore_vals = range(2,21,2)    # this allows you to test a range of variables, 
+vals_iter = iter(explore_vals)  # when calling next(vals_iter) in each loop
+num_sessions_to_simulate = len(explore_vals)
 num_trials_to_simulate = 20
 num_units_to_simulate = 10
 noise_level = 0
 gaussian_bw = 40   # choose smoothing bandwidth
-explore_vals = range(2,11,2)    # this allows you to test a range of variables, 
-vals_iter = iter(explore_vals)  # when calling next(vals_iter) in each loop
-maxforce1 = 5; maxforce2 = vals_iter  # choose max force to analyze, default is 5
+maxforce1 = 6; maxforce2 = vals_iter  # choose max force to analyze, default is 5
 # want to shuffle the second session's thresholds?
 # if not, set False below
 shuffle_second_MU_thresholds=False
-plot_results = False
+plot_results = True
 overlap_results = []
 ##############################################################################################
 # %% SIMULATE MULTIPLE RUNS WITHOUT PLOTTING
@@ -112,24 +115,21 @@ while len(overlap_results)<num_sessions_to_simulate:
     x_both_min, y_both_min = proj12_session12[:,0].min(), proj12_session12[:,1].min()
     x_both_max, y_both_max = proj12_session12[:,0].max(), proj12_session12[:,1].max()
 
-    # GET KDE OBJECTS, fit on each matrix
-    kde1 = gaussian_kde(proj12_session1.T)
-    kde2 = gaussian_kde(proj12_session2.T)
-
-    # Evaluate kde on a grid
-    grid_margin = 20 # percent
+    # DEFINE GRID FOR KDE
+    grid_margin = 10 # percent
     gm = grid_margin/100 # grid margin value to extend grid beyond all edges
     xi, yi = np.mgrid[(x_both_min-gm):(x_both_max+gm):100j, (y_both_min-gm):(y_both_max+gm):100j]
     coords = np.vstack([item.ravel() for item in [xi, yi]])
-    density_session1 = kde1(coords).reshape(xi.shape)
-    density_session2 = kde2(coords).reshape(xi.shape)
 
-    # fit each KDE object as a separate process, for ~double speed
-    kde_fix = partial(kde_crunch,coords_in=coords,grid_shape=xi.shape) # set constants
-    kde_objs_list = [kde1,kde2]
-    kde_out_list = pool.map(kde_fix, kde_objs_list)
-    density_y1 = kde_out_list[0]
-    density_y2 = kde_out_list[1]
+    # GET KDE OBJECTS, for each matrix
+    proj_list = [proj12_session1.T,proj12_session2.T]
+    kde_objs_list = pool.map(kde_fit,proj_list)
+
+    # TRANSFORM DATA 
+    kde_grid_fix = partial(kde_grid,coords_in=coords,grid_shape=xi.shape) # set constants
+    kde_out_list = pool.map(kde_grid_fix, kde_objs_list)
+    density_session1 = kde_out_list[0]
+    density_session2 = kde_out_list[1]
 
     # density_session1_pts = kde1(proj12_session1.T)
     # density_session2_pts = kde2(proj12_session2.T)
@@ -156,7 +156,10 @@ overlap_results = np.vstack(overlap_results)
 
  # just show final results
 if plot_results is True:
-    px.line(overlap_results)
+    plt.plot(overlap_results)
+    plt.title("overlap pair values across conditions")
+    plt.legend(["1st dist in 2nd","2nd dist in 1st"],title="fraction of:")
+    plt.show()
 ########################################################################################
 # %% saving results:
 # f = open("overlap_session1-y3-stat-noshuff_save0.txt", "w")
