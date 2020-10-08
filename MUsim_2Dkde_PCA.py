@@ -33,6 +33,7 @@ def get_confidence(normalized_KDE_densities,confidence_value):
 # Define Simulation Parameters 
 num_trials_to_simulate = 20
 num_units_to_simulate = 10
+noise_level = 0
 gaussian_bw = 40                # choose smoothing bandwidth
 maxforce1 = 5; maxforce2 = 15   # choose max force to analyze, default is 5
 # want to shuffle the second session's thresholds?
@@ -43,6 +44,7 @@ shuffle_second_MU_thresholds=False
 mu = MUsim()                            # INSTANTIATE SIMULATION OBJECT
 mu.num_units = num_units_to_simulate    # SET NUMBER OF UNITS TO SIMULATE
 mu.num_trials = num_trials_to_simulate  # SET NUMBER OF TRIALS TO SIMULATE
+mu.session_noise_level = noise_level    # SET NOISE LEVEL FOR SESSION
 units = mu.recruit(MUmode='static')     # RECRUIT
 # FIRST SESSION
 force_profile = maxforce1/mu.init_force_profile.max()*mu.force_profile  # SCALE DEFAULT FORCE
@@ -113,8 +115,8 @@ kde2 = gaussian_kde(proj12_y2.T)
 
 # Evaluate kde on a grid
 grid_margin = 20 # percent
-gm_coef = (grid_margin/100)+1 # grid margin coefficient to extend grid beyond all edges
-xi, yi = np.mgrid[(gm_coef*x_both_min):(gm_coef*x_both_max):100j, (gm_coef*y_both_min):(gm_coef*y_both_max):100j]
+gm = grid_margin/100 # grid margin value to extend grid beyond all edges
+xi, yi = np.mgrid[(x_both_min-gm):(x_both_max+gm):100j, (y_both_min-gm):(y_both_max+gm):100j]
 coords = np.vstack([item.ravel() for item in [xi, yi]]) 
 density_y1 = kde1(coords).reshape(xi.shape)
 density_y2 = kde2(coords).reshape(xi.shape)

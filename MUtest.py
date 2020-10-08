@@ -15,10 +15,10 @@ static_units = mu_stat.recruit()
 # %% PLOT THRESHOLD DISTRIBUTION, FORCE PROFILE, AND INDIVIDUAL UNIT RESPONSES
 mu_stat.see('thresholds') # plot binned thresholds across all units
 mu_stat.see('force') # plot default applied force
-mu_stat.see() # plot unit response curves 
+mu_stat.see('curves') # plot unit response curves 
 
 # %% SIMULATE MOTOR UNITS SPIKE RESPONSE TO DEFAULT FORCE
-spikes1 = mu_stat.simulate_spikes()
+spikes = mu_stat.simulate_spikes(noise_level=0)
 mu_stat.see('spikes') # plot spike response
 
 # %% CONVOLVE AND PLOT SMOOTHED RESPONSE
@@ -29,7 +29,7 @@ new_force_profile = 3*mu_stat.init_force_profile
 mu_stat.apply_new_force(new_force_profile)
 spikes2 = mu_stat.simulate_spikes()
 mu_stat.see('force') # plot new applied force
-mu_stat.see() # plot unit response curves
+mu_stat.see('curves') # plot unit response curves
 mu_stat.see('spikes') # plot spike response
 
 # %% CONVOLVE AND PLOT SMOOTHED RESPONSE
@@ -67,7 +67,7 @@ dyn_units = mu_dyn.recruit(MUmode="dynamic")
 # %% PLOT THRESHOLD DISTRIBUTION, FORCE PROFILE, AND INDIVIDUAL UNIT RESPONSES
 mu_dyn.see('thresholds') # plot binned thresholds across all units
 mu_dyn.see('force') # plot default applied force
-mu_dyn.see() # plot unit response curves 
+mu_dyn.see('curves') # plot unit response curves 
 
 # %% SIMULATE MOTOR UNITS SPIKE RESPONSE TO DEFAULT FORCE
 spikes1 = mu_dyn.simulate_spikes()
@@ -81,7 +81,7 @@ new_force_profile = 3*(mu_dyn.init_force_profile)
 mu_dyn.apply_new_force(new_force_profile)
 spikes2 = mu_dyn.simulate_spikes()
 mu_dyn.see('force') # plot new applied force
-mu_dyn.see() # plot unit response curves
+mu_dyn.see('curves') # plot unit response curves
 mu_dyn.see('spikes') # plot spike response
 mu_dyn.see('smooth') # plot smoothed spike response
 
@@ -90,7 +90,7 @@ new_force_profile = -3*np.cos(mu_dyn.init_force_profile)
 mu_dyn.apply_new_force(new_force_profile)
 spikes2 = mu_dyn.simulate_spikes()
 mu_dyn.see('force') # plot new applied force
-mu_dyn.see() # plot unit response curves
+mu_dyn.see('curves') # plot unit response curves
 mu_dyn.see('spikes') # plot spike response
 mu_dyn.see('smooth') # plot smoothed spike response
 

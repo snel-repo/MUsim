@@ -1,5 +1,7 @@
 # %% IMPORT packages
 import numpy as np
+from multiprocessing import Pool
+from functools import partial
 from scipy.stats import gaussian_kde
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
@@ -26,25 +28,38 @@ def get_confidence(normalized_KDE_densities,confidence_value):
     CI = bit_mask
     return CI
 
+# start pool and define function for multiprocessing KDE fits
+pool = Pool(processes=2)
+def kde_crunch(kde_obj,coords_in,grid_shape):
+    density = kde_obj(coords_in).reshape(grid_shape)
+    return density
+
+
 # %% SIMULATE MOTOR UNIT RESPONSES TO SESSION 1 AND SESSION 2
 #############################################################################################
 # Define Simulation Parameters 
+num_sessions_to_simulate = 5
 num_trials_to_simulate = 20
 num_units_to_simulate = 10
-gaussian_bw = 40                # choose smoothing bandwidth
-maxforce1 = 5; maxforce2 = 15   # choose max force to analyze, default is 5
+noise_level = 0
+gaussian_bw = 40   # choose smoothing bandwidth
+explore_vals = range(2,11,2)    # this allows you to test a range of variables, 
+vals_iter = iter(explore_vals)  # when calling next(vals_iter) in each loop
+maxforce1 = 5; maxforce2 = vals_iter  # choose max force to analyze, default is 5
 # want to shuffle the second session's thresholds?
 # if not, set False below
 shuffle_second_MU_thresholds=False
+plot_results = False
 overlap_results = []
 ##############################################################################################
 # %% SIMULATE MULTIPLE RUNS WITHOUT PLOTTING
-while len(overlap_results)<=4:
+while len(overlap_results)<num_sessions_to_simulate:
     #############################################################################################
     # RUN 2 DIFFERENT SESSIONS
     mu = MUsim()                            # INSTANTIATE SIMULATION OBJECT
     mu.num_units = num_units_to_simulate    # SET NUMBER OF UNITS TO SIMULATE
     mu.num_trials = num_trials_to_simulate  # SET NUMBER OF TRIALS TO SIMULATE
+    mu.session_noise_level = noise_level    # SET NOISE LEVEL FOR SESSION
     units = mu.recruit(MUmode='static')     # RECRUIT
     # FIRST SESSION
     force_profile = maxforce1/mu.init_force_profile.max()*mu.force_profile  # SCALE DEFAULT FORCE
@@ -53,7 +68,7 @@ while len(overlap_results)<=4:
     session1_smooth = mu.convolve(gaussian_bw, target="session")  # SMOOTH SPIKES FOR SESSION 1
     # SECOND SESSION
     mu.reset_force                          # RESET FORCE BACK TO DEFAULT
-    force_profile = maxforce2/mu.init_force_profile.max()*mu.force_profile  # SCALE DEFAULT FORCE
+    force_profile = next(maxforce2)/mu.init_force_profile.max()*mu.force_profile  # SCALE DEFAULT FORCE
     mu.apply_new_force(force_profile)       # SET SCALED LINEAR FORCE PROFILE
     session2 = mu.simulate_session()        # GENERATE SPIKE RESPONSES FOR EACH UNIT
     session2_smooth = mu.convolve(gaussian_bw, target="session")  # SMOOTH SPIKES FOR SESSION 2
@@ -103,21 +118,29 @@ while len(overlap_results)<=4:
 
     # Evaluate kde on a grid
     grid_margin = 20 # percent
-    gm_coef = (grid_margin/100)+1 # grid margin coefficient to extend grid beyond all edges
-    xi, yi = np.mgrid[(gm_coef*x_both_min):(gm_coef*x_both_max):100j, (gm_coef*y_both_min):(gm_coef*y_both_max):100j]
-    coords = np.vstack([item.ravel() for item in [xi, yi]]) 
+    gm = grid_margin/100 # grid margin value to extend grid beyond all edges
+    xi, yi = np.mgrid[(x_both_min-gm):(x_both_max+gm):100j, (y_both_min-gm):(y_both_max+gm):100j]
+    coords = np.vstack([item.ravel() for item in [xi, yi]])
     density_session1 = kde1(coords).reshape(xi.shape)
     density_session2 = kde2(coords).reshape(xi.shape)
 
-    density_session1_pts = kde1(proj12_session1.T)
-    density_session2_pts = kde2(proj12_session2.T)
+    # fit each KDE object as a separate process, for ~double speed
+    kde_fix = partial(kde_crunch,coords_in=coords,grid_shape=xi.shape) # set constants
+    kde_objs_list = [kde1,kde2]
+    kde_out_list = pool.map(kde_fix, kde_objs_list)
+    density_y1 = kde_out_list[0]
+    density_y2 = kde_out_list[1]
+
+    # density_session1_pts = kde1(proj12_session1.T)
+    # density_session2_pts = kde2(proj12_session2.T)
     print('kde done.')
+
     # normalize these to get probabilities
     d_session1_norm = density_session1/np.sum(density_session1)
     d_session2_norm = density_session2/np.sum(density_session2)
 
-    d_session1_norm_pts = density_session1_pts/np.sum(density_session1_pts)
-    d_session2_norm_pts = density_session2_pts/np.sum(density_session2_pts)
+    # d_session1_norm_pts = density_session1_pts/np.sum(density_session1_pts)
+    # d_session2_norm_pts = density_session2_pts/np.sum(density_session2_pts)
 
     CI_10 = get_confidence(d_session1_norm,.95)
     CI_20 = get_confidence(d_session2_norm,.95)
@@ -128,19 +151,23 @@ while len(overlap_results)<=4:
     overlap_results.append(np.hstack((O_1in2,O_2in1)))
     print("loop: "+str(len(overlap_results))+". Results are: "+str(overlap_results[-1]))
 
+pool.close()
 overlap_results = np.vstack(overlap_results)
 
  # just show final results
-px.line(overlap_results)
+if plot_results is True:
+    px.line(overlap_results)
+########################################################################################
 # %% saving results:
-f = open("overlap_session1-y3-stat-noshuff_save0.txt", "w")
+# f = open("overlap_session1-y3-stat-noshuff_save0.txt", "w")
 # f = open("overlap_session1-y3-dyn-noshuff_save0.txt", "w")
 # f = open("overlap_session1-y3-stat-shuff_save0.txt", "w")
+f = open("test_file.txt","w")
 f.write("#           OneInTwo            TwoInOne\n") # column names
 np.savetxt(f, overlap_results)
 f.close()
 # %% loading results:
-stat_noshuf = np.loadtxt("overlap_session1-y3-stat-noshuff_save0.txt")
+# stat_noshuf = np.loadtxt("overlap_session1-y3-stat-noshuff_save0.txt")
 # dyn_noshuf = np.loadtxt("overlap_session1-y3-dyn-noshuff_save0.txt")
 # stat_shuf = np.loadtxt("overlap_session1-y3-stat-shuff_save0.txt")
 # %%

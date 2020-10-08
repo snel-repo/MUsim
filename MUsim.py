@@ -2,6 +2,7 @@ import numpy.random
 import numpy as np
 from scipy.special import expit
 from scipy.ndimage import gaussian_filter1d
+from scipy.signal import find_peaks
 import matplotlib.pyplot as plt
 
 class MUsim():
@@ -10,7 +11,9 @@ class MUsim():
         self.MUmode="static"    # "static" for size-principle obediance, "dynamic" for yank-dependent thresholds
         self.units = [[],[]]
         self.spikes = []
+        self.noise_level = [] # non-negative Gaussian noise level term added to spikes
         self.session = []
+        self.session_noise_level = 0 # noise level for session
         self.smooth_spikes = []
         self.smooth_session = []
         self.num_units = 10     # default number of units to simulate
@@ -86,7 +89,7 @@ class MUsim():
         self.MUmode = MUmode # record the last recruitment mode
         return units
 
-    def simulate_spikes(self):
+    def simulate_spikes(self,noise_level=0):
         """
             simple routine to approximate an inhomogenous Poisson process over short time intervals (bins).
             Input: unit response curve (probability of seeing a 0 each timestep, otherwise its 1)
@@ -98,7 +101,11 @@ class MUsim():
         selection = np.random.random(unit_response_curves.shape)
         spike_idxs = np.where(selection>unit_response_curves)
         self.spikes.append(np.zeros(unit_response_curves.shape))
-        self.spikes[-1][spike_idxs] = 1 # assign spikes
+        if noise_level is not 0: # add noise before spikes
+            assert noise_level>0 and noise_level<=1, "noise required to be between 0 and 1."
+            self.spikes[-1] = self.spikes[-1]+noise_level*np.random.standard_normal(self.spikes[-1].shape).__abs__()
+        self.noise_level.append(noise_level)
+        self.spikes[-1][spike_idxs] = 1 # assign spikes value of 1, despite noise
         return self.spikes[-1]
 
     def simulate_session(self):
@@ -108,7 +115,7 @@ class MUsim():
         session_data_shape = (len(self.force_profile),self.num_units,trials)
         self.session.append(np.zeros(session_data_shape))
         for iTrial in range(trials):
-            self.session[-1][:,:,iTrial] = self.simulate_spikes()
+            self.session[-1][:,:,iTrial] = self.simulate_spikes(self.session_noise_level)
         return self.session[-1]
 
     def apply_new_force(self,input_force_profile):
@@ -162,7 +169,7 @@ class MUsim():
                     self.smooth_session[-1][:,iUnit,iTrial] = gaussian_filter1d(self.session[-1][:,iUnit,iTrial],sigma)
             return self.smooth_session[-1]
 
-    def see(self,target='curves',trial=-1,unit=0,legend=True):
+    def see(self,target='spikes',trial=-1,unit=0,legend=True):
         """
         Main visualization method for MUsim.
 
@@ -232,7 +239,15 @@ class MUsim():
             if self.num_units > 10 and legend is True: 
                 legend=False
                 print("could not plot legend with more than 10 MUs.")
-            counts = np.sum(self.spikes[trial],axis=0)/len(self.force_profile)*self.sample_rate
+            if self.noise_level[-1]==0:
+                counts = np.sum(self.spikes[trial],axis=0)
+            else:
+                peaks = np.zeros(self.spikes[trial].shape)
+                leng = len(self.force_profile)
+                for iUnit in range(self.num_units):
+                    peak_idxs = find_peaks(self.spikes[trial].ravel()[iUnit*leng:iUnit*leng+leng],height=(0.8,1.2))
+                    peaks[peak_idxs[0],iUnit]=1
+                counts = np.sum(peaks,axis=0)[::-1]
             # plot spikes and space them out by integer offsets (with -ii)
             fig = plt.figure()
             ax = fig.add_subplot(1, 1, 1)
@@ -240,7 +255,7 @@ class MUsim():
                 ax.plot(self.spikes[trial][:,ii]+ii,label=counts[ii])
             if legend: # determine where to plot the legend
                 handles, labels = ax.get_legend_handles_labels()
-                ax.legend(handles[::-1], labels[::-1], title="counts",loc="lower left")
+                ax.legend(handles[::-1], labels[::-1], title="approx. cnt",loc="lower left")
             plt.title("spikes present across population during trial")
             plt.xlabel("spikes present over time (ms)")
             plt.ylabel("motor unit activities sorted by threshold")
