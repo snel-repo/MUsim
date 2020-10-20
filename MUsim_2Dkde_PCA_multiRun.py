@@ -41,14 +41,17 @@ pool = Pool(processes=2)
 # %% SIMULATE MOTOR UNIT RESPONSES TO SESSION 1 AND SESSION 2
 #############################################################################################
 # Define Simulation Parameters 
-explore_vals = range(2,21,2)    # this allows you to test a range of variables, 
+explore_vals = [0]*10 # this allows you to test a range of a chosen variable
+explore_vals.extend([1]*10)
 vals_iter = iter(explore_vals)  # when calling next(vals_iter) in each loop
 num_sessions_to_simulate = len(explore_vals)
-num_trials_to_simulate = 20
+num_trials_to_simulate = 50
 num_units_to_simulate = 10
+trial_length = 500 # bins
 noise_level = 0
+max_firing_rate = 20
 gaussian_bw = 40   # choose smoothing bandwidth
-maxforce1 = 6; maxforce2 = vals_iter  # choose max force to analyze, default is 5
+max_force1 = 5; max_force2 = 10  # choose max force to analyze, default is 5
 # want to shuffle the second session's thresholds?
 # if not, set False below
 shuffle_second_MU_thresholds=False
@@ -62,16 +65,19 @@ while len(overlap_results)<num_sessions_to_simulate:
     mu = MUsim()                            # INSTANTIATE SIMULATION OBJECT
     mu.num_units = num_units_to_simulate    # SET NUMBER OF UNITS TO SIMULATE
     mu.num_trials = num_trials_to_simulate  # SET NUMBER OF TRIALS TO SIMULATE
+    mu.max_spike_prob = max_firing_rate/mu.num_bins_per_trial # SET SPIKING PROBABILITY
+    mu.num_bins_per_trial = trial_length    # SET NUMBER OF BINS PER TRIAL
+    mu.max_spike_prob = max_firing_rate/mu.num_bins_per_trial # SET SPIKING PROBABILITY
     mu.session_noise_level = noise_level    # SET NOISE LEVEL FOR SESSION
     units = mu.recruit(MUmode='static')     # RECRUIT
     # FIRST SESSION
-    force_profile = maxforce1/mu.init_force_profile.max()*mu.force_profile  # SCALE DEFAULT FORCE
+    force_profile = max_force1/mu.init_force_profile.max()*mu.init_force_profile  # SCALE DEFAULT FORCE
     mu.apply_new_force(force_profile)       # SET SCALED LINEAR FORCE PROFILE
     session1 = mu.simulate_session()        # GENERATE SPIKE RESPONSES FOR EACH UNIT
     session1_smooth = mu.convolve(gaussian_bw, target="session")  # SMOOTH SPIKES FOR SESSION 1
     # SECOND SESSION
-    mu.reset_force                          # RESET FORCE BACK TO DEFAULT
-    force_profile = next(maxforce2)/mu.init_force_profile.max()*mu.force_profile  # SCALE DEFAULT FORCE
+    mu.reset_force()                      # RESET FORCE BACK TO DEFAULT
+    force_profile = max_force2/mu.init_force_profile.max()*mu.init_force_profile  # SCALE DEFAULT FORCE
     mu.apply_new_force(force_profile)       # SET SCALED LINEAR FORCE PROFILE
     session2 = mu.simulate_session()        # GENERATE SPIKE RESPONSES FOR EACH UNIT
     session2_smooth = mu.convolve(gaussian_bw, target="session")  # SMOOTH SPIKES FOR SESSION 2
@@ -85,8 +91,8 @@ while len(overlap_results)<num_sessions_to_simulate:
     session12_smooth_stack = np.hstack((session1_smooth_stack,session2_smooth_stack)).T
 
     # standardize all unit activities
-    scaler = StandardScaler()
-    session12_smooth_stack = StandardScaler().fit_transform(session12_smooth_stack)
+    scaler = StandardScaler(with_std=False)
+    session12_smooth_stack = scaler.fit_transform(session12_smooth_stack)
 
     # run for only 2 components, that capture most variance
     num_comp_proj = 2
@@ -159,9 +165,23 @@ if plot_results is True:
     plt.plot(overlap_results)
     plt.title("overlap pair values across conditions")
     plt.legend(["1st dist in 2nd","2nd dist in 1st"],title="fraction of:")
+    plt.ylim((0,1))
     plt.show()
+    plt.scatter(overlap_results[:,1],overlap_results[:,0])
+    plt.title("overlap pair scatter")
+    plt.xlabel("fraction of 1st dist in 2nd")
+    plt.ylabel("fraction of 2nd dist in 1st")
+    plt.xlim((0,1))
+    plt.ylim((0,1))
+    plt.show()
+
+means = overlap_results.mean(axis=0)
+stds = overlap_results.std(axis=0)
+print("means are: "+str(means))
+print("std. devs. are: "+str(stds))
 ########################################################################################
 # %% saving results:
+print("writing to file.")
 # f = open("overlap_session1-y3-stat-noshuff_save0.txt", "w")
 # f = open("overlap_session1-y3-dyn-noshuff_save0.txt", "w")
 # f = open("overlap_session1-y3-stat-shuff_save0.txt", "w")
@@ -173,4 +193,7 @@ f.close()
 # stat_noshuf = np.loadtxt("overlap_session1-y3-stat-noshuff_save0.txt")
 # dyn_noshuf = np.loadtxt("overlap_session1-y3-dyn-noshuff_save0.txt")
 # stat_shuf = np.loadtxt("overlap_session1-y3-stat-shuff_save0.txt")
+
+# results = np.loadtxt("test_file.txt")
+# results40 = np.loadtxt("40Hz-5-15-dynamic.txt")
 # %%
