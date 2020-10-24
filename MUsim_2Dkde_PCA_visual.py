@@ -39,7 +39,7 @@ pool = Pool(processes=2)
 ########################################################
 # Define Simulation Parameters 
 num_trials_to_simulate = 50
-num_units_to_simulate = 10
+num_units_to_simulate = 20
 trial_length = 500 # bins
 noise_level = 0
 max_firing_rate = 20
