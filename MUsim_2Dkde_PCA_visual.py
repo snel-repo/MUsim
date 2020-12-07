@@ -1,10 +1,13 @@
 # %% IMPORT packages
 import numpy as np
+from scipy.sparse import data
 from scipy.stats import gaussian_kde
 from multiprocessing import Pool
 import matplotlib.pyplot as plt
-from sklearn.decomposition import PCA
+from sklearn.decomposition import PCA, NMF
 from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import explained_variance_score
+from random import sample
 from MUsim import MUsim
 import plotly.express as px
 import plotly.graph_objects as go
@@ -34,6 +37,12 @@ def kde_fit(data):
     kde_obj = gaussian_kde(data)
     return kde_obj
 pool = Pool(processes=2)
+
+# Function for evaluating NMF fit
+def get_score(model, data, scorer=explained_variance_score):
+    """ Estimate performance of the model on the data """
+    prediction = model.inverse_transform(model.transform(data))
+    return scorer(data, prediction)
 
 # %% SIMULATE MOTOR UNIT RESPONSES TO SESSION 1 AND SESSION 2
 ########################################################
@@ -70,17 +79,17 @@ session2 = mu.simulate_session()        # GENERATE SPIKE RESPONSES FOR EACH UNIT
 session2_smooth = mu.convolve(gaussian_bw, target="session")  # SMOOTH SPIKES FOR SESSION 2
 #############################################################################################
 # %% COMPUTE PCA OBJECT on all MU data
-session1_smooth_stack = np.hstack(session1_smooth)
-session2_smooth_stack = np.hstack(session2_smooth)
+unscaled_session1_smooth_stack = np.hstack(session1_smooth)
+unscaled_session2_smooth_stack = np.hstack(session2_smooth)
 if shuffle_second_MU_thresholds is True:
-    np.random.shuffle(session2_smooth_stack) #shuffle in place
-session12_smooth_stack = np.hstack((session1_smooth_stack,session2_smooth_stack)).T
+    np.random.shuffle(unscaled_session2_smooth_stack) #shuffle in place
+unscaled_session12_smooth_stack = np.hstack((unscaled_session1_smooth_stack,unscaled_session2_smooth_stack)).T
 
 # standardize all unit activities
 scaler = StandardScaler(with_std=False)
-session12_smooth_stack = scaler.fit_transform(session12_smooth_stack)
+session12_smooth_stack = scaler.fit_transform(unscaled_session12_smooth_stack)
 
-# run for top 10 components to see VAF development
+# run for top 10 components to see VAF development for PCA
 try:
     num_comp_test = 10
     pca = PCA(n_components=num_comp_test)
@@ -99,15 +108,46 @@ plt.xlabel("principal components")
 plt.ylabel("explained variance (% e.v.)")
 plt.show()
 
+# run for top 10 components to see VAF development for NMF
+data_len = unscaled_session12_smooth_stack.shape[0]
+train_ratio = 0.8
+test_ratio = 1-train_ratio
+random_idxs = sample(range(data_len),data_len) # get all samples
+shuffled_data = unscaled_session12_smooth_stack[random_idxs,:]
+train_data = shuffled_data[:round(train_ratio*data_len)] # random selection of most rows
+test_data = shuffled_data[round(train_ratio*data_len):] # random selection of remaining rows
+
+nmf_vafs = []
+for iNumComps in range(1,num_comp_test+1):
+    nmf = NMF(n_components=iNumComps)
+    nfit = nmf.fit(train_data)
+
+    nmf_vafs.append(get_score(nfit,test_data))
+nmf_vafs_ary = np.array(nmf_vafs)
+
+print("explained variance: "+str(nmf_vafs_ary*100))
+plt.scatter(range(num_comp_test),np.hstack((nmf_vafs_ary[0],np.diff(nmf_vafs_ary)))*100)
+plt.plot(nmf_vafs_ary*100,c='darkorange')
+plt.hlines(70,0,num_comp_test,colors='k',linestyles="dashed") # show 70% VAF line
+plt.title("explained variance for each additional NMF component")
+plt.legend(["cumulative","individual","70% e.v."])
+plt.xlabel("NMF components")
+plt.ylabel("explained variance (% e.v.)")
+plt.show()
+
 # run for only 2 components, that capture most variance
 num_comp_proj = 2
 pca = PCA(n_components=num_comp_proj)
 fit = pca.fit(session12_smooth_stack)
+nmf = NMF(n_components=num_comp_proj)
+fit = nmf.fit(unscaled_session12_smooth_stack)
 
-# %% PROJECT FROM FIT
-proj12_session1 = pca.transform(session1_smooth_stack.T)
-proj12_session2 = pca.transform(session2_smooth_stack.T)
-print('pca done.')
+# %% PROJECT FROM FIT - Uncomment/comment the two lines you want/don't want
+# proj12_session1 = nmf.transform(unscaled_session1_smooth_stack.T)
+# proj12_session2 = nmf.transform(unscaled_session2_smooth_stack.T)
+proj12_session1 = pca.transform(scaler.transform(unscaled_session1_smooth_stack.T))
+proj12_session2 = pca.transform(scaler.transform(unscaled_session2_smooth_stack.T))
+print('pca/nmf fit done.')
 # %% COMPUTE TRIAL AVERAGES
 # reshape into trials
 proj12_session1_trials = proj12_session1.T.reshape((len(force_profile),num_comp_proj,num_trials_to_simulate))
@@ -132,9 +172,11 @@ kde_objs_list = pool.map(kde_fit,proj_list)
 kde1, kde2 = kde_objs_list
 
 # Evaluate kde on a grid
+x_range = x_both_max-x_both_min
+y_range = y_both_max-y_both_min
 grid_margin = 10 # percent
 gm = grid_margin/100 # grid margin value to extend grid beyond all edges
-xi, yi = np.mgrid[(x_both_min-gm):(x_both_max+gm):100j, (y_both_min-gm):(y_both_max+gm):100j]
+xi, yi = np.mgrid[(x_both_min-gm*x_range):(x_both_max+gm*x_range):100j, (y_both_min-gm*y_range):(y_both_max+gm*y_range):100j]
 coords = np.vstack([item.ravel() for item in [xi, yi]]) 
 density_session1 = kde1(coords).reshape(xi.shape)
 density_session2 = kde2(coords).reshape(xi.shape)
@@ -205,9 +247,9 @@ fig.update_yaxes(
   )
 fig.update_layout(
     legend=dict(title="linear force profiles:"),
-    title="simulated population trajectories in 2D PCA space",
-    xaxis=dict(title=dict(text="First PC")),
-    yaxis=dict(title=dict(text="Second PC")),
+    title="simulated population trajectories in 2D NMF space",
+    xaxis=dict(title=dict(text="First NMF component")),
+    yaxis=dict(title=dict(text="Second NMF component")),
     width=600,
     height=500
 )
