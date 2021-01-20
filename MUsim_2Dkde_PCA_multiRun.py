@@ -41,10 +41,10 @@ pool = Pool(processes=2)
 # %% SIMULATE MOTOR UNIT RESPONSES TO SESSION 1 AND SESSION 2
 #############################################################################################
 # Define Simulation Parameters 
-explore_vals = [0]*10 # this allows you to test a range of a chosen variable
-explore_vals.extend([1]*10)
-vals_iter = iter(explore_vals)  # when calling next(vals_iter) in each loop
-num_sessions_to_simulate = len(explore_vals)
+# explore_vals = [0]*10 # this allows you to test a range of a chosen variable
+# explore_vals.extend([1]*10) # creates array of 10 0's and then 10 1's
+# vals_iter = iter(explore_vals)  # when calling next(vals_iter) in each loop
+num_sessions_to_simulate = 10 #len(explore_vals)
 num_trials_to_simulate = 50
 num_units_to_simulate = 10
 trial_length = 500 # bins
