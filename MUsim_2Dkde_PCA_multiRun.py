@@ -69,7 +69,7 @@ while len(overlap_results)<num_sessions_to_simulate:
     mu.num_bins_per_trial = trial_length    # SET NUMBER OF BINS PER TRIAL
     mu.max_spike_prob = max_firing_rate/mu.num_bins_per_trial # SET SPIKING PROBABILITY
     mu.session_noise_level = noise_level    # SET NOISE LEVEL FOR SESSION
-    units = mu.recruit(MUmode='static')     # RECRUIT
+    units = mu.sample_MUs(MUmode='static')  # SAMPLE MUs
     # FIRST SESSION
     force_profile = max_force1/mu.init_force_profile.max()*mu.init_force_profile  # SCALE DEFAULT FORCE
     mu.apply_new_force(force_profile)       # SET SCALED LINEAR FORCE PROFILE

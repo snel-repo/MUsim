@@ -48,15 +48,16 @@ def get_score(model, data, scorer=explained_variance_score):
 ########################################################
 # Define Simulation Parameters 
 num_trials_to_simulate = 50
-num_units_to_simulate = 20
-trial_length = 500 # bins
+num_units_to_simulate = 8
+trial_length = 300 # bins
 noise_level = 0
 max_firing_rate = 20
 gaussian_bw = 40                # choose smoothing bandwidth
 max_force1 = 5; max_force2 = 10 # choose max force to analyze, default is 5
+yank_flip_value = 20
 # want to shuffle the second session's thresholds?
 # if not, set False below
-shuffle_second_MU_thresholds=False
+shuffle_second_MU_thresholds=True
 #############################################################################################
 # RUN 2 DIFFERENT SESSIONS
 mu = MUsim()                            # INSTANTIATE SIMULATION OBJECT
@@ -65,7 +66,7 @@ mu.num_trials = num_trials_to_simulate  # SET NUMBER OF TRIALS TO SIMULATE
 mu.num_bins_per_trial = trial_length    # SET NUMBER OF BINS PER TRIAL
 mu.max_spike_prob = max_firing_rate/mu.num_bins_per_trial # SET SPIKING PROBABILITY
 mu.session_noise_level = noise_level    # SET NOISE LEVEL FOR SESSION
-units = mu.recruit(MUmode='dynamic')    # RECRUIT
+units = mu.sample_MUs(MUmode='static')  # SAMPLE MUs
 # FIRST SESSION
 force_profile = max_force1/mu.init_force_profile.max()*mu.init_force_profile  # SCALE DEFAULT FORCE
 mu.apply_new_force(force_profile)       # SET SCALED LINEAR FORCE PROFILE

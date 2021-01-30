@@ -1,9 +1,9 @@
-import numpy.random
 import numpy as np
 from scipy.special import expit
 from scipy.ndimage import gaussian_filter1d
 from scipy.signal import find_peaks
 import matplotlib.pyplot as plt
+import plotly.graph_objects as go
 
 class MUsim():
 
@@ -20,7 +20,7 @@ class MUsim():
         self.num_units = 10     # default number of units to simulate
         self.num_trials = 50    # default number of trials to simulate
         self.num_bins_per_trial = 1000 # amount of time per trial is (num_bins_per_trial/sample_rate)
-        self.sample_rate = 1000 # Hz, default sampling rate. it's inverse results in the alloted to each bin
+        self.sample_rate = 1000 # Hz, default sampling rate. it's inverse results in the time alloted to each bin
         self.default_max_force = 5
         self.init_force_profile = np.linspace(0,self.default_max_force,self.num_bins_per_trial)  # define initial force profile
         self.force_profile = self.init_force_profile  # initialize force profile
@@ -46,7 +46,7 @@ class MUsim():
         if new == True:
             if MUthresholds_dist == "uniform": # equal distribution of thresholds for large/small units
                 MUthresholds_gen = (threshmax-threshmin)*np.random.random_sample((self.num_units))+threshmin
-            elif MUthresholds_dist == "normal": # more large units
+            elif MUthresholds_dist == "normal": # more small units
                 MUthresholds_gen = np.clip((np.round(threshmax*abs(np.random.randn(self.num_units)/2),decimals=4)+threshmin),None,threshmax)
             else:
                 raise Exception("MUthresholds_dist input must either be 'uniform' or 'normal'.")
@@ -62,16 +62,29 @@ class MUsim():
             MUthresholds[yank_flip_idxs] = MUthresholds_flip[yank_flip_idxs] # set flips
             MUthresholds[yank_no_flip_idxs] = MUthresholds_orig[yank_no_flip_idxs] # set original values
         return MUthresholds
+    
+    def _lorenz(self, x, y, z, s=10, r=28, b=2.667):
+        '''
+        Given:
+        x, y, z: a point of interest in three dimensional space
+        s, r, b: parameters defining the lorenz attractor
+        Returns:
+        x_dot, y_dot, z_dot: values of the lorenz attractor's partial
+            derivatives at the point x, y, z
+        '''
+        x_dot = s*(y - x)
+        y_dot = r*x - y - x*z
+        z_dot = x*y - b*z
+        return x_dot, y_dot, z_dot
 
-    def recruit(self,MUmode="static"):
+    def sample_MUs(self, MUmode="static"):
         """ 
         Input:
-            MUmode: decide whether unit thresholds are fixed or dynamic
-
-            MU thresholds will be distributed from one-tailed Gaussian, to simulate more small units, low threshold units
+            MUmode: decide whether unit thresholds are "static", "dynamic", or simulate "lorenz" dynamics
+            (MU thresholds will be distributed according to "uniform" or "normal" setting at self.MUthresholds_dist) 
         Returns: list of lists,
-                units[0] holds threshold of each unit,
-                units[1] holds response curves from each neuron
+                units[0] holds threshold of each unit [or an array of np.empty(self.num_units) if "lorenz" mode is chosen]
+                units[1] holds response curves from each MU [or holds lorenz latents if that mode is chosen]
         """ 
 
         # re-initialize all force/yank profiles if new trial length is set ( i.e., num_bins_per_trial )
@@ -92,19 +105,43 @@ class MUsim():
         if MUmode == "static":
             if MUthresholds_dist == "uniform": # equal distribution of thresholds for large/small units
                 MUthresholds = (threshmax-threshmin)*np.random.random_sample((self.num_units))+threshmin
-            elif MUthresholds_dist == "normal": # more large units
+            elif MUthresholds_dist == "normal": # more small units
                 MUthresholds = np.clip((np.round(threshmax*abs(np.random.randn(self.num_units)/2),decimals=4)+threshmin),None,threshmax)
             else:
                 raise Exception("MUthresholds_dist input must either be 'uniform' or 'normal'.")
         elif MUmode == "dynamic":
             MUthresholds = self._get_dynamic_thresholds(threshmax,threshmin,new=True)
+        elif MUmode == "lorenz":
+            MUthresholds = np.empty(self.num_units) # thresholds ignored for Lorenz simulation
         else:
-            raise Exception("MUmode must be either 'static' or 'dynamic'.")
+            raise Exception("MUmode must be either 'static', 'dynamic', or 'lorenz'.")
         units[0] = MUthresholds
-        all_forces = np.repeat(force_profile,num_units).reshape((len(force_profile),num_units))
-        thresholded_forces = all_forces - MUthresholds
-        # subtract each respective threshold to get unique response
-        units[1] = self._get_spiking_probability(thresholded_forces)
+        
+        if MUmode in ["static","dynamic"]:
+            all_forces = np.repeat(force_profile,num_units).reshape((len(force_profile),num_units))
+            thresholded_forces = all_forces - MUthresholds # subtract each respective threshold to get unique response
+            units[1] = self._get_spiking_probability(thresholded_forces)
+        elif MUmode == "lorenz": # implement the lorenz system simulation
+            dt = 1/(self.sample_rate)
+            num_steps = self.num_bins_per_trial-1
+            # Need one more for the initial values
+            xs = np.empty(num_steps + 1)
+            ys = np.empty(num_steps + 1)
+            zs = np.empty(num_steps + 1)
+            # Set initial values
+            xs[0], ys[0], zs[0] = np.random.rand(3,1) # random initial condition from [0,1)
+            # Step through "time", calculating the partial derivatives at the current point
+            # and using them to estimate the next point
+            for i in range(num_steps):
+                x_dot, y_dot, z_dot = self._lorenz(xs[i], ys[i], zs[i])
+                xs[i + 1] = xs[i] + (x_dot * dt)
+                ys[i + 1] = ys[i] + (y_dot * dt)
+                zs[i + 1] = zs[i] + (z_dot * dt)
+            # Standardize the latent variables 
+            xs, ys, zs = xs-xs.mean(), ys-ys.mean(), zs-zs.mean() # mean subtract
+            xs, ys, zs = xs/xs.max(), ys/ys.max(), zs/zs.max() # scale by max
+            units[1] = np.vstack((xs,ys,zs)) # lorenz latents stored in units[1]
+        
         if MUmode == "static":
             spike_sorted_cols = self.units[0].argsort()
             self.units[0] = units[0][spike_sorted_cols]
@@ -112,9 +149,12 @@ class MUsim():
             spike_sorted_cols = self.units[0].mean(axis=0).argsort()
             self.units[0] = units[0][:,spike_sorted_cols]
             self.MUthreshold_original = self.units[0] # save original
+        elif MUmode == "lorenz":
+            spike_sorted_cols = np.arange(3)
         else:
-            raise Exception("MUmode must be either 'static' or 'dynamic'.")
-        self.units[1] = units[1][:,spike_sorted_cols]
+            raise Exception("MUmode must be either 'static', 'dynamic', or 'lorenz'.")
+        if MUmode in ["static","dynamic"]:
+            self.units[1] = units[1][:,spike_sorted_cols]
         self.MUmode = MUmode # record the last recruitment mode
         return units
 
@@ -125,21 +165,32 @@ class MUsim():
             Returns: numpy array same length as response curve with  1's and 0's indicating spikes
         """
         if len(self.units[0])==0:
-            raise Exception("unit response curve empty. run '.recruit()' method to define motor unit properties.")
-        unit_response_curves = self.units[1]
-        selection = np.random.random(unit_response_curves.shape)
-        spike_idxs = np.where(selection>unit_response_curves)
-        self.spikes.append(np.zeros(unit_response_curves.shape))
-        if noise_level != 0: # add noise before spikes
-            assert noise_level>0 and noise_level<=1, "noise required to be between 0 and 1."
-            self.spikes[-1] = self.spikes[-1]+noise_level*np.random.standard_normal(self.spikes[-1].shape).__abs__()
-        self.noise_level.append(noise_level)
-        self.spikes[-1][spike_idxs] = 1 # assign spikes value of 1, regardless of noise
+            raise Exception("unit response curve empty. run '.sample_MUs()' method to define motor unit properties.")
+        if self.MUmode == "lorenz":
+            # project latent variables to high-D space
+            # don't care what the high-D space is, so use random
+            proj_mat = np.random.rand(self.num_units, 3)-0.5 # balance it by subtracting 0.5
+            latents = self.units[1]
+            hiD_proj = proj_mat @ latents # projection to hiD
+            hiD_rates = np.exp(hiD_proj)
+            spikes = np.random.poisson(hiD_rates*(1/(self.sample_rate))).T # get spikes and transpose to Time x MU
+            self.spikes.append(np.asarray(spikes,dtype=np.float))
+            self.noise_level.append(noise_level)
+        else:
+            unit_response_curves = self.units[1]
+            selection = np.random.random(unit_response_curves.shape)
+            spike_idxs = np.where(selection>unit_response_curves)
+            self.spikes.append(np.zeros(unit_response_curves.shape)) # initialize as array of zeros, spikes assigned later at spike_idxs 
+            if noise_level != 0: # add noise before spikes
+                assert noise_level>0 and noise_level<=1, "noise required to be between 0 and 1."
+                self.spikes[-1] = self.spikes[-1]+noise_level*np.random.standard_normal(self.spikes[-1].shape).__abs__()
+            self.noise_level.append(noise_level)
+            self.spikes[-1][spike_idxs] = 1 # all spikes are now assigned value of 1, regardless of noise
         return self.spikes[-1]
 
     def simulate_session(self):
         if len(self.units[0])==0:
-            raise Exception("unit response curve empty. run '.recruit()' method to define motor unit properties.")
+            raise Exception("unit response curve empty. run '.sample_MUs()' method to define motor unit properties.")
         trials = self.num_trials
         session_data_shape = (len(self.force_profile),self.num_units,trials)
         self.session.append(np.zeros(session_data_shape))
@@ -155,7 +206,7 @@ class MUsim():
         self.num_bins_per_trial = len(input_force_profile) # set new trial length
         
         if len(self.units[0])==0:
-            raise Exception("unit response curve empty. run '.recruit()' method to define motor unit properties.")
+            raise Exception("unit response curve empty. run '.sample_MUs()' method to define motor unit properties.")
         all_forces = np.repeat(input_force_profile,self.num_units).reshape((len(input_force_profile),self.num_units))
         if self.MUmode == "static":
             thresholded_forces = all_forces - self.units[0]
@@ -166,7 +217,7 @@ class MUsim():
             thresholded_forces = all_forces - MUthresholds
             self.units[0] = MUthresholds
         else:
-            raise Exception("MUmode must be either 'static' or 'dynamic'.")
+            raise Exception("MUmode must be either 'static', 'dynamic', or 'lorenz'.")
 
         self.units[1] = self._get_spiking_probability(thresholded_forces)
         self.force_profile = input_force_profile # set new force profile value
@@ -191,7 +242,7 @@ class MUsim():
             num_units_in_last_trial = self.spikes[-1].shape[1]
             self.smooth_spikes.append(np.zeros(self.spikes[-1].shape)) # create new list entry
             for iUnit in range(num_units_in_last_trial):
-               self.smooth_spikes[-1][:,iUnit] = gaussian_filter1d(self.spikes[-1][:,iUnit],sigma)
+               self.smooth_spikes[-1][:,iUnit] = gaussian_filter1d(self.spikes[-1][:,iUnit],sigma,mode="nearest")
             return self.smooth_spikes[-1]
         elif target == 'session':
             num_trials_in_last_session = self.session[-1].shape[2]
@@ -200,7 +251,7 @@ class MUsim():
             self.smooth_session.append(np.zeros(session_data_shape)) # create new list entry
             for iUnit in range(num_units_in_last_session):
                 for iTrial in range(num_trials_in_last_session):
-                    self.smooth_session[-1][:,iUnit,iTrial] = gaussian_filter1d(self.session[-1][:,iUnit,iTrial],sigma)
+                    self.smooth_session[-1][:,iUnit,iTrial] = gaussian_filter1d(self.session[-1][:,iUnit,iTrial],sigma,mode="nearest")
             return self.smooth_session[-1]
 
     def see(self,target='spikes',trial=-1,unit=0,legend=True):
@@ -227,7 +278,7 @@ class MUsim():
             elif self.MUmode == "dynamic":
                 thresholds = self.units[0].mean(axis=0)
             else:
-                raise Exception("MUmode must be either 'static' or 'dynamic'.")
+                raise Exception("MUmode must be either 'static', 'dynamic', or 'lorenz'.")
             plt.hist(thresholds,self.num_units)
             plt.title('thresholds across '+str(self.num_units)+' generated units')
             plt.ylabel("count")
@@ -303,9 +354,9 @@ class MUsim():
             if legend: # determine where to plot the legend
                 handles, labels = ax.get_legend_handles_labels()
                 ax.legend(handles[::-1], labels[::-1], title="approx. cnt",loc="lower left")
-            plt.title("spikes present across population during trial")
-            plt.xlabel("spikes present over time (ms)")
-            plt.ylabel("motor unit activities sorted by threshold")
+            plt.title("spikes present across MU population during trial")
+            plt.xlabel("time (ms)")
+            plt.ylabel("motor unit spikes sorted by threshold")
             plt.show()
         elif target == 'smooth':
             for ii in range(self.num_units):
@@ -317,7 +368,7 @@ class MUsim():
                     plt.plot(self.smooth_spikes[trial][:,ii]/max_smooth_val+ii)
                 else:
                     raise Exception("there is no smoothed spiking data. run '.convolve()' method to smooth spikes.")
-            plt.title("smoothed spikes present across population during trial")
+            plt.title("smoothed spikes present across MU population during trial")
             plt.xlabel("time (ms)")
             plt.ylabel("activation level (smoothed spikes)")
             plt.show()
@@ -331,3 +382,10 @@ class MUsim():
                 plt.xlabel("time (ms)")
                 plt.ylabel("activation level (smoothed spikes)")
                 plt.show()
+        elif target == 'lorenz':
+            fig = go.Figure(data=[go.Scatter3d(
+                x=self.units[1][0,:],
+                y=self.units[1][1,:],
+                z=self.units[1][2,:],
+                mode='lines')])
+            fig.show()

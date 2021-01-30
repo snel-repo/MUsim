@@ -5,13 +5,14 @@ from MUsim import MUsim
 #########################################################
 #########################################################
 #########################################################
-# TRADITIONAL MODE (SIZE PRINCIPLE)
+# %%
+# # TRADITIONAL MODE (SIZE PRINCIPLE)
 # INITIALIZE SIMULATION OBJECT, mu_stat
 mu_stat = MUsim()
-# RECRUIT NEW MOTOR UNITS
-num_units = 10
-mu_stat.num_units = num_units
-static_units = mu_stat.recruit()
+# GET STATIC MOTOR UNIT THRESHOLDS
+mu_stat.num_units = 10
+mu_stat.MUthresholds_dist = 'uniform'
+static_units = mu_stat.sample_MUs()
 # %% PLOT THRESHOLD DISTRIBUTION, FORCE PROFILE, AND INDIVIDUAL UNIT RESPONSES
 mu_stat.see('thresholds') # plot binned thresholds across all units
 mu_stat.see('force') # plot default applied force
@@ -48,7 +49,22 @@ mu_stat.see('unit',unit=select_units[0])
 mu_stat.see('unit',unit=select_units[1])
 mu_stat.see('unit',unit=select_units[2])
 mu_stat.see('unit',unit=select_units[3])
-
+# %% ###################################################
+mu_lorenz = MUsim()
+# GET LORENZ SIMULATED MOTOR UNITS
+mu_lorenz.num_units = 10
+mu_lorenz.sample_rate = 1/(0.006) # 166.7 Hz
+mu_lorenz.MUthresholds_dist = 'uniform'
+lorenz_units = mu_lorenz.sample_MUs(MUmode="lorenz")
+# %% SIMULATE MOTOR UNITS SPIKE RESPONSE TO DEFAULT FORCE
+spikes = mu_lorenz.simulate_spikes(noise_level=0)
+mu_lorenz.see('spikes') # plot spike response
+# %% VIEW LORENZ ATTRACTOR
+mu_lorenz.see('lorenz')
+# %% CONVOLVE AND PLOT SMOOTHED RESPONSE
+smooth = mu_lorenz.convolve()
+mu_lorenz.see('smooth') # plot smoothed spike response
+#########################################################
 # %% IMPORT NECESSARY PACKAGES
 import numpy as np
 import matplotlib.pyplot as plt
@@ -56,14 +72,13 @@ from MUsim import MUsim
 #########################################################
 #########################################################
 #########################################################
-# DYNAMIC MODE (THRESHOLD REVERSAL)
+# %% # DYNAMIC MODE (THRESHOLD REVERSAL)
 # INITIALIZE SIMULATION OBJECT, mu_dyn
 mu_dyn = MUsim()
-# RECRUIT DYNAMIC UNITS
-num_units = 10
-mu_dyn.num_units = num_units
-# units = mu_dyn.recruit(tmax,tmin)
-dyn_units = mu_dyn.recruit(MUmode="dynamic")
+# # GET DYNAMIC MOTOR UNIT THRESHOLDS
+mu_dyn.num_units = 10
+mu_dyn.MUthresholds_dist = 'uniform'
+dyn_units = mu_dyn.sample_MUs(MUmode="dynamic")
 # %% PLOT THRESHOLD DISTRIBUTION, FORCE PROFILE, AND INDIVIDUAL UNIT RESPONSES
 mu_dyn.see('thresholds') # plot binned thresholds across all units
 mu_dyn.see('force') # plot default applied force

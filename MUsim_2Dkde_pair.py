@@ -42,7 +42,7 @@ shuffle_second_MU_thresholds=False
 mu = MUsim()                            # INSTANTIATE SIMULATION OBJECT
 mu.num_units = num_units_to_simulate    # SET NUMBER OF UNITS TO SIMULATE
 mu.num_trials = num_trials_to_simulate  # SET NUMBER OF TRIALS TO SIMULATE
-units = mu.recruit(MUmode='static')     # RECRUIT
+units = mu.sample_MUs(MUmode='static')  # SAMPLE MUs
 # FIRST SESSION
 force_profile = maxforce1/mu.init_force_profile.max()*mu.force_profile  # SCALE DEFAULT FORCE
 mu.apply_new_force(force_profile)       # SET SCALED LINEAR FORCE PROFILE
