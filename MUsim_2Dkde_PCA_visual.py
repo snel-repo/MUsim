@@ -83,14 +83,14 @@ session2_smooth = mu.convolve(gaussian_bw, target="session")  # SMOOTH SPIKES FO
 unscaled_session1_smooth_stack = np.hstack(session1_smooth)
 unscaled_session2_smooth_stack = np.hstack(session2_smooth)
 if shuffle_second_MU_thresholds is True:
-    np.random.shuffle(unscaled_session2_smooth_stack) #shuffle in place
+    np.random.shuffle(unscaled_session2_smooth_stack) # shuffle in place
 unscaled_session12_smooth_stack = np.hstack((unscaled_session1_smooth_stack,unscaled_session2_smooth_stack)).T
 
 # standardize all unit activities
 scaler = StandardScaler(with_std=False)
 session12_smooth_stack = scaler.fit_transform(unscaled_session12_smooth_stack)
 
-# run for top 10 components to see VAF development for PCA
+# run for top 10 components to see VAFs for each PC
 try:
     num_comp_test = 10
     pca = PCA(n_components=num_comp_test)
@@ -109,7 +109,7 @@ plt.xlabel("principal components")
 plt.ylabel("explained variance (% e.v.)")
 plt.show()
 
-# run for top 10 components to see VAF development for NMF
+# run for top 10 components to see VAFs for each NMF component
 data_len = unscaled_session12_smooth_stack.shape[0]
 train_ratio = 0.8
 test_ratio = 1-train_ratio

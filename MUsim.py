@@ -137,10 +137,10 @@ class MUsim():
                 xs[i + 1] = xs[i] + (x_dot * dt)
                 ys[i + 1] = ys[i] + (y_dot * dt)
                 zs[i + 1] = zs[i] + (z_dot * dt)
-            # Standardize the latent variables 
-            xs, ys, zs = xs-xs.mean(), ys-ys.mean(), zs-zs.mean() # mean subtract
-            xs, ys, zs = xs/xs.max(), ys/ys.max(), zs/zs.max() # scale by max
-            units[1] = np.vstack((xs,ys,zs)) # lorenz latents stored in units[1]
+            # Center and Scale latent variables
+            xs_shift, ys_shift, zs_shift = xs-xs.mean(), ys-ys.mean(), zs-zs.mean() # mean subtract
+            xs_scaled, ys_scaled, zs_scaled = xs_shift/xs_shift.max(), ys_shift/ys_shift.max(), zs_shift/zs_shift.max() # scale by max
+            units[1] = np.vstack((xs_scaled,ys_scaled,zs_scaled)).T # lorenz latents stored in units[1]
         
         if MUmode == "static":
             spike_sorted_cols = self.units[0].argsort()
@@ -171,7 +171,7 @@ class MUsim():
             # don't care what the high-D space is, so use random
             proj_mat = np.random.rand(self.num_units, 3)-0.5 # balance it by subtracting 0.5
             latents = self.units[1]
-            hiD_proj = proj_mat @ latents # projection to hiD
+            hiD_proj = proj_mat @ latents.T # projection to hiD
             hiD_rates = np.exp(hiD_proj)
             spikes = np.random.poisson(hiD_rates*(1/(self.sample_rate))).T # get spikes and transpose to Time x MU
             self.spikes.append(np.asarray(spikes,dtype=np.float))
@@ -242,7 +242,7 @@ class MUsim():
             num_units_in_last_trial = self.spikes[-1].shape[1]
             self.smooth_spikes.append(np.zeros(self.spikes[-1].shape)) # create new list entry
             for iUnit in range(num_units_in_last_trial):
-               self.smooth_spikes[-1][:,iUnit] = gaussian_filter1d(self.spikes[-1][:,iUnit],sigma,mode="nearest")
+               self.smooth_spikes[-1][:,iUnit] = gaussian_filter1d(self.spikes[-1][:,iUnit],sigma,mode="reflect")
             return self.smooth_spikes[-1]
         elif target == 'session':
             num_trials_in_last_session = self.session[-1].shape[2]
@@ -251,7 +251,7 @@ class MUsim():
             self.smooth_session.append(np.zeros(session_data_shape)) # create new list entry
             for iUnit in range(num_units_in_last_session):
                 for iTrial in range(num_trials_in_last_session):
-                    self.smooth_session[-1][:,iUnit,iTrial] = gaussian_filter1d(self.session[-1][:,iUnit,iTrial],sigma,mode="nearest")
+                    self.smooth_session[-1][:,iUnit,iTrial] = gaussian_filter1d(self.session[-1][:,iUnit,iTrial],sigma,mode="reflect")
             return self.smooth_session[-1]
 
     def see(self,target='spikes',trial=-1,unit=0,legend=True):
@@ -384,8 +384,8 @@ class MUsim():
                 plt.show()
         elif target == 'lorenz':
             fig = go.Figure(data=[go.Scatter3d(
-                x=self.units[1][0,:],
-                y=self.units[1][1,:],
-                z=self.units[1][2,:],
+                x=self.units[1][:,0],
+                y=self.units[1][:,1],
+                z=self.units[1][:,2],
                 mode='lines')])
             fig.show()

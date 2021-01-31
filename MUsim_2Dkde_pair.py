@@ -87,9 +87,11 @@ x_both_min, y_both_min = mu12_session12[0,:].min(), mu12_session12[1,:].min()
 x_both_max, y_both_max = mu12_session12[0,:].max(), mu12_session12[1,:].max()
 
 # Evaluate kde on a grid
+x_range = x_both_max-x_both_min
+y_range = y_both_max-y_both_min
 grid_margin = 20 # percent
-gm_coef = (grid_margin/100)+1 # grid margin coefficient to extend grid beyond all edges
-xi, yi = np.mgrid[(gm_coef*x_both_min):(gm_coef*x_both_max):100j, (gm_coef*y_both_min):(gm_coef*y_both_max):100j]
+gm = grid_margin/100 # grid margin value to extend grid beyond all edges
+xi, yi = np.mgrid[(x_both_min-gm*x_range):(x_both_max+gm*x_range):100j, (y_both_min-gm*y_range):(y_both_max+gm*y_range):100j]
 coords = np.vstack([item.ravel() for item in [xi, yi]]) 
 density_session1 = kde10(coords).reshape(xi.shape)
 density_session2 = kde20(coords).reshape(xi.shape)

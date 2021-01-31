@@ -52,18 +52,18 @@ mu_stat.see('unit',unit=select_units[3])
 # %% ###################################################
 mu_lorenz = MUsim()
 # GET LORENZ SIMULATED MOTOR UNITS
-mu_lorenz.num_units = 10
+mu_lorenz.num_units = 30
 mu_lorenz.sample_rate = 1/(0.006) # 166.7 Hz
 mu_lorenz.MUthresholds_dist = 'uniform'
 lorenz_units = mu_lorenz.sample_MUs(MUmode="lorenz")
-# %% SIMULATE MOTOR UNITS SPIKE RESPONSE TO DEFAULT FORCE
+# %% SIMULATE MOTOR UNITS SPIKING RULED BY LORENZ DYNAMICS
 spikes = mu_lorenz.simulate_spikes(noise_level=0)
 mu_lorenz.see('spikes') # plot spike response
-# %% VIEW LORENZ ATTRACTOR
-mu_lorenz.see('lorenz')
-# %% CONVOLVE AND PLOT SMOOTHED RESPONSE
+# %% CONVOLVE AND PLOT SMOOTHED SPIKES
 smooth = mu_lorenz.convolve()
 mu_lorenz.see('smooth') # plot smoothed spike response
+# %% VIEW LORENZ ATTRACTOR
+mu_lorenz.see('lorenz')
 #########################################################
 # %% IMPORT NECESSARY PACKAGES
 import numpy as np

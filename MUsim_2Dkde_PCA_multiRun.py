@@ -41,10 +41,10 @@ pool = Pool(processes=2)
 # %% SIMULATE MOTOR UNIT RESPONSES TO SESSION 1 AND SESSION 2
 #############################################################################################
 # Define Simulation Parameters 
-explore_vals = [0]*10 # this allows you to test a range of a chosen variable
+explore_vals = [0]*10 # set values to test a range of some chosen variable
 explore_vals.extend([1]*10)
 vals_iter = iter(explore_vals)  # when calling next(vals_iter) in each loop
-num_sessions_to_simulate = len(explore_vals)
+num_sessions_to_simulate = 2
 num_trials_to_simulate = 50
 num_units_to_simulate = 10
 trial_length = 500 # bins
@@ -122,10 +122,16 @@ while len(overlap_results)<num_sessions_to_simulate:
     x_both_max, y_both_max = proj12_session12[:,0].max(), proj12_session12[:,1].max()
 
     # DEFINE GRID FOR KDE
-    grid_margin = 10 # percent
+    x_range = x_both_max-x_both_min
+    y_range = y_both_max-y_both_min
+    grid_margin = 20 # percent
     gm = grid_margin/100 # grid margin value to extend grid beyond all edges
-    xi, yi = np.mgrid[(x_both_min-gm):(x_both_max+gm):100j, (y_both_min-gm):(y_both_max+gm):100j]
-    coords = np.vstack([item.ravel() for item in [xi, yi]])
+    xi, yi = np.mgrid[(x_both_min-gm*x_range):(x_both_max+gm*x_range):100j, (y_both_min-gm*y_range):(y_both_max+gm*y_range):100j]
+    coords = np.vstack([item.ravel() for item in [xi, yi]]) 
+    # grid_margin = 10 # percent
+    # gm = grid_margin/100 # grid margin value to extend grid beyond all edges
+    # xi, yi = np.mgrid[(x_both_min-gm):(x_both_max+gm):100j, (y_both_min-gm):(y_both_max+gm):100j]
+    # coords = np.vstack([item.ravel() for item in [xi, yi]])
 
     # GET KDE OBJECTS, for each matrix
     proj_list = [proj12_session1.T,proj12_session2.T]
