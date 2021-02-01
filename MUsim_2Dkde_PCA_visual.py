@@ -140,8 +140,8 @@ plt.show()
 num_comp_proj = 2
 pca = PCA(n_components=num_comp_proj)
 fit = pca.fit(session12_smooth_stack)
-nmf = NMF(n_components=num_comp_proj)
-fit = nmf.fit(unscaled_session12_smooth_stack)
+# nmf = NMF(n_components=num_comp_proj)
+# fit = nmf.fit(unscaled_session12_smooth_stack)
 
 # %% PROJECT FROM FIT - Uncomment/comment the two lines you want/don't want
 # proj12_session1 = nmf.transform(unscaled_session1_smooth_stack.T)

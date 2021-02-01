@@ -254,7 +254,7 @@ class MUsim():
                     self.smooth_session[-1][:,iUnit,iTrial] = gaussian_filter1d(self.session[-1][:,iUnit,iTrial],sigma,mode="reflect")
             return self.smooth_session[-1]
 
-    def see(self,target='spikes',trial=-1,unit=0,legend=True):
+    def see(self,target='spikes',trial=-1,session=-1,unit=0,legend=True):
         """
         Main visualization method for MUsim.
 
@@ -358,13 +358,13 @@ class MUsim():
             plt.xlabel("time (ms)")
             plt.ylabel("motor unit spikes sorted by threshold")
             plt.show()
-        elif target == 'smooth':
-            for ii in range(self.num_units):
+        elif target == 'smooth': # shows smoothed unit traces, 1 trial at a time
+            for ii in range(self.num_units): 
                 if len(self.smooth_session)!=0:
-                    max_smooth_val = self.smooth_session[-1].max()/2
-                    plt.plot(self.smooth_session[-1][:,ii,trial]/max_smooth_val+ii)
+                    max_smooth_val = self.smooth_session[session].max()/2
+                    plt.plot(self.smooth_session[session][:,ii,trial]/max_smooth_val+ii)
                 elif len(self.smooth_spikes)!=0:
-                    max_smooth_val = self.smooth_spikes[-1].max()/2
+                    max_smooth_val = self.smooth_spikes[trial].max()/2
                     plt.plot(self.smooth_spikes[trial][:,ii]/max_smooth_val+ii)
                 else:
                     raise Exception("there is no smoothed spiking data. run '.convolve()' method to smooth spikes.")
@@ -372,15 +372,43 @@ class MUsim():
             plt.xlabel("time (ms)")
             plt.ylabel("activation level (smoothed spikes)")
             plt.show()
-        elif target == 'unit':
+        elif target == 'unit': # looks at 1 unit, shows all trials in a session
             if len(self.smooth_session)==0:
                 raise Exception("there is no smoothed session data. run '.convolve(target='session')' method to smooth a session.")
             else:
-                plt.plot(self.smooth_session[-1][:,unit,:],color='skyblue',alpha=.5)
-                plt.plot(np.mean(self.smooth_session[-1][:,unit,:],axis=1),color='darkblue')
+                plt.plot(self.smooth_session[session][:,unit,:],color='skyblue',alpha=.5)
+                plt.plot(np.mean(self.smooth_session[session][:,unit,:],axis=1),color='darkblue')
                 plt.title("smoothed rates for unit #"+str(unit)+" across "+str(self.num_trials)+" trials")
                 plt.xlabel("time (ms)")
                 plt.ylabel("activation level (smoothed spikes)")
+                plt.show()
+        elif target == 'rates': # shows smoothed unit traces, 1 trial at a time
+            if len(self.smooth_session)!=0:
+                max_smooth_val = self.smooth_session[session].max()/2
+                plt.imshow(self.smooth_session[session][:,:,trial].T/max_smooth_val,aspect='auto',interpolation='none')
+            elif len(self.smooth_spikes)!=0:
+                max_smooth_val = self.smooth_spikes[trial].max()/2
+                plt.imshow(self.smooth_spikes[trial].T/max_smooth_val,aspect='auto',interpolation='none')
+            else:
+                raise Exception("there is no smoothed spiking data. use '.convolve()' method to smooth spikes.")
+            clb = plt.colorbar()
+            clb.set_label('rates', labelpad=-30, y=1.05, rotation=0)
+            plt.title("smoothed rates for all units")
+            plt.xlabel("time (ms)")
+            plt.ylabel("motor units")
+            plt.show()
+        elif target == 'ave_rates': # shows all units' trial-averaged rates in a session
+            if len(self.smooth_session)==0:
+                raise Exception("there is no smoothed session data. run '.convolve(target='session')' method to smooth a session.")
+            else:
+                trial_ave_responses = np.mean(self.smooth_session[session],axis=2)
+                max_smooth_val = trial_ave_responses.max()/2
+                plt.imshow(trial_ave_responses.T/max_smooth_val,aspect='auto',interpolation='none')
+                clb = plt.colorbar()
+                clb.set_label('rates', labelpad=-30, y=1.05, rotation=0)
+                plt.title("trial-averaged smoothed rates for all units")
+                plt.xlabel("time (ms)")
+                plt.ylabel("motor units")
                 plt.show()
         elif target == 'lorenz':
             fig = go.Figure(data=[go.Scatter3d(
@@ -389,3 +417,5 @@ class MUsim():
                 z=self.units[1][:,2],
                 mode='lines')])
             fig.show()
+        else:
+            raise Exception("invalid keyword argument for '.see()' visualization method.")
