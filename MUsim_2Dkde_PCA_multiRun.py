@@ -41,44 +41,54 @@ pool = Pool(processes=2)
 # %% SIMULATE MOTOR UNIT RESPONSES TO SESSION 1 AND SESSION 2
 #############################################################################################
 # Define Simulation Parameters 
-explore_vals = [0]*10 # set values to test a range of some chosen variable
-explore_vals.extend([1]*10)
-vals_iter = iter(explore_vals)  # when calling next(vals_iter) in each loop
-num_sessions_to_simulate = 2
+search_param = np.repeat([0,1],20) # set values to test a range of some chosen variable
+search_iter = iter(search_param)  # when calling next(vals_iter) in each loop
+num_sessions_to_simulate = 10
 num_trials_to_simulate = 50
-num_units_to_simulate = 10
+num_units_to_simulate = 32
 trial_length = 500 # bins
 noise_level = 0
-max_firing_rate = 20
+max_firing_rate = 50
 gaussian_bw = 40   # choose smoothing bandwidth
 max_force1 = 5; max_force2 = 10  # choose max force to analyze, default is 5
 # want to shuffle the second session's thresholds?
 # if not, set False below
+MUmode = 'dynamic'
+MUreversal_frac = 1 # set fraction of MU population that will reverse
+yank_flip_thresh = 15
+MUreversal_static_units = list(range(num_units_to_simulate-10))
+# del MUreversal_static_units[ ((len(MUreversal_static_units)//2)+1):((len(MUreversal_static_units)//2)+11)]
 shuffle_second_MU_thresholds=False
 plot_results = True
 overlap_results = []
 ##############################################################################################
 # %% SIMULATE MULTIPLE RUNS WITHOUT PLOTTING
-while len(overlap_results)<num_sessions_to_simulate:
+mu = MUsim()                            # INSTANTIATE SIMULATION OBJECT
+while len(overlap_results)<len(search_param):
     #############################################################################################
     # RUN 2 DIFFERENT SESSIONS
-    mu = MUsim()                            # INSTANTIATE SIMULATION OBJECT
     mu.num_units = num_units_to_simulate    # SET NUMBER OF UNITS TO SIMULATE
     mu.num_trials = num_trials_to_simulate  # SET NUMBER OF TRIALS TO SIMULATE
     mu.max_spike_prob = max_firing_rate/mu.num_bins_per_trial # SET SPIKING PROBABILITY
     mu.num_bins_per_trial = trial_length    # SET NUMBER OF BINS PER TRIAL
-    mu.max_spike_prob = max_firing_rate/mu.num_bins_per_trial # SET SPIKING PROBABILITY
     mu.session_noise_level = noise_level    # SET NOISE LEVEL FOR SESSION
-    units = mu.sample_MUs(MUmode='static')  # SAMPLE MUs
+    mu.yank_flip_thresh = yank_flip_thresh
+    mu.MUreversal_frac = next(search_iter) #MUreversal_frac # SET NUMBER OF UNITS THAT WILL FLIP THRESHOLD DYNAMICALLY
+    mu.MUreversal_static_units = MUreversal_static_units # SET WHICH UNITS ARE FORCED TO BE STATIC DURING DYNAMIC SIMULATION, PROVIDE LIST OF IDXS
+    units = mu.sample_MUs(MUmode='dynamic')  # SAMPLE MUs
     # FIRST SESSION
-    force_profile = max_force1/mu.init_force_profile.max()*mu.init_force_profile  # SCALE DEFAULT FORCE
-    mu.apply_new_force(force_profile)       # SET SCALED LINEAR FORCE PROFILE
+    force_profile1 = max_force1/mu.init_force_profile.max()*mu.init_force_profile  # SCALE DEFAULT FORCE
+    force_profile1 = np.roll(force_profile1,100) # shift by 100ms
+    force_profile1[:100] = 0 # set first 100ms to zero force
+    mu.apply_new_force(force_profile1)       # SET SCALED LINEAR FORCE PROFILE
     session1 = mu.simulate_session()        # GENERATE SPIKE RESPONSES FOR EACH UNIT
     session1_smooth = mu.convolve(gaussian_bw, target="session")  # SMOOTH SPIKES FOR SESSION 1
     # SECOND SESSION
     mu.reset_force()                      # RESET FORCE BACK TO DEFAULT
-    force_profile = max_force2/mu.init_force_profile.max()*mu.init_force_profile  # SCALE DEFAULT FORCE
-    mu.apply_new_force(force_profile)       # SET SCALED LINEAR FORCE PROFILE
+    force_profile2 = max_force2/mu.init_force_profile.max()*mu.init_force_profile  # SCALE DEFAULT FORCE
+    force_profile2 = np.roll(force_profile2,100) # shift by 100ms
+    force_profile2[:100] = 0 # set first 100ms to zero force
+    mu.apply_new_force(force_profile2)       # SET SCALED LINEAR FORCE PROFILE
     session2 = mu.simulate_session()        # GENERATE SPIKE RESPONSES FOR EACH UNIT
     session2_smooth = mu.convolve(gaussian_bw, target="session")  # SMOOTH SPIKES FOR SESSION 2
     #############################################################################################
@@ -105,14 +115,14 @@ while len(overlap_results)<num_sessions_to_simulate:
     print('pca done.')
     # COMPUTE TRIAL AVERAGES
     # reshape into trials
-    proj12_session1_trials = proj12_session1.T.reshape((len(force_profile),num_comp_proj,num_trials_to_simulate))
-    proj12_session2_trials = proj12_session2.T.reshape((len(force_profile),num_comp_proj,num_trials_to_simulate))
+    proj12_session1_trials = proj12_session1.T.reshape((mu.num_bins_per_trial,num_comp_proj,num_trials_to_simulate))
+    proj12_session2_trials = proj12_session2.T.reshape((mu.num_bins_per_trial,num_comp_proj,num_trials_to_simulate))
 
     # get condition-averages for each
-    proj12_session1_ave_x = proj12_session1[:,0].reshape((len(force_profile),num_trials_to_simulate)).mean(axis=1)
-    proj12_session1_ave_y = proj12_session1[:,1].reshape((len(force_profile),num_trials_to_simulate)).mean(axis=1)
-    proj12_session2_ave_x = proj12_session2[:,0].reshape((len(force_profile),num_trials_to_simulate)).mean(axis=1)
-    proj12_session2_ave_y = proj12_session2[:,1].reshape((len(force_profile),num_trials_to_simulate)).mean(axis=1)
+    proj12_session1_ave_x = proj12_session1[:,0].reshape((mu.num_bins_per_trial,num_trials_to_simulate)).mean(axis=1)
+    proj12_session1_ave_y = proj12_session1[:,1].reshape((mu.num_bins_per_trial,num_trials_to_simulate)).mean(axis=1)
+    proj12_session2_ave_x = proj12_session2[:,0].reshape((mu.num_bins_per_trial,num_trials_to_simulate)).mean(axis=1)
+    proj12_session2_ave_y = proj12_session2[:,1].reshape((mu.num_bins_per_trial,num_trials_to_simulate)).mean(axis=1)
 
     # Format data vectors into D x N shape
     proj12_session12 = np.vstack((proj12_session1,proj12_session2))
@@ -168,13 +178,18 @@ overlap_results = np.vstack(overlap_results)
 
  # just show final results
 if plot_results is True:
-    plt.plot(overlap_results)
+    plt.plot(search_param,overlap_results)
     plt.title("overlap pair values across conditions")
     plt.legend(["1st dist in 2nd","2nd dist in 1st"],title="fraction of:")
     plt.ylim((0,1))
+    plt.xlabel('search parameter values')
+    plt.ylabel('fraction of overlap')
     plt.show()
-    plt.scatter(overlap_results[:,1],overlap_results[:,0])
+    simulation_type_range = round(len(search_param)/2)
+    plt.scatter(overlap_results[:simulation_type_range,1],overlap_results[:simulation_type_range,0],color='silver')
+    plt.scatter(overlap_results[simulation_type_range:,1],overlap_results[simulation_type_range:,0],color='crimson')
     plt.title("overlap pair scatter")
+    plt.legend(["size principle","10/32 Dynamic MUs,\nlarge threshold changes"])
     plt.xlabel("fraction of 1st dist in 2nd")
     plt.ylabel("fraction of 2nd dist in 1st")
     plt.xlim((0,1))
@@ -191,7 +206,8 @@ print("writing to file.")
 # f = open("overlap_session1-y3-stat-noshuff_save0.txt", "w")
 # f = open("overlap_session1-y3-dyn-noshuff_save0.txt", "w")
 # f = open("overlap_session1-y3-stat-shuff_save0.txt", "w")
-f = open("test_file.txt","w")
+f = open("MU_Reversal_Test_-10_unit_large.txt","w")
+# f = open("test_file.txt","w")
 f.write("#           OneInTwo            TwoInOne\n") # column names
 np.savetxt(f, overlap_results)
 f.close()
@@ -200,6 +216,6 @@ f.close()
 # dyn_noshuf = np.loadtxt("overlap_session1-y3-dyn-noshuff_save0.txt")
 # stat_shuf = np.loadtxt("overlap_session1-y3-stat-shuff_save0.txt")
 
-# results = np.loadtxt("test_file.txt")
+overlap_results = np.loadtxt("MU_Reversal_Test_-3_unit_large.txt")
 # results40 = np.loadtxt("40Hz-5-15-dynamic.txt")
 # %%

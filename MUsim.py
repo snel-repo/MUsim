@@ -10,6 +10,9 @@ class MUsim():
     def __init__(self):
         self.MUmode="static"    # "static" for size-principle obediance, "dynamic" for yank-dependent thresholds
         self.MUthresholds_dist="uniform" # can be either "uniform" or "normal". For equal or normally distributed large vs small MUs
+        self.MUreversal_frac = 1 # fractions of MU thresholds that will flip during a dynamic mode simulation
+        self.MUreversal_static_units = [] # will force the units at these indexes to remain static during the dynamic simulations
+        self.static_MU_idxs = np.nan # variable used to track which MUs reverse threshold (nan until assigned in dynamic mode)
         self.units = [[],[]]    # will hold all MU thresholds at .units[0] and all response curves at .units[1]
         self.spikes = []        # spiking responses appended here each time .simulate_spikes() is called
         self.noise_level = []   # non-negative Gaussian noise level term added to spikes
@@ -29,8 +32,8 @@ class MUsim():
         self.yank_profile = self.init_yank_profile  # initialize yank profile
         self.yank_flip_thresh = 20  # default yank value at which the thresholds flips 
         self.max_spike_prob = 0.08  # set to achieve ~80hz (simulate realistic MU firing rates)
+        self.threshmin = 2      # fixed minimum threshold for the generated units' response curves
         self.threshmax = 7      # fixed maximum threshold for the generated units' response curves
-        self.threshmin = 1      # fixed minimum threshold for the generated units' response curves
 
     def _get_spiking_probability(self,thresholded_forces):
         # this function approximates sigmoidal relationship between motor unit firing rate and output force
@@ -43,7 +46,28 @@ class MUsim():
     def _get_dynamic_thresholds(self,threshmax,threshmin,new=False):
         # create arrays from original static MU thresholds, to define MU thresholds that change with each timestep 
         MUthresholds_dist = self.MUthresholds_dist
+        static_MU_idxs = self.static_MU_idxs
         if new == True:
+            # first call assigns which units will flip in this MU population
+            all_MU_idxs = np.arange(self.num_units)
+            # setting MUreversal_frac to zero overrides back to size principle, regardless of idxs in MUreversal_static_units
+            if len(self.MUreversal_static_units)!=0 and self.MUreversal_frac!=0: 
+                # assign chosen indexed MUs to remain static
+                static_MU_idxs = self.MUreversal_static_units
+                num_static_units = len(static_MU_idxs)
+                num_dynamic_units = int(self.num_units-num_static_units)
+            else:
+                # without specifically assigned static MUs in self.MUreversal_static_units, static MUs are randomly assigned
+                num_dynamic_units = int(self.MUreversal_frac*self.num_units)
+                num_static_units = int(self.num_units-num_dynamic_units)
+                static_MU_idxs = np.sort(np.random.choice(all_MU_idxs,num_static_units,replace=False))
+            dynamic_MU_idxs = np.setdiff1d(all_MU_idxs,static_MU_idxs)
+            
+            self.static_MU_idxs = static_MU_idxs # store indexes for MUs that do not flip (i.e., that obey size principle)
+            self.dynamic_MU_idxs = dynamic_MU_idxs
+            self.num_static_units = num_static_units
+            self.num_dynamic_units = num_dynamic_units
+
             if MUthresholds_dist == "uniform": # equal distribution of thresholds for large/small units
                 MUthresholds_gen = (threshmax-threshmin)*np.random.random_sample((self.num_units))+threshmin
             elif MUthresholds_dist == "normal": # more small units
@@ -51,13 +75,14 @@ class MUsim():
             else:
                 raise Exception("MUthresholds_dist input must either be 'uniform' or 'normal'.")
             MUthresholds = np.repeat(MUthresholds_gen,len(self.force_profile)).reshape(len(MUthresholds_gen),len(self.force_profile)).T
-        else:
+        elif static_MU_idxs is not np.nan:
             MUthresholds_orig = self.MUthreshold_original
             MUthresholds_flip = -(MUthresholds_orig-threshmax-threshmin) # values flip within range
             MUthresholds = np.nan*np.zeros(MUthresholds_orig.shape) # place holder
+            MUthresholds_flip[:,self.static_MU_idxs] = MUthresholds_orig[:,self.static_MU_idxs] # prevent chosen static MU idxs from reversing
 
             yank_mat = np.repeat(self.yank_profile,self.num_units).reshape(len(self.yank_profile),self.num_units)
-            yank_flip_idxs = np.where(yank_mat>=self.yank_flip_thresh)
+            yank_flip_idxs = np.where(yank_mat>=self.yank_flip_thresh) # get idxs for all yank threshold crossings
             yank_no_flip_idxs = np.where(yank_mat<self.yank_flip_thresh)
             MUthresholds[yank_flip_idxs] = MUthresholds_flip[yank_flip_idxs] # set flips
             MUthresholds[yank_no_flip_idxs] = MUthresholds_orig[yank_no_flip_idxs] # set original values
@@ -129,7 +154,7 @@ class MUsim():
             ys = np.empty(num_steps + 1)
             zs = np.empty(num_steps + 1)
             # Set initial values
-            xs[0], ys[0], zs[0] = np.random.rand(3,1) # random initial condition from [0,1)
+            xs[0], ys[0], zs[0] = 20*np.random.rand(3,1) # random initial condition from [0,20)
             # Step through "time", calculating the partial derivatives at the current point
             # and using them to estimate the next point
             for i in range(num_steps):
@@ -290,7 +315,18 @@ class MUsim():
             plt.plot(self.init_yank_profile)
             plt.plot(self.force_profile)
             plt.plot(self.yank_profile)
-            plt.legend(["default force","default yank","current force","current yank"])
+            plt.plot(
+                np.repeat(self.yank_flip_thresh,len(self.yank_profile)),
+                color='black',
+                linestyle='dashed'
+                )
+            plt.legend([
+                "default force",
+                "default yank",
+                "current force",
+                "current yank",
+                "yank flip threshold"
+                ])
             plt.title("force and yank profiles for simulation")
             plt.ylabel("simulated force and yank (a.u.)")
             plt.xlabel("time (ms)")
@@ -327,12 +363,13 @@ class MUsim():
                     for ii in range(self.num_units):
                         ax.plot(self.units[1][:,ii])
 
-            plt.title("randomly generated unit response curves")
+            plt.title("MU response curves")
             plt.xlabel("time (ms)")
             plt.ylabel("probability of zero spikes in each bin")
             plt.show()
         elif target == 'spikes':
             plt.rcParams["axes.prop_cycle"] = plt.cycler("color", plt.cm.jet(np.linspace(0,1,self.num_units)))
+            colorList = plt.cm.jet(np.linspace(0,1,self.num_units))
             # check whether legend should be placed outside if too many MU's
             if self.num_units > 10 and legend == True: 
                 legend=False
@@ -346,15 +383,25 @@ class MUsim():
                     peak_idxs = find_peaks(self.spikes[trial].ravel()[iUnit*leng:iUnit*leng+leng],height=(0.8,1.2))
                     peaks[peak_idxs[0],iUnit]=1
                 counts = np.sum(peaks,axis=0)[::-1]
-            # plot spikes and space them out by integer offsets (with -ii)
+            
+            # prepare for spike plot
             fig = plt.figure()
             ax = fig.add_subplot(1, 1, 1)
-            for ii in range(self.num_units):
-                ax.plot(self.spikes[trial][:,ii]+ii,label=counts[ii])
-            if legend: # determine where to plot the legend
-                handles, labels = ax.get_legend_handles_labels()
-                ax.legend(handles[::-1], labels[::-1], title="approx. cnt",loc="lower left")
+            find_spikes_idxs = np.array(np.nonzero(self.spikes[trial][:,:].T)).T # find spikes with nonzero, transpose for eventplot format
+            list_of_spike_idxs = np.split(find_spikes_idxs[:,1], np.unique(find_spikes_idxs[:, 0], return_index=True)[1][1:]) # group idxs by MU identity
+            
+            # plot spike events as raster
+            handles = ax.eventplot(
+                        list_of_spike_idxs,
+                        linelengths=0.8,
+                        colors=['C{}'.format(i) for i in range(len(list_of_spike_idxs))]
+                    )
+            if legend: # determine whether to plot the legend
+                ax.legend(handles[::-1],list(counts)[::-1], title="approx. cnt",loc="upper left")
+            # ax.set_facecolor((200/255,200/255,200/255)) # set RGB color (gray)
+            # fig.set_facecolor((40/255,40/255,40/255)) # set RGB color (235,210,180) is manila
             plt.title("spikes present across MU population during trial")
+            plt.ylim((-1,self.num_units))
             plt.xlabel("time (ms)")
             plt.ylabel("motor unit spikes sorted by threshold")
             plt.show()

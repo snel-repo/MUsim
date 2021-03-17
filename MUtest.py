@@ -1,6 +1,5 @@
 # %% IMPORT NECESSARY PACKAGES
 import numpy as np
-import matplotlib.pyplot as plt
 from MUsim import MUsim
 #########################################################
 #########################################################
@@ -10,7 +9,7 @@ from MUsim import MUsim
 # INITIALIZE SIMULATION OBJECT, mu_stat
 mu_stat = MUsim()
 # GET STATIC MOTOR UNIT THRESHOLDS
-mu_stat.num_units = 10
+mu_stat.num_units = 32
 mu_stat.MUthresholds_dist = 'uniform'
 static_units = mu_stat.sample_MUs()
 # %% PLOT THRESHOLD DISTRIBUTION, FORCE PROFILE, AND INDIVIDUAL UNIT RESPONSES
@@ -78,6 +77,8 @@ mu_dyn = MUsim()
 # # GET DYNAMIC MOTOR UNIT THRESHOLDS
 mu_dyn.num_units = 10
 mu_dyn.MUthresholds_dist = 'uniform'
+mu_dyn.MUreversal_frac = 1 # set fraction of MU population that will reverse
+mu_dyn.MUreversal_static_units = list(range((mu_dyn.num_units-1)))
 dyn_units = mu_dyn.sample_MUs(MUmode="dynamic")
 # %% PLOT THRESHOLD DISTRIBUTION, FORCE PROFILE, AND INDIVIDUAL UNIT RESPONSES
 mu_dyn.see('thresholds') # plot binned thresholds across all units
@@ -89,12 +90,13 @@ spikes1 = mu_dyn.simulate_spikes()
 mu_dyn.see('spikes') # plot spike response
 
 # %% CONVOLVE AND PLOT SMOOTHED RESPONSE
-smooth = mu_dyn.convolve()
+smooth1 = mu_dyn.convolve()
 mu_dyn.see('smooth') # plot smoothed spike response
 # %% APPLY NEW FORCE, VIEW RESPONSE
-new_force_profile = 3*(mu_dyn.init_force_profile)
+new_force_profile = 5*(mu_dyn.init_force_profile)
 mu_dyn.apply_new_force(new_force_profile)
 spikes2 = mu_dyn.simulate_spikes()
+smooth2 = mu_dyn.convolve()
 mu_dyn.see('force') # plot new applied force
 mu_dyn.see('curves') # plot unit response curves
 mu_dyn.see('spikes') # plot spike response
@@ -103,7 +105,8 @@ mu_dyn.see('smooth') # plot smoothed spike response
 # %% APPLY NON-LINEAR FORCE, VIEW RESPONSE
 new_force_profile = -3*np.cos(mu_dyn.init_force_profile)
 mu_dyn.apply_new_force(new_force_profile)
-spikes2 = mu_dyn.simulate_spikes()
+spikes3 = mu_dyn.simulate_spikes()
+smooth3 = mu_dyn.convolve()
 mu_dyn.see('force') # plot new applied force
 mu_dyn.see('curves') # plot unit response curves
 mu_dyn.see('spikes') # plot spike response
