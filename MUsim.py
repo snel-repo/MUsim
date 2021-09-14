@@ -1,3 +1,4 @@
+import pickle
 import numpy as np
 from scipy.special import expit
 from scipy.ndimage import gaussian_filter1d
@@ -30,7 +31,7 @@ class MUsim():
         self.init_yank_profile = np.round(self.sample_rate*np.diff(self.force_profile),decimals=10)  # define initial yank profile
         self.init_yank_profile = np.append(self.init_yank_profile,self.init_yank_profile[-1])  # repeat last value to match force profile length
         self.yank_profile = self.init_yank_profile  # initialize yank profile
-        self.yank_flip_thresh = 20  # default yank value at which the thresholds flips 
+        self.yank_flip_thresh = 15  # default yank value at which the thresholds flips 
         self.max_spike_prob = 0.08  # set to achieve ~80hz (simulate realistic MU firing rates)
         self.threshmin = 2      # fixed minimum threshold for the generated units' response curves
         self.threshmax = 7      # fixed maximum threshold for the generated units' response curves
@@ -71,11 +72,11 @@ class MUsim():
             if MUthresholds_dist == "uniform": # equal distribution of thresholds for large/small units
                 MUthresholds_gen = (threshmax-threshmin)*np.random.random_sample((self.num_units))+threshmin
             elif MUthresholds_dist == "normal": # more small units
-                MUthresholds_gen = np.clip((np.round(threshmax*abs(np.random.randn(self.num_units)/2),decimals=4)+threshmin),None,threshmax)
+                MUthresholds_gen = np.clip((np.round(threshmax*abs(np.random.randn(self.num_units)/4),decimals=4)+threshmin),None,threshmax)
             else:
                 raise Exception("MUthresholds_dist input must either be 'uniform' or 'normal'.")
             MUthresholds = np.repeat(MUthresholds_gen,len(self.force_profile)).reshape(len(MUthresholds_gen),len(self.force_profile)).T
-        elif static_MU_idxs is not np.nan:
+        else: # if static_MU_idxs is not np.nan: # <-- I think this condition is unnecessary
             MUthresholds_orig = self.MUthreshold_original
             MUthresholds_flip = -(MUthresholds_orig-threshmax-threshmin) # values flip within range
             MUthresholds = np.nan*np.zeros(MUthresholds_orig.shape) # place holder
@@ -183,6 +184,11 @@ class MUsim():
         self.MUmode = MUmode # record the last recruitment mode
         return units
 
+    # method for pickling/saving a MUsim object, to use same object again later
+    def save(self,filename):
+        with open(filename,'wb') as outfile:
+            pickle.dump(self,outfile)
+
     def simulate_spikes(self,noise_level=0):
         """
             simple routine to generate spikes with probabilities according to the (sigmoidal) response curve.
@@ -287,6 +293,7 @@ class MUsim():
             target: string inputs for visualization of simulation data or properties
                 - 'curves': view current MU response curves to the last force_profile
                 - 'spikes': view spike outputs from the last force response simulation
+                - 'spikes+force': view spike outputs with force overlay
                 - 'smooth': view convolved outputs from the last force response simulation
                 - 'unit': view selected unit activations across all simulated trials
                 - 'force': view default and current force and yank profiles
@@ -367,7 +374,7 @@ class MUsim():
             plt.xlabel("time (ms)")
             plt.ylabel("probability of zero spikes in each bin")
             plt.show()
-        elif target == 'spikes':
+        elif target in ['spikes','spikes+force']:
             plt.rcParams["axes.prop_cycle"] = plt.cycler("color", plt.cm.jet(np.linspace(0,1,self.num_units)))
             colorList = plt.cm.jet(np.linspace(0,1,self.num_units))
             # check whether legend should be placed outside if too many MU's
@@ -404,6 +411,8 @@ class MUsim():
             plt.ylim((-1,self.num_units))
             plt.xlabel("time (ms)")
             plt.ylabel("motor unit spikes sorted by threshold")
+            if target=="spikes+force":
+                plt.plot(self.force_profile,color='silver',linewidth=5,alpha=.7)
             plt.show()
         elif target == 'smooth': # shows smoothed unit traces, 1 trial at a time
             for ii in range(self.num_units): 

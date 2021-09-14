@@ -1,10 +1,14 @@
 # %% IMPORT packages
+import pickle
 import numpy as np
 from scipy.stats import gaussian_kde
-import matplotlib.pyplot as plt
 import plotly.express as px
 import plotly.graph_objects as go
 from MUsim import MUsim
+
+# load saved MUsim object if needed
+# with open("mu_pickle.obj",'rb') as file:
+#     mu = pickle.load(file)
 
 # Define confidence interval calculation
 def get_confidence(normalized_KDE_densities,confidence_value):
@@ -29,11 +33,11 @@ def get_confidence(normalized_KDE_densities,confidence_value):
 # %% SIMULATE MOTOR UNIT RESPONSES TO PROFILE 1 AND PROFILE 2
 ########################################################
 # Define Simulation Parameters 
-num_trials_to_simulate = 20
-num_units_to_simulate = 10
+num_trials_to_simulate = 50
+num_units_to_simulate = 11
 gaussian_bw = 40                # choose smoothing bandwidth
 unit1 = 0; unit2 = -1           # choose units to analyze
-maxforce1 = 5; maxforce2 = 15   # choose max force to analyze, default is 5
+max_force1 = 5; max_force2 = 10   # choose max force to analyze, default is 5
 # want to shuffle the second session's thresholds?
 # if not, set False below
 shuffle_second_MU_thresholds=False
@@ -44,21 +48,25 @@ mu.num_units = num_units_to_simulate    # SET NUMBER OF UNITS TO SIMULATE
 mu.num_trials = num_trials_to_simulate  # SET NUMBER OF TRIALS TO SIMULATE
 units = mu.sample_MUs(MUmode='static')  # SAMPLE MUs
 # FIRST SESSION
-force_profile = maxforce1/mu.init_force_profile.max()*mu.force_profile  # SCALE DEFAULT FORCE
-mu.apply_new_force(force_profile)       # SET SCALED LINEAR FORCE PROFILE
+force_profile1 = max_force1/mu.init_force_profile.max()*mu.init_force_profile  # SCALE DEFAULT FORCE
+force_profile1 = np.roll(force_profile1,100) # shift by 100ms
+force_profile1[:100] = 0 # set first 100ms to zero force
+mu.apply_new_force(force_profile1)       # SET SCALED LINEAR FORCE PROFILE
 session1 = mu.simulate_session()        # GENERATE SPIKE RESPONSES FOR EACH UNIT
 session1_smooth = mu.convolve(gaussian_bw, target="session")  # SMOOTH SPIKES FOR SESSION 1
 # SECOND SESSION
 mu.reset_force                          # RESET FORCE BACK TO DEFAULT
-force_profile = maxforce2/mu.init_force_profile.max()*mu.force_profile  # SCALE DEFAULT FORCE
-mu.apply_new_force(force_profile)       # SET SCALED LINEAR FORCE PROFILE
+force_profile2 = max_force2/mu.init_force_profile.max()*mu.init_force_profile  # SCALE DEFAULT FORCE
+force_profile2 = np.roll(force_profile2,100) # shift by 100ms
+force_profile2[:100] = 0 # set first 100ms to zero force
+mu.apply_new_force(force_profile2)       # SET SCALED LINEAR FORCE PROFILE
 session2 = mu.simulate_session()        # GENERATE SPIKE RESPONSES FOR EACH UNIT
 session2_smooth = mu.convolve(gaussian_bw, target="session")  # SMOOTH SPIKES FOR SESSION 2
 #############################################################################################
 # %% COMPUTE UNIT DATA MATRICES
 # Get 2 aligned channels of data
-session1_smooth_stack = np.hstack(session1_smooth)
-session2_smooth_stack = np.hstack(session2_smooth)
+session1_smooth_stack = np.hstack(mu.smooth_session[-2])
+session2_smooth_stack = np.hstack(mu.smooth_session[-1])
 if shuffle_second_MU_thresholds is True:
     np.random.shuffle(session2_smooth_stack) #shuffle in place
 
@@ -78,6 +86,70 @@ mu12_session1 = np.vstack([mu1_session1,mu2_session1])
 mu12_session2 = np.vstack([mu1_session2,mu2_session2])
 mu12_session12 = np.hstack((mu12_session1,mu12_session2))
 
+# %% PLOT SIMULATED DATA
+fig = go.Figure()
+# data session 2
+fig.add_trace(go.Scatter(
+    x = mu12_session2[0],
+    y = mu12_session2[1],
+    mode="markers",
+    marker=dict(
+        size=.75,
+        opacity=.5,
+        color="skyblue"
+        ),
+    name = "yank="+str(max_force2)
+))
+# data session 1
+fig.add_trace(go.Scatter(
+    x = mu12_session1[0],
+    y = mu12_session1[1],
+    mode="markers",
+    marker=dict(
+        size=.75,
+        opacity=.5,
+        color="gray"
+        ),
+    name = "yank="+str(max_force1)
+))
+# trial average session 2
+fig.add_trace(go.Scatter(
+    x = mu1_session2_ave,
+    y = mu2_session2_ave,
+    mode="lines",
+    line=dict(
+        width=1,
+        color="blue"
+        ),
+    name = "yank="+str(max_force2)+" mean"
+))
+# trial average session 1
+fig.add_trace(go.Scatter(
+    x = mu1_session1_ave,
+    y = mu2_session1_ave,
+    mode="lines",
+    line=dict(
+        width=1,
+        color="black"
+        ),
+    name = "yank="+str(max_force1)+" mean"
+))
+fig.update_yaxes(
+    scaleanchor = "x",
+    scaleratio = 1,
+  )
+fig.update_layout(
+    legend=dict(title="linear force profiles:"),
+    # plot_bgcolor="rgba(235,210,180,1)",
+    title="simulated trajectories in 2-unit state-space",
+    xaxis=dict(title=dict(text="low-threshold MU activation")),
+    yaxis=dict(title=dict(text="high-threshold MU activation")),
+    width=600,
+    height=500
+)
+fig.show()
+
+#######################################################################################
 # %% GET KDE OBJECTS, fit on each matrix
 kde10 = gaussian_kde(mu12_session1)
 kde20 = gaussian_kde(mu12_session2)
@@ -105,84 +177,22 @@ d_session2_norm = density_session2/np.sum(density_session2)
 
 d_session1_norm_pts = density_session1_pts/np.sum(density_session1_pts)
 d_session2_norm_pts = density_session2_pts/np.sum(density_session2_pts)
-
-# %% PLOT SIMULATED DATA
-fig = go.Figure()
-# data session 2
-fig.add_trace(go.Scatter(
-    x = mu12_session2[0],
-    y = mu12_session2[1],
-    mode="markers",
-    marker=dict(
-        size=.75,
-        opacity=.5,
-        color="skyblue"
-        ),
-    name = "yank="+str(maxforce2)
-))
-# data session 1
-fig.add_trace(go.Scatter(
-    x = mu12_session1[0],
-    y = mu12_session1[1],
-    mode="markers",
-    marker=dict(
-        size=.75,
-        opacity=.5,
-        color="gray"
-        ),
-    name = "yank="+str(maxforce1)
-))
-# trial average session 2
-fig.add_trace(go.Scatter(
-    x = mu1_session2_ave,
-    y = mu2_session2_ave,
-    mode="lines",
-    line=dict(
-        width=1,
-        color="blue"
-        ),
-    name = "yank="+str(maxforce2)+" mean"
-))
-# trial average session 1
-fig.add_trace(go.Scatter(
-    x = mu1_session1_ave,
-    y = mu2_session1_ave,
-    mode="lines",
-    line=dict(
-        width=1,
-        color="black"
-        ),
-    name = "yank="+str(maxforce1)+" mean"
-))
-fig.update_yaxes(
-    scaleanchor = "x",
-    scaleratio = 1,
-  )
-fig.update_layout(
-    legend=dict(title="linear force profiles:"),
-    title="simulated trajectories in 2-unit state-space",
-    xaxis=dict(title=dict(text="'small' unit")),
-    yaxis=dict(title=dict(text="'large' unit")),
-    width=600,
-    height=500
-)
-fig.show()
 # %%
-fig10 = px.imshow(d_session1_norm.T,title="2D PDF, yank="+str(maxforce1),width=500,height=500,origin='lower')
-fig20 = px.imshow(d_session2_norm.T,title="2D PDF, yank="+str(maxforce2),width=500,height=500,origin='lower')
+fig10 = px.imshow(d_session1_norm.T,title="2D PDF, yank="+str(max_force1),width=500,height=500,origin='lower')
+fig20 = px.imshow(d_session2_norm.T,title="2D PDF, yank="+str(max_force2),width=500,height=500,origin='lower')
 fig10.show(); fig20.show()
 # %%
 CI_10 = get_confidence(d_session1_norm,.95)
 CI_20 = get_confidence(d_session2_norm,.95)
 # %% plot Computed CI's for each dataset
-figCI10 = px.imshow(CI_10.T,title="yank="+str(maxforce1)+", 95% CI",width=500,height=500,origin='lower')
-figCI20 = px.imshow(CI_20.T,title="yank="+str(maxforce2)+", 95% CI",width=500,height=500,origin='lower')
+figCI10 = px.imshow(CI_10.T,title="yank="+str(max_force1)+", 95% CI",width=500,height=500,origin='lower')
+figCI20 = px.imshow(CI_20.T,title="yank="+str(max_force2)+", 95% CI",width=500,height=500,origin='lower')
 figCI10.show(); figCI20.show()
 # %%
 O_10in20 = np.sum(CI_20*d_session1_norm)
 O_20in10 = np.sum(CI_10*d_session2_norm)
 
-fig_O_10in20 = px.imshow((CI_20*d_session1_norm).T,title="yank="+str(maxforce1)+" density inside 95%CI of yank="+str(maxforce2)+": "+str(np.round(O_10in20,decimals=4)),width=500,height=500,origin='lower')
-fig_O_20in10 = px.imshow((CI_10*d_session2_norm).T,title="yank="+str(maxforce2)+" density inside 95%CI of yank="+str(maxforce1)+": "+str(np.round(O_20in10,decimals=4)),width=500,height=500,origin='lower')
+fig_O_10in20 = px.imshow((CI_20*d_session1_norm).T,title="yank="+str(max_force1)+" density inside 95%CI of yank="+str(max_force2)+": "+str(np.round(O_10in20,decimals=4)),width=500,height=500,origin='lower')
+fig_O_20in10 = px.imshow((CI_10*d_session2_norm).T,title="yank="+str(max_force2)+" density inside 95%CI of yank="+str(max_force1)+": "+str(np.round(O_20in10,decimals=4)),width=500,height=500,origin='lower')
 fig_O_10in20.show(); fig_O_20in10.show()
 # %% 

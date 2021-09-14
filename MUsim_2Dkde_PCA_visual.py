@@ -12,6 +12,10 @@ from MUsim import MUsim
 import plotly.express as px
 import plotly.graph_objects as go
 
+# load saved MUsim object if needed
+# with open("mu_pickle.obj",'rb') as file:
+#     mu = pickle.load(file)
+
 # DEFINE confidence interval calculation
 def get_confidence(normalized_KDE_densities,confidence_value):
     CI = np.zeros( normalized_KDE_densities.shape )
@@ -87,8 +91,8 @@ session2 = mu.simulate_session()        # GENERATE SPIKE RESPONSES FOR EACH UNIT
 session2_smooth = mu.convolve(gaussian_bw, target="session")  # SMOOTH SPIKES FOR SESSION 2
 #############################################################################################
 # %% COMPUTE PCA OBJECT on all MU data
-unscaled_session1_smooth_stack = np.hstack(session1_smooth)
-unscaled_session2_smooth_stack = np.hstack(session2_smooth)
+unscaled_session1_smooth_stack = np.hstack(mu.smooth_session[-2])
+unscaled_session2_smooth_stack = np.hstack(mu.smooth_session[-1])
 if shuffle_second_MU_thresholds is True:
     np.random.shuffle(unscaled_session2_smooth_stack) # shuffle in place
 unscaled_session12_smooth_stack = np.hstack((unscaled_session1_smooth_stack,unscaled_session2_smooth_stack)).T
