@@ -2,4 +2,4 @@ class for motor unit simulations, produce firing rates according to arbitrary fo
 
 Once your environment is configured with `conda create --name mu --file requirements.txt`, run `MUtest.py` for an example of a range of simulation parameters and plot outputs (see below).
 
-![Output of MUtest.py](MUtest.html)
+![Output of MUtest.py](MUtest.pdf)
