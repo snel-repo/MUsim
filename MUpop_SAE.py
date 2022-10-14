@@ -1,5 +1,6 @@
 import os
-import matplotlib as plt
+from pdb import set_trace
+import matplotlib.pyplot as plt
 import numpy as np
 import torch
 from torch import optim
@@ -35,23 +36,43 @@ print("Device in use:", device, "GPU:", torch.cuda.get_device_name(0))
 #         rates = self.LinearToRates(factors)
 #         return torch.exp(rates)
 
-class RNNAutoEncoder(nn.Module):
-    def __init__(self, input_dim=100, hidden_dim=128, IC_dim=10, factors_dim=40):
-        super(RNNAutoEncoder, self).__init__()
+# simulate motor unit data
+mu = MUsim()
+mu.num_units = 100     # default number of units to simulate
+mu.num_trials = 100    # default number of trials to simulate
+mu.num_bins_per_trial = 500 # amount of time per trial is (num_bins_per_trial/sample_rate)
+mu.sample_rate = 1/(0.006)
+_, latents = mu.sample_MUs(MUmode="lorenz")
+sess = mu.simulate_session()
+smth_sess = mu.convolve(sigma=30,target="session")
+# sess2 = mu.simulate_session()
+# smth_sess2 = mu.convolve(sigma=30,target="session")
+# mu.see('rates',session=0)
+# mu.see('rates',session=1)
+# mu.see('lorenz')
+# set_trace()
+
+batch_size = 10
+session = np.transpose(smth_sess,(2,0,1)) # Make shape: Trials x Time x Neurons
+# torch_sess = map(torch.tensor, session)
+
+class GRUAutoEncoder(nn.Module):
+    def __init__(self, input_dim=mu.num_units, hidden_dim=128, IC_dim=100, factors_dim=3):
+        super(GRUAutoEncoder, self).__init__()
         self.input_dim=input_dim
         self.hidden_dim=hidden_dim
         self.IC_dim=IC_dim
+        self.factors = []
         self.factors_dim=factors_dim
-        self.Encoder = nn.RNN(input_size=input_dim, hidden_size=hidden_dim, batch_first=True)
-        self.IC_layer = nn.Linear(in_features=hidden_dim, out_features= IC_dim)
-        self.Generator = nn.RNN(input_size=IC_dim, hidden_size=hidden_dim, batch_first=True)
-        self.GenToFactors = nn.Linear(in_features=hidden_dim, out_features=factors_dim)
-        self.FactorsToRates = nn.Linear(in_features=factors_dim, out_features=input_dim)
+        self.Encoder = nn.GRU(input_size=input_dim, hidden_size=hidden_dim, batch_first=True)
+        self.IC_layer = nn.Linear(in_features=hidden_dim, out_features=IC_dim,bias=True)
+        self.Generator = nn.GRU(input_size=IC_dim, hidden_size=hidden_dim, batch_first=True)
+        self.GenToFactors = nn.Linear(in_features=hidden_dim, out_features=factors_dim,bias=True)
+        self.FactorsToRates = nn.Linear(in_features=factors_dim, out_features=input_dim,bias=True)
     
     def forward(self, mu_batch):
         mu_batch = mu_batch.float()
         full_gen_out = torch.zeros(mu_batch.shape[0],mu_batch.shape[1],self.hidden_dim).to(device=device)
-        
         _, hidden = self.Encoder(mu_batch)
         IC = self.IC_layer(hidden)
         IC = torch.transpose(IC, 0, 1)
@@ -59,16 +80,16 @@ class RNNAutoEncoder(nn.Module):
             output, hidden = self.Generator(IC, hidden)
             full_gen_out[:,i,:] = torch.squeeze(output)
         factors = self.GenToFactors(full_gen_out)
-        rates = self.FactorsToRates(factors)
+        self.factors.append(factors)
+        rates = self.FactorsToRates(torch.exp(factors))
         return rates
     
 def get_model():
-    model = RNNAutoEncoder()
+    model = GRUAutoEncoder()
     model.to(device=device)
     for p in model.parameters():
-        pass
-    if p.dim() > 1:
-        nn.init.xavier_uniform_(p)
+        if p.dim() > 1:
+            nn.init.xavier_uniform_(p)
     return model, optim.Adam(model.parameters()), F.poisson_nll_loss
 
 def train(epochs, batch_iter):
@@ -85,23 +106,13 @@ def train(epochs, batch_iter):
         print(f'epoch [{iEpoch + 1}/{epochs}], loss:{loss.data.item()}')
     return model
 
-# simulate motor unit data
-mu = MUsim()
-mu.num_units = 100     # default number of units to simulate
-mu.num_trials = 500    # default number of trials to simulate
-mu.num_bins_per_trial = 1000 # amount of time per trial is (num_bins_per_trial/sample_rate)
-mu.sample_rate = 1/(0.006)
-_, latents = mu.sample_MUs(MUmode="lorenz")
-sess = mu.simulate_session()
-# smth_sess = mu.convolve(sigma=30,target="session")
-# mu.see('rates',session=0)
-# mu.see('lorenz')
-
-session = np.transpose(mu.session[0],(2,0,1)) # Make shape: Trials x Time x Neurons
-# torch_sess = map(torch.tensor, session)
-batch_size = 100
-
 data = TensorDataset(torch.tensor(session).to(device=device), torch.tensor(session).to(device=device))
 batch_iter = DataLoader(data, batch_size=batch_size)
 
-model = train(epochs=20,batch_iter=batch_iter)
+model = train(epochs=10,batch_iter=batch_iter)
+
+plt.plot(mu.units[1]); plt.show()
+plt.plot(model.factors[0][0].cpu().detach().numpy()); plt.show()
+plt.plot(model.factors[10][0].cpu().detach().numpy()); plt.show()
+plt.plot(model.factors[-1][0].cpu().detach().numpy()); plt.show()
+# set_trace()

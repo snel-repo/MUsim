@@ -10,7 +10,7 @@ from MUsim import MUsim
 mu_stat = MUsim()
 # GET STATIC MOTOR UNIT THRESHOLDS
 mu_stat.num_units = 32
-mu_stat.MUthresholds_dist = 'uniform'
+mu_stat.MUthresholds_dist = 'normal'
 static_units = mu_stat.sample_MUs()
 # %% PLOT THRESHOLD DISTRIBUTION, FORCE PROFILE, AND INDIVIDUAL UNIT RESPONSES
 mu_stat.see('thresholds') # plot binned thresholds across all units

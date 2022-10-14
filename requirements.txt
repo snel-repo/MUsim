@@ -1,3 +1,4 @@
+cudnn
 numpy
 scipy
 pandas

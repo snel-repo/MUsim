@@ -16,7 +16,10 @@ class MUsim():
         self.units = [[],[]]    # will hold all MU thresholds at .units[0] and all response curves at .units[1]
         self.spikes = []        # spiking responses appended here each time .simulate_spikes() is called
         self.noise_level = []   # non-negative Gaussian noise level term added to spikes
-        self.session = []       # matrix of spiking responses appended here each time .simulate_session() is called
+        self.session = []       # matrix of spiking responses appended to this list here each time .simulate_session() is called
+        self.session_forces = [] # current force profile appended to this list here each time .simulate_session() is called
+        self.session_yanks = [] # current yank profile appended to this list here each time .simulate_session() is called
+        self.session_num_trials = [] # num trials for each session
         self.session_noise_level = 0 # noise level for session
         self.smooth_spikes = [] # smoothed spiking responses appended here each time .convolve() is called
         self.smooth_session = []# matrix of smoothed spiking responses appended here each time .convolve(target=session) is called
@@ -32,7 +35,7 @@ class MUsim():
         self.yank_profile = self.init_yank_profile  # initialize yank profile
         self.yank_flip_thresh = 20  # default yank value at which the thresholds flips 
         self.max_spike_prob = 0.08  # set to achieve ~80hz (simulate realistic MU firing rates)
-        self.threshmin = 2      # fixed minimum threshold for the generated units' response curves
+        self.threshmin = 3      # fixed minimum threshold for the generated units' response curves
         self.threshmax = 7      # fixed maximum threshold for the generated units' response curves
 
     def _get_spiking_probability(self,thresholded_forces):
@@ -102,6 +105,30 @@ class MUsim():
         z_dot = x*y - b*z
         return x_dot, y_dot, z_dot
 
+    def load_MUs(self, npy_file_path, bin_width):
+        """
+        Function loads data and appends into MUsim().session, just like with simulated sessions.
+        
+        Input:
+            npy_file_path: path to load real data from rat_loco_analysis, transposes the data axes to make structure compatible
+                transpose operation: (Trials x Time x MUs) --> (Time x MUs x Trials)
+            bin_width: provide the time width of the bins of the input data
+        
+        Returns: nothing.
+        """
+        binned_MU_session = np.load(npy_file_path)
+        # (Trials x Time x MUs) --> (Time x MUs x Trials)
+        transposed_binned_MU_session = np.transpose(binned_MU_session, (1,2,0))
+        self.session.append(transposed_binned_MU_session)
+        self.num_bins_per_trial = transposed_binned_MU_session.shape[0]
+        self.num_units = transposed_binned_MU_session.shape[1]
+        self.num_trials = transposed_binned_MU_session.shape[2]
+        self.session_num_trials.append(self.num_trials)
+        self.MUmode = "loaded" # record that this session was loaded
+        self.session_forces.append(np.repeat(np.nan,len(self.force_profile)))
+        self.session_yanks.append(np.repeat(np.nan,len(self.yank_profile)))
+        return
+    
     def sample_MUs(self, MUmode="static"):
         """ 
         Input:
@@ -221,6 +248,9 @@ class MUsim():
         self.session.append(np.zeros(session_data_shape))
         for iTrial in range(trials):
             self.session[-1][:,:,iTrial] = self.simulate_spikes(self.session_noise_level)
+        self.session_forces.append(self.force_profile)
+        self.session_yanks.append(self.yank_profile)
+        self.session_num_trials.append(self.num_trials)
         return self.session[-1]
 
     def apply_new_force(self,input_force_profile):
@@ -233,11 +263,11 @@ class MUsim():
         if len(self.units[0])==0:
             raise Exception("unit response curve empty. run '.sample_MUs()' method to define motor unit properties.")
         all_forces = np.repeat(input_force_profile,self.num_units).reshape((len(input_force_profile),self.num_units))
+        self.yank_profile = np.round(self.sample_rate*np.diff(input_force_profile),decimals=10) # update yank_profile
+        self.yank_profile = np.append(self.yank_profile,self.yank_profile[-1]) # repeat yank_profile[-1] value [to match len(force_profile)]
         if self.MUmode == "static":
             thresholded_forces = all_forces - self.units[0]
         elif self.MUmode == "dynamic": # everything must be updated for dynamic
-            self.yank_profile = np.round(self.sample_rate*np.diff(input_force_profile),decimals=10) # update yank_profile
-            self.yank_profile = np.append(self.yank_profile,self.yank_profile[-1]) # repeat yank_profile[-1] value [to match len(force_profile)]
             MUthresholds = self._get_dynamic_thresholds(self.threshmax,self.threshmin)
             thresholded_forces = all_forces - MUthresholds
             self.units[0] = MUthresholds
@@ -272,14 +302,14 @@ class MUsim():
         elif target == 'session':
             num_trials_in_last_session = self.session[-1].shape[2]
             num_units_in_last_session = self.session[-1].shape[1]
-            session_data_shape = (len(self.force_profile),num_units_in_last_session,num_trials_in_last_session)
+            session_data_shape = (self.session[-1].shape[0],num_units_in_last_session,num_trials_in_last_session)
             self.smooth_session.append(np.zeros(session_data_shape)) # create new list entry
             for iUnit in range(num_units_in_last_session):
                 for iTrial in range(num_trials_in_last_session):
                     self.smooth_session[-1][:,iUnit,iTrial] = gaussian_filter1d(self.session[-1][:,iUnit,iTrial],sigma,mode="reflect")
             return self.smooth_session[-1]
 
-    def see(self,target='spikes',trial=-1,session=-1,unit=0,legend=True):
+    def see(self,target='spikes',trial=-1,session=-1,unit=0,legend=True, no_offset=False):
         """
         Main visualization method for MUsim.
 
@@ -311,24 +341,24 @@ class MUsim():
             plt.show()
         elif target == 'force':
             plt.rcParams["axes.prop_cycle"] = plt.cycler("color", plt.cm.seismic(np.linspace(0,1,4)))
-            plt.plot(self.init_force_profile)
-            plt.plot(self.init_yank_profile)
-            plt.plot(self.force_profile)
-            plt.plot(self.yank_profile)
-            plt.plot(
-                np.repeat(self.yank_flip_thresh,len(self.yank_profile)),
-                color='black',
-                linestyle='dashed'
-                )
+            # plt.plot(self.init_force_profile)
+            # plt.plot(self.init_yank_profile)
+            plt.plot(self.session_forces[session])
+            # plt.plot(self.session_yanks[session])
+            # plt.plot(
+            #     np.repeat(self.yank_flip_thresh,len(self.yank_profile)),
+            #     color='black',
+            #     linestyle='dashed'
+            #     )
             plt.legend([
-                "default force",
-                "default yank",
+                # "default force",
+                # "default yank",
                 "current force",
-                "current yank",
-                "yank flip threshold"
+                # "current yank",
+                # "yank flip threshold"
                 ])
-            plt.title("force and yank profiles for simulation")
-            plt.ylabel("simulated force and yank (a.u.)")
+            plt.title("force profile for simulation")
+            plt.ylabel("simulated force (a.u.)")
             plt.xlabel("time (ms)")
             plt.show()
         elif target == 'curves':
@@ -369,8 +399,9 @@ class MUsim():
             plt.show()
         elif target == 'spikes':
             plt.rcParams["axes.prop_cycle"] = plt.cycler("color", plt.cm.jet(np.linspace(0,1,self.num_units)))
-            colorList = plt.cm.jet(np.linspace(0,1,self.num_units))
+            # colorList = plt.cm.jet(np.linspace(0,1,self.num_units))
             # check whether legend should be placed outside if too many MU's
+            legend=False
             if self.num_units > 10 and legend == True: 
                 legend=False
                 print("could not plot legend with more than 10 MUs.")
@@ -401,20 +432,30 @@ class MUsim():
             # ax.set_facecolor((200/255,200/255,200/255)) # set RGB color (gray)
             # fig.set_facecolor((40/255,40/255,40/255)) # set RGB color (235,210,180) is manila
             plt.title("spikes present across MU population during trial")
+            plt.xlim((0,1000*(self.num_bins_per_trial/self.sample_rate)))
             plt.ylim((-1,self.num_units))
             plt.xlabel("time (ms)")
             plt.ylabel("motor unit spikes sorted by threshold")
             plt.show()
         elif target == 'smooth': # shows smoothed unit traces, 1 trial at a time
+            plt.rcParams["axes.prop_cycle"] = plt.cycler("color", plt.cm.jet(np.linspace(0,1,self.num_units)))
             for ii in range(self.num_units): 
-                if len(self.smooth_session)!=0:
-                    max_smooth_val = self.smooth_session[session].max()/2
-                    plt.plot(self.smooth_session[session][:,ii,trial]/max_smooth_val+ii)
-                elif len(self.smooth_spikes)!=0:
-                    max_smooth_val = self.smooth_spikes[trial].max()/2
-                    plt.plot(self.smooth_spikes[trial][:,ii]/max_smooth_val+ii)
+                if no_offset is False:    
+                    if len(self.smooth_session)!=0:
+                        max_smooth_val = self.smooth_session[session].max()/2
+                        plt.plot(self.smooth_session[session][:,ii,trial]/max_smooth_val+ii)
+                    elif len(self.smooth_spikes)!=0:
+                        max_smooth_val = self.smooth_spikes[trial].max()/2
+                        plt.plot(self.smooth_spikes[trial][:,ii]/max_smooth_val+ii)
+                    else:
+                        raise Exception("there is no smoothed spiking data. run '.convolve()' method to smooth spikes.")
                 else:
-                    raise Exception("there is no smoothed spiking data. run '.convolve()' method to smooth spikes.")
+                    if len(self.smooth_session)!=0:
+                        plt.plot(self.smooth_session[session][:,ii,trial])
+                    elif len(self.smooth_spikes)!=0:
+                        plt.plot(self.smooth_spikes[trial][:,ii])
+                    else:
+                        raise Exception("there is no smoothed spiking data. run '.convolve()' method to smooth spikes.")
             plt.title("smoothed spikes present across MU population during trial")
             plt.xlabel("time (ms)")
             plt.ylabel("activation level (smoothed spikes)")
