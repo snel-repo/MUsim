@@ -48,7 +48,7 @@ session2_parameters = f"{session_date}_{rat_name}_speed{treadmill_speed2}_inclin
 mu = MUsim()                            # INSTANTIATE SIMULATION OBJECT
 # mu.num_units = num_units_to_simulate    # SET NUMBER OF UNITS TO SIMULATE
 # mu.num_trials = num_trials_to_simulate  # SET NUMBER OF TRIALS TO SIMULATE
-units = mu.sample_MUs(MUmode='static')  # SAMPLE MUs
+# units = mu.sample_MUs(MUmode='static')  # SAMPLE MUs
 # FIRST SESSION
 mu.load_MUs('../rat-loco/'+f'{session_date}_{rat_name}_speed{treadmill_speed1}_incline{treadmill_incline1}_time.npy',bin_width=1)
 # session1 = mu.simulate_session()        # GENERATE SPIKE RESPONSES FOR EACH UNIT

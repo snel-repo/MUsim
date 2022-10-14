@@ -120,6 +120,8 @@ class MUsim():
         # (Trials x Time x MUs) --> (Time x MUs x Trials)
         transposed_binned_MU_session = np.transpose(binned_MU_session, (1,2,0))
         self.session.append(transposed_binned_MU_session)
+        for ii in range(transposed_binned_MU_session.shape[2]): # add trials
+            self.spikes.append(transposed_binned_MU_session[:,:,ii])
         self.num_bins_per_trial = transposed_binned_MU_session.shape[0]
         self.num_units = transposed_binned_MU_session.shape[1]
         self.num_trials = transposed_binned_MU_session.shape[2]
@@ -127,6 +129,7 @@ class MUsim():
         self.MUmode = "loaded" # record that this session was loaded
         self.session_forces.append(np.repeat(np.nan,len(self.force_profile)))
         self.session_yanks.append(np.repeat(np.nan,len(self.yank_profile)))
+        self.noise_level = np.zeros(transposed_binned_MU_session.shape[0])
         return
     
     def sample_MUs(self, MUmode="static"):
