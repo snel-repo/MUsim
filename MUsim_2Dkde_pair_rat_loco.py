@@ -36,10 +36,16 @@ def get_confidence(normalized_KDE_densities,confidence_value):
 # num_units_to_simulate = 10
 gaussian_bw = 10                # choose smoothing bandwidth
 unit1 = 0; unit2 = 1           # choose units to analyze
+treadmill_speed1 = '20'; treadmill_speed2 = '20'
+# dogerat
 session_date = '220603'
 rat_name = 'dogerat'
-treadmill_speed1 = '20'; treadmill_speed2 = '20'
 treadmill_incline1 = '00'; treadmill_incline2 = '10'
+# cleopatra
+# session_date = '220715'
+# rat_name = 'cleopatra'
+# treadmill_incline1 = '00'; treadmill_incline2 = '10'
+
 general_session_info = f"{session_date}_{rat_name}" 
 session1_parameters = f"{session_date}_{rat_name}_speed{treadmill_speed1}_incline{treadmill_incline1}"
 session2_parameters = f"{session_date}_{rat_name}_speed{treadmill_speed2}_incline{treadmill_incline2}"
@@ -92,7 +98,7 @@ x_range = x_both_max-x_both_min
 y_range = y_both_max-y_both_min
 grid_margin = 20 # percent
 gm = grid_margin/100 # grid margin value to extend grid beyond all edges
-xi, yi = np.mgrid[(x_both_min-gm*x_range):(x_both_max+gm*x_range):100j, (y_both_min-gm*y_range):(y_both_max+gm*y_range):100j]
+xi, yi = np.mgrid[(x_both_min-gm*x_range):(x_both_max+gm*x_range):1000j, (y_both_min-gm*y_range):(y_both_max+gm*y_range):1000j]
 coords = np.vstack([item.ravel() for item in [xi, yi]]) 
 density_session1 = kde10(coords).reshape(xi.shape)
 density_session2 = kde20(coords).reshape(xi.shape)

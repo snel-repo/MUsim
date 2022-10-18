@@ -29,11 +29,11 @@ def get_confidence(normalized_KDE_densities,confidence_value):
 # %% SIMULATE MOTOR UNIT RESPONSES TO PROFILE 1 AND PROFILE 2
 ########################################################
 # Define Simulation Parameters 
-num_trials_to_simulate = 20
+num_trials_to_simulate = 200
 num_units_to_simulate = 10
-gaussian_bw = 40                # choose smoothing bandwidth
+gaussian_bw = 10                # choose smoothing bandwidth
 unit1 = 0; unit2 = -1           # choose units to analyze
-maxforce1 = 5; maxforce2 = 15   # choose max force to analyze, default is 5
+maxforce1 = 10; maxforce2 = 20   # choose max force to analyze, default is 5
 # want to shuffle the second session's thresholds?
 # if not, set False below
 shuffle_second_MU_thresholds=False

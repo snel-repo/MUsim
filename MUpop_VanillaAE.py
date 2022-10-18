@@ -1,7 +1,5 @@
 import os
 from pdb import set_trace
-from re import M
-from urllib import response
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
@@ -42,18 +40,20 @@ print("Device in use:", device, "GPU:", torch.cuda.get_device_name(0))
 # training params
 batch_size = 50
 num_epochs = 50
+smoothing_bin_width = 20
 
 # simulate motor unit data
 mu = MUsim()
-mu.num_units = 64     # default number of units to simulate
-mu.num_trials = 400    # default number of trials to simulate
-mu.num_bins_per_trial = 600 # amount of time per trial is (num_bins_per_trial/sample_rate)
-mu.MUthresholds_dist="uniform"
+mu.num_units = 32     # default number of units to simulate
+mu.num_trials = 200    # default number of trials to simulate
+mu.num_bins_per_trial = 1000 # amount of time per trial is (num_bins_per_trial/sample_rate)
+mu.MUthresholds_dist="exponential"
+mu.MUactivation="sigmoid"
 # mu.sample_rate = 1/(0.006)
 # create sessions
 thresholds, responses = mu.sample_MUs(MUmode="static")
 sess0 = mu.simulate_session()
-smth_sess0 = mu.convolve(sigma=50,target="session")
+smth_sess0 = mu.convolve(sigma=smoothing_bin_width,target="session")
 sig1 = 5*np.sin(np.exp(mu.init_force_profile/2)-np.pi/2)
 sig2 = 3*np.sin(mu.init_force_profile-np.pi/2)+3
 sig3 = np.exp(mu.init_force_profile)/12
@@ -63,37 +63,38 @@ sig6 = np.abs(5*np.sin(2*np.pi*mu.init_force_profile/mu.init_force_profile.max()
 new_force_profile = sig1-sig1.min()
 mu.apply_new_force(new_force_profile)
 sess1 = mu.simulate_session()
-smth_sess1 = mu.convolve(sigma=50,target="session")
+smth_sess1 = mu.convolve(sigma=smoothing_bin_width,target="session")
 new_force_profile = sig2-sig2.min()
 mu.apply_new_force(new_force_profile)
 sess2 = mu.simulate_session()
-smth_sess2 = mu.convolve(sigma=50,target="session")
+smth_sess2 = mu.convolve(sigma=smoothing_bin_width,target="session")
 new_force_profile = sig3-sig3.min()
 mu.apply_new_force(new_force_profile)
 sess3 = mu.simulate_session()
-smth_sess3 = mu.convolve(sigma=50,target="session")
+smth_sess3 = mu.convolve(sigma=smoothing_bin_width,target="session")
 new_force_profile = sig4-sig4.min()
 mu.apply_new_force(new_force_profile)
 sess4 = mu.simulate_session()
-smth_sess4 = mu.convolve(sigma=50,target="session")
+smth_sess4 = mu.convolve(sigma=smoothing_bin_width,target="session")
 new_force_profile = sig5-sig5.min()
 mu.apply_new_force(new_force_profile)
 sess5 = mu.simulate_session()
-smth_sess5 = mu.convolve(sigma=50,target="session")
+smth_sess5 = mu.convolve(sigma=smoothing_bin_width,target="session")
 new_force_profile = sig6-sig6.min()
 mu.apply_new_force(new_force_profile)
 sess6 = mu.simulate_session()
-smth_sess6 = mu.convolve(sigma=50,target="session")
-# mu.see('force') # plot new applied force
-# mu.see('curves') # plot unit response curves
-# mu.see('spikes') # plot spike response
-# mu.see('smooth') # plot smoothed spike response
+smth_sess6 = mu.convolve(sigma=smoothing_bin_width,target="session")
+mu.see('force') # plot new applied force
+mu.see('curves') # plot unit response curves
+mu.see('spikes') # plot spike response
+mu.see('smooth') # plot smoothed spike response
+mu.see('thresholds') # plot MU thresholds
 
 # session0 = np.transpose(smth_sess0,(2,0,1)) # Make shape: Trials x Time x Neurons
 # session1 = np.transpose(smth_sess1,(2,0,1)) # Make shape: Trials x Time x Neurons
 # session2 = np.transpose(smth_sess2,(2,0,1)) # Make shape: Trials x Time x Neurons
 # torch_sess = map(torch.tensor, session)
-latent_dim = 3 #mu.units[1].shape[1]
+latent_dim = 1 #mu.units[1].shape[1]
 
 class GRUEncoder(nn.Module):
     def __init__(self, input_dim=mu.num_units, hidden_dim=64, latent_dim=latent_dim):
@@ -233,7 +234,7 @@ plt.show()
 # to compare with PCA
 pca_cross_cond = PCA(n_components=latent_dim)
 pca_cross_cond.fit(np.vstack(train_set))
-print(f"Cross-condition PCA score: {pca_cross_cond.explained_variance_}")
+print(f"Cross-condition PCA score: {pca_cross_cond.explained_variance_ratio_}")
 pca_cross_cond_proj = pca_cross_cond.transform(np.vstack(test_set))
 pca_cross_cond_proj_trials = pca_cross_cond_proj.reshape(test_set.shape[0],test_set.shape[1],latent_dim)
 
@@ -241,14 +242,14 @@ trial_cnt = 0
 num_sessions = 7
 for ii in range(num_sessions):
     mu.see('force', session=ii)
-    pca_per_cond = PCA(n_components=3)
+    pca_per_cond = PCA(n_components=latent_dim)
     pca_per_cond_proj = pca_per_cond.fit_transform(np.vstack(sess_list[ii]))
     pca_per_cond_proj_trials = pca_per_cond_proj.reshape(sess_list[ii].shape[0],sess_list[ii].shape[1],latent_dim)
-    print(f"Per-condition PCA score: {pca_cross_cond.explained_variance_}")
+    print(f"Per-condition PCA score: {pca_per_cond.explained_variance_ratio_}")
     for jj in shuff_idx[separation:]: # take only from test set
         if ii*mu.num_trials<jj<((ii+1)*mu.num_trials):
-            kk = jj % mu.num_trials
-            ll = int(np.where(shuff_idx[separation:]==jj)[0])
+            kk = jj % mu.num_trials # modulus for indexing overflow across sessions versus total number of trials
+            ll = int(np.where(shuff_idx[separation:]==jj)[0]) # find shuffled array index for the trial index prior to shuffling
             plt.plot(models[0](torch.tensor(
                 mu.smooth_session[ii][:,:,kk], device="cuda:0")).cpu().detach().numpy())
             plt.title('Predicted Latent Drive')
@@ -262,12 +263,12 @@ for ii in range(num_sessions):
             plt.plot(mu.smooth_session[ii].sum(axis=1)[:,kk])
             plt.title('Corresponding Trial, Pure Summation Across Neurons')
             plt.show()
-            # force_tensor = torch.tensor(mu.session_forces[ii], device="cuda:0")
-            # force_tensor = force_tensor[:, None].float
-            # plt.rcParams["axes.prop_cycle"] = plt.cycler("color", plt.cm.jet(np.linspace(1,0,mu.num_units)))
-            # plt.plot(models[1](force_tensor()).cpu().detach().numpy())
-            # plt.title('Predicted Smoothed Firing Rates')
-            # plt.show()
+            force_tensor = torch.tensor(mu.session_forces[ii], device="cuda:0")
+            force_tensor = force_tensor[:, None].float
+            plt.rcParams["axes.prop_cycle"] = plt.cycler("color", plt.cm.jet(np.linspace(1,0,mu.num_units)))
+            plt.plot(models[1](force_tensor()).cpu().detach().numpy())
+            plt.title('Predicted Smoothed Firing Rates')
+            plt.show()
             mu.see('smooth', session=ii, trial=kk, no_offset=True)
             mu.see('spikes', trial=ii*mu.num_trials+kk)
             break # 1st idx matching current session: ii*mu.num_trials<jj<((ii+1)*mu.num_trials

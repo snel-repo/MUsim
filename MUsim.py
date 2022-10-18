@@ -7,19 +7,25 @@ import plotly.graph_objects as go
 
 class MUsim():
 
-    def __init__(self):
+    def __init__(self, random_seed=False):
         self.MUmode="static"    # "static" for size-principle obediance, "dynamic" for yank-dependent thresholds
-        self.MUthresholds_dist="uniform" # can be either "uniform" or "normal". For equal or normally distributed large vs small MUs
+        self.MUseed=random_seed # int, set seed for repeatability, if desired
+        self.MUactivation="sigmoid" # "sigmoid"/"heaviside" activation function of MUs
+        self.MUthresholds_dist="exponential" # can be either "exponential", "uniform" or "normal". Distributes proportion of small vs large MUs
+        self.MUspike_dynamics="poisson" # can be either "poisson" or "independent". Models spiking behavior as poisson process or as independent
         self.MUreversal_frac = 1 # fractions of MU thresholds that will flip during a dynamic mode simulation
         self.MUreversal_static_units = [] # will force the units at these indexes to remain static during the dynamic simulations
         self.static_MU_idxs = np.nan # variable used to track which MUs reverse threshold (nan until assigned in dynamic mode)
-        self.units = [[],[]]    # will hold all MU thresholds at .units[0] and all response curves at .units[1]
+        self.units = [[],[]]    # will hold all MU thresholds at .units[0], all response curves at .units[1], and .units[2]
         self.spikes = []        # spiking responses appended here each time .simulate_spikes() is called
         self.noise_level = []   # non-negative Gaussian noise level term added to spikes
         self.session = []       # matrix of spiking responses appended to this list here each time .simulate_session() is called
         self.session_forces = [] # current force profile appended to this list here each time .simulate_session() is called
         self.session_yanks = [] # current yank profile appended to this list here each time .simulate_session() is called
         self.session_num_trials = [] # num trials for each session
+        self.session_response_curves = [] # MU response curves for each session
+        self.session_MUactivations = [] # MU activation functions for each session
+        self.session_MUseed = [] # save random seed for each session
         self.session_noise_level = 0 # noise level for session
         self.smooth_spikes = [] # smoothed spiking responses appended here each time .convolve() is called
         self.smooth_session = []# matrix of smoothed spiking responses appended here each time .convolve(target=session) is called
@@ -35,15 +41,24 @@ class MUsim():
         self.yank_profile = self.init_yank_profile  # initialize yank profile
         self.yank_flip_thresh = 20  # default yank value at which the thresholds flips 
         self.max_spike_prob = 0.08  # set to achieve ~80hz (simulate realistic MU firing rates)
-        self.threshmin = 3      # fixed minimum threshold for the generated units' response curves
-        self.threshmax = 7      # fixed maximum threshold for the generated units' response curves
+        self.threshmin = 2      # fixed minimum threshold for the generated units' response curves
+        self.threshmax = 10      # fixed maximum threshold for the generated units' response curves
+        if random_seed:
+            assert type(random_seed) is int,"`random_seed` variable must be `int`"
+            np.random.seed(random_seed)
 
     def _get_spiking_probability(self,thresholded_forces):
         # this function approximates sigmoidal relationship between motor unit firing rate and output force
         # vertical scaling and offset of each units' response curve is applied to generate probability curves
         p = self.max_spike_prob
-        unit_response_curves = 1-expit(thresholded_forces) 
-        scaled_unit_response_curves = (unit_response_curves*p)+(1-p)
+        if self.MUactivation=="sigmoid":
+            unit_response_curves = 1- expit(thresholded_forces) 
+        elif self.MUactivation=="heaviside":
+            unit_response_curves = 1- np.heaviside(thresholded_forces,0) 
+        if self.MUspike_dynamics=="independent": 
+            scaled_unit_response_curves = (unit_response_curves*p)+(1-p)
+        elif self.MUspike_dynamics=="poisson":
+            scaled_unit_response_curves = self.threshmax//2*(1-unit_response_curves) # flip to regular sigmoid, scale by range to allow MUs headspace
         return scaled_unit_response_curves
 
     def _get_dynamic_thresholds(self,threshmax,threshmin,new=False):
@@ -73,10 +88,12 @@ class MUsim():
 
             if MUthresholds_dist == "uniform": # equal distribution of thresholds for large/small units
                 MUthresholds_gen = (threshmax-threshmin)*np.random.random_sample((self.num_units))+threshmin
-            elif MUthresholds_dist == "normal": # more small units
-                MUthresholds_gen = np.clip((np.round(threshmax*abs(np.random.randn(self.num_units)/2),decimals=4)+threshmin),None,threshmax)
+            elif MUthresholds_dist == "normal": # more small units, normal dist
+                MUthresholds_gen = threshmax*abs(np.random.standard_normal(self.num_units)/4)+threshmin
+            elif MUthresholds_dist == "exponential": # more small units, exponential dist
+                MUthresholds_gen = threshmax*np.random.standard_exponential(self.num_units)/10+threshmin
             else:
-                raise Exception("MUthresholds_dist input must either be 'uniform' or 'normal'.")
+                raise Exception("MUthresholds_dist input must either be 'uniform', 'exponential', or 'normal'.")
             MUthresholds = np.repeat(MUthresholds_gen,len(self.force_profile)).reshape(len(MUthresholds_gen),len(self.force_profile)).T
         elif static_MU_idxs is not np.nan:
             MUthresholds_orig = self.MUthreshold_original
@@ -160,10 +177,12 @@ class MUsim():
         if MUmode == "static":
             if MUthresholds_dist == "uniform": # equal distribution of thresholds for large/small units
                 MUthresholds = (threshmax-threshmin)*np.random.random_sample((self.num_units))+threshmin
-            elif MUthresholds_dist == "normal": # more small units
-                MUthresholds = np.clip((np.round(threshmax*abs(np.random.randn(self.num_units)/2),decimals=4)+threshmin),None,threshmax)
+            elif MUthresholds_dist == "normal": # more small units, normal dist
+                MUthresholds = threshmax*abs(np.random.standard_normal(self.num_units)/4)+threshmin
+            elif MUthresholds_dist == "exponential": # more small units, exponential dist
+                MUthresholds = threshmax*np.random.standard_exponential(self.num_units)/10+threshmin
             else:
-                raise Exception("MUthresholds_dist input must either be 'uniform' or 'normal'.")
+                raise Exception("MUthresholds_dist input must either be 'uniform', 'exponential', or 'normal'.")
         elif MUmode == "dynamic":
             MUthresholds = self._get_dynamic_thresholds(threshmax,threshmin,new=True)
         elif MUmode == "lorenz":
@@ -231,7 +250,7 @@ class MUsim():
             spikes = np.random.poisson(hiD_rates*(1/(self.sample_rate))).T # get spikes and transpose to Time x MU
             self.spikes.append(np.asarray(spikes,dtype=np.float))
             self.noise_level.append(noise_level)
-        else:
+        elif self.MUspike_dynamics=="independent":
             unit_response_curves = self.units[1]
             selection = np.random.random(unit_response_curves.shape)
             spike_idxs = np.where(selection>unit_response_curves)
@@ -241,6 +260,27 @@ class MUsim():
                 self.spikes[-1] = self.spikes[-1]+noise_level*np.random.standard_normal(self.spikes[-1].shape).__abs__()
             self.noise_level.append(noise_level)
             self.spikes[-1][spike_idxs] = 1 # all spikes are now assigned value of 1, regardless of noise
+        elif self.MUspike_dynamics=="poisson": 
+            unit_response_curves = self.units[1] # use second units descriptor as relation with force signal
+            # selection = np.random.random(unit_response_curves.shape)
+            # force_gate = np.where(
+            #     selection>unit_response_curves,
+            #     selection,
+            #     np.zeros_like(unit_response_curves)) # gate units with this sigmoidal uniform distribution, to reflect force influence
+            self.spikes.append(np.zeros(unit_response_curves.shape)) # initialize as array of zeros, spikes assigned later at spike_idxs 
+            time_steps = np.random.poisson(lam=5,size=self.spikes[-1].shape)
+            spike_times = np.cumsum(time_steps, axis=0)
+            for ii, iUnitTimes in enumerate(spike_times.T):
+                valid_time_idxs = np.where(iUnitTimes<self.num_bins_per_trial)
+                # force_gated_spikes = np.intersect1d(iUnitTimes[valid_time_idxs],force_gate[:,ii].nonzero())
+                self.spikes[-1][iUnitTimes[valid_time_idxs],ii] = 1 # assign spikes to 1, if sigmoidal uniform distribution was also 1
+                self.spikes[-1] = np.where(
+                    unit_response_curves<np.tile(self.units[0],(self.units[1].shape[0],1)),
+                    np.zeros(unit_response_curves.shape),
+                    self.spikes[-1])
+            self.noise_level.append(noise_level)
+            # for iUnit in range(self.num_units):
+            #     for iTimestep in range(self.num_bins_per_trial):
         return self.spikes[-1]
 
     def simulate_session(self):
@@ -254,6 +294,9 @@ class MUsim():
         self.session_forces.append(self.force_profile)
         self.session_yanks.append(self.yank_profile)
         self.session_num_trials.append(self.num_trials)
+        self.session_response_curves.append(self.units[1])
+        self.session_MUactivations.append(self.MUactivation)
+        self.session_MUseed.append(self.MUseed)
         return self.session[-1]
 
     def apply_new_force(self,input_force_profile):

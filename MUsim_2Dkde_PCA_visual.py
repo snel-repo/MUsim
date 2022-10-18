@@ -47,12 +47,12 @@ def get_score(model, data, scorer=explained_variance_score):
 # %% SIMULATE MOTOR UNIT RESPONSES TO SESSION 1 AND SESSION 2
 ########################################################
 # Define Simulation Parameters 
-num_trials_to_simulate = 75
-num_units_to_simulate = 32
-trial_length = 500 # bins
+num_trials_to_simulate = 100
+num_units_to_simulate = 10
+trial_length = 600 # bins
 noise_level = 0
 max_firing_rate = 50
-gaussian_bw = 40                # choose smoothing bandwidth (ms)
+gaussian_bw = 10                # choose smoothing bandwidth (ms)
 max_force1 = 5; max_force2 = 10 # choose max force to analyze, default is 5
 yank_flip_thresh = 15
 # want to shuffle the second session's thresholds?
@@ -68,7 +68,7 @@ mu.max_spike_prob = max_firing_rate/mu.num_bins_per_trial # SET SPIKING PROBABIL
 mu.session_noise_level = noise_level    # SET NOISE LEVEL FOR SESSION
 mu.yank_flip_thresh = yank_flip_thresh  # SET YANK FLIPPING THRESHOLD
 mu.MUreversal_frac = 1
-mu.MUreversal_static_units = list(range(num_units_to_simulate-32))
+# mu.MUreversal_static_units = list(range(num_units_to_simulate-32))
 units = mu.sample_MUs(MUmode='static')  # SAMPLE MUs
 # FIRST SESSION
 force_profile1 = max_force1/mu.init_force_profile.max()*mu.init_force_profile  # SCALE DEFAULT FORCE
