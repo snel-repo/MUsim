@@ -36,19 +36,20 @@ def get_confidence(normalized_KDE_densities,confidence_value):
 # num_units_to_simulate = 10
 gaussian_bw = 10                # choose smoothing bandwidth
 unit1 = 0; unit2 = 1           # choose units to analyze
-treadmill_speed1 = '20'; treadmill_speed2 = '20'
 # dogerat
-session_date = '220603'
-rat_name = 'dogerat'
-treadmill_incline1 = '00'; treadmill_incline2 = '10'
+session_date1 = '20221116-7'
+session_date2 = '20221116-5'
+rat_name = 'godzilla'
+treadmill_speed1 = '05'; treadmill_speed2 = '10'
+treadmill_incline1 = '00'; treadmill_incline2 = '00'
 # cleopatra
 # session_date = '220715'
 # rat_name = 'cleopatra'
 # treadmill_incline1 = '00'; treadmill_incline2 = '10'
 
-general_session_info = f"{session_date}_{rat_name}" 
-session1_parameters = f"{session_date}_{rat_name}_speed{treadmill_speed1}_incline{treadmill_incline1}"
-session2_parameters = f"{session_date}_{rat_name}_speed{treadmill_speed2}_incline{treadmill_incline2}"
+general_session_info = f"{'20221116'}_{rat_name}" 
+session1_parameters = f"{session_date1}_{rat_name}_speed{treadmill_speed1}_incline{treadmill_incline1}"
+session2_parameters = f"{session_date2}_{rat_name}_speed{treadmill_speed2}_incline{treadmill_incline2}"
 #############################################################################################
 # RUN 2 DIFFERENT SESSIONS
 mu = MUsim()                            # INSTANTIATE SIMULATION OBJECT
@@ -56,11 +57,11 @@ mu = MUsim()                            # INSTANTIATE SIMULATION OBJECT
 # mu.num_trials = num_trials_to_simulate  # SET NUMBER OF TRIALS TO SIMULATE
 # units = mu.sample_MUs(MUmode='static')  # SAMPLE MUs
 # FIRST SESSION
-mu.load_MUs('../rat-loco/'+f'{session_date}_{rat_name}_speed{treadmill_speed1}_incline{treadmill_incline1}_time.npy',bin_width=1)
+mu.load_MUs('../rat-loco/'+f'{session_date1}_{rat_name}_speed{treadmill_speed1}_incline{treadmill_incline1}_phase.npy',bin_width=1)
 # session1 = mu.simulate_session()        # GENERATE SPIKE RESPONSES FOR EACH UNIT
 session1_smooth = mu.convolve(gaussian_bw, target="session")  # SMOOTH SPIKES FOR SESSION 1
 # SECOND SESSION
-mu.load_MUs('../rat-loco/'+f'{session_date}_{rat_name}_speed{treadmill_speed2}_incline{treadmill_incline2}_time.npy',bin_width=1)
+mu.load_MUs('../rat-loco/'+f'{session_date2}_{rat_name}_speed{treadmill_speed2}_incline{treadmill_incline2}_phase.npy',bin_width=1)
 # session2 = mu.simulate_session()        # GENERATE SPIKE RESPONSES FOR EACH UNIT
 session2_smooth = mu.convolve(gaussian_bw, target="session")  # SMOOTH SPIKES FOR SESSION 2
 #############################################################################################
@@ -98,7 +99,7 @@ x_range = x_both_max-x_both_min
 y_range = y_both_max-y_both_min
 grid_margin = 20 # percent
 gm = grid_margin/100 # grid margin value to extend grid beyond all edges
-xi, yi = np.mgrid[(x_both_min-gm*x_range):(x_both_max+gm*x_range):1000j, (y_both_min-gm*y_range):(y_both_max+gm*y_range):1000j]
+xi, yi = np.mgrid[(x_both_min-gm*x_range):(x_both_max+gm*x_range):256j, (y_both_min-gm*y_range):(y_both_max+gm*y_range):256j]
 coords = np.vstack([item.ravel() for item in [xi, yi]]) 
 density_session1 = kde10(coords).reshape(xi.shape)
 density_session2 = kde20(coords).reshape(xi.shape)
@@ -205,8 +206,8 @@ fig.update_layout(
 )
 iplot(fig)
 # %%
-fig10 = px.imshow(d_session1_norm.T,title="2D PDF, incline"+str(treadmill_incline1),width=500,height=500,origin='lower')
-fig20 = px.imshow(d_session2_norm.T,title="2D PDF, incline"+str(treadmill_incline2),width=500,height=500,origin='lower')
+fig10 = px.imshow(d_session1_norm.T,zmax=0.0005, title="2D PDF, incline"+str(treadmill_incline1)+ ", speed"+str(treadmill_speed1),width=500,height=500,origin='lower')
+fig20 = px.imshow(d_session2_norm.T,zmax=0.0005, title="2D PDF, incline"+str(treadmill_incline2)+ ", speed"+str(treadmill_speed2),width=500,height=500,origin='lower')
 iplot(fig10); iplot(fig20)
 # %%
 CI_1 = get_confidence(d_session1_norm,.95)
@@ -220,7 +221,7 @@ figCI2 = px.imshow(CI_2.T,title="<b>Incline"+str(treadmill_incline2)+", 95%CI</b
 figCI_OVL = px.imshow(CI_OVL.T,title="<b>95% Confidence Interval of OVL</b><br><sup>between incline "+str(treadmill_incline1)+" and "+str(treadmill_incline2),width=500,height=500,origin='lower')
 iplot(figCI1); iplot(figCI2); iplot(figCI_OVL)
 # %%
-fig_OVL = px.imshow(OVL.T,title="<b>Overlap of Trajectory Distributions: OVL="+str(np.round(OVL.sum(),decimals=4))+"</b><br><sup>For inclines "+str(treadmill_incline1)+' and '+str(treadmill_incline2)+"</sup>",width=500,height=500,origin='lower')
+fig_OVL = px.imshow(OVL.T,zmax=0.0005,title="<b>Overlap of Trajectory Distributions: OVL="+str(np.round(OVL.sum(),decimals=4))+"</b><br><sup>For incline"+str(treadmill_incline1)+" speed"+str(treadmill_speed1)+' and incline'+str(treadmill_incline2)+" speed"+str(treadmill_speed2)+"</sup>",width=500,height=500,origin='lower')
 iplot(fig_OVL)
 # # %%
 # O_10in20 = np.sum(CI_20*d_session1_norm)
