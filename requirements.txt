@@ -1,4 +1,4 @@
-cudnn
+#cudnn
 numpy
 scipy
 pandas
@@ -7,3 +7,4 @@ plotly
 jupyter
 scikit-learn
 pytorch-gpu
+colorlover

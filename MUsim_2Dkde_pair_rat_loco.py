@@ -8,6 +8,7 @@ from plotly.offline import iplot
 import plotly.express as px
 import plotly.graph_objects as go
 from MUsim import MUsim
+from pdb import set_trace
 
 # Define confidence interval calculation
 def get_confidence(normalized_KDE_densities,confidence_value):
@@ -35,12 +36,12 @@ def get_confidence(normalized_KDE_densities,confidence_value):
 # num_trials_to_simulate = 20
 # num_units_to_simulate = 10
 gaussian_bw = 10                # choose smoothing bandwidth
-unit1 = 0; unit2 = 1           # choose units to analyze
+unit1 = 1; unit2 = 2           # choose units to analyze
 # dogerat
-session_date1 = '20221116-7'
-session_date2 = '20221116-5'
+session_date1 = '20221116-8'
+session_date2 = '20221116-9'
 rat_name = 'godzilla'
-treadmill_speed1 = '05'; treadmill_speed2 = '10'
+treadmill_speed1 = '10'; treadmill_speed2 = '10'
 treadmill_incline1 = '00'; treadmill_incline2 = '00'
 # cleopatra
 # session_date = '220715'
@@ -70,6 +71,7 @@ session2_smooth = mu.convolve(gaussian_bw, target="session")  # SMOOTH SPIKES FO
 session1_smooth_stack = np.hstack(session1_smooth)
 session2_smooth_stack = np.hstack(session2_smooth)
 
+#set_trace()
 mu1_session1 = session1_smooth_stack[unit1,:]
 mu2_session1 = session1_smooth_stack[unit2,:]
 mu1_session2 = session2_smooth_stack[unit1,:]
@@ -221,7 +223,7 @@ figCI2 = px.imshow(CI_2.T,title="<b>Incline"+str(treadmill_incline2)+", 95%CI</b
 figCI_OVL = px.imshow(CI_OVL.T,title="<b>95% Confidence Interval of OVL</b><br><sup>between incline "+str(treadmill_incline1)+" and "+str(treadmill_incline2),width=500,height=500,origin='lower')
 iplot(figCI1); iplot(figCI2); iplot(figCI_OVL)
 # %%
-fig_OVL = px.imshow(OVL.T,zmax=0.0005,title="<b>Overlap of Trajectory Distributions: OVL="+str(np.round(OVL.sum(),decimals=4))+"</b><br><sup>For incline"+str(treadmill_incline1)+" speed"+str(treadmill_speed1)+' and incline'+str(treadmill_incline2)+" speed"+str(treadmill_speed2)+"</sup>",width=500,height=500,origin='lower')
+fig_OVL = px.imshow(OVL.T,zmax=0.0005,title="<b>Overlap of Trajectory Distributions: OVL="+str(np.round(OVL.sum(),decimals=4))+"</b><br><sup>For "+ session_date1 + ' and '+ session_date2 +"</sup>",width=500,height=500,origin='lower')
 iplot(fig_OVL)
 # # %%
 # O_10in20 = np.sum(CI_20*d_session1_norm)
