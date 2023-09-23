@@ -1,0 +1,16 @@
+name: MUsim
+channels:
+  - conda-forge
+  - pytorch
+dependencies:
+  - colorlover
+  - jupyter
+  - matplotlib
+  - numpy
+  - pandas
+  - pip
+  - plotly
+  - python
+  - pytorch-gpu
+  - scikit-learn
+  - scipy
