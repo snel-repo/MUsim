@@ -215,6 +215,21 @@ class MUsim:
         self.noise_level = np.zeros(transposed_binned_MU_session.shape[0])
         return
 
+    def save_spikes(self, save_path, spikes_index=-1):
+        """
+        Function saves the spikes from self.spikes[spikes_index] to a .npy file at save_path.
+        """
+        np.save(save_path, self.spikes[spikes_index], allow_pickle=False)
+        return
+    
+    def save_session(self, save_path, session_index=-1):
+        """
+        Function saves the session from self.session[session_index] to a .npy file at save_path.
+        """
+        np.save(save_path, self.session[session_index], allow_pickle=False)
+        return
+        
+    
     def sample_MUs(self, MUmode="static"):
         """
         Input:
@@ -328,8 +343,8 @@ class MUsim:
         if MUmode in ["static", "dynamic"]:
             self.units[1] = units[1][:, spike_sorted_cols]
         # randomize minimum ISI (poisson lambda) for each unit to be from 5-25 ms
-        low_lambda = 5 * self.sample_rate / 1000
-        high_lambda = 25 * self.sample_rate / 1000
+        low_lambda = 8 * self.sample_rate / 1000
+        high_lambda = 32 * self.sample_rate / 1000
         self.units[2] = np.random.randint(low_lambda, high_lambda, size=(self.num_units))
         # sort self.units[2] in ascending order, to match with units[0] and units[1] ordering
         self.units[2] = np.sort(self.units[2])
@@ -375,25 +390,19 @@ class MUsim:
         elif self.MUspike_dynamics == "poisson":
             # use second units descriptor as relation with force signal
             unit_response_curves = self.units[1]
-            # selection = np.random.random(unit_response_curves.shape)
-            # gate units with this sigmoidal uniform distribution, to reflect force influence
-            # force_gate = np.where(
-            #     selection>unit_response_curves,
-            #     selection,
-            #     np.zeros_like(unit_response_curves))
             # initialize as array of zeros, spikes assigned later at spike_idxs
             self.spikes.append(np.zeros(unit_response_curves.shape))
-            # lam=5 is the upper bound for poisson process, which will be thinned probabilistically
-            # by the sigmoidal response curves for each MU
+            # lam of np.random.poisson is the upper bound for poisson process, which will be thinned
+            # probabilistically by the sigmoidal response curves for each MU
+            # https://en.wikipedia.org/wiki/Poisson_point_process#Thinning
             unit_rates = self.units[2]
             time_steps = (
-                np.random.poisson(lam=unit_rates, size=self.spikes[-1].shape)
-                + self.refractory_period
+                np.random.poisson(lam=unit_rates, size=self.spikes[-1].shape) # unique rates for MUs
+                + int(self.refractory_period * self.sample_rate / 1000) # enforce refractory period
             )
             spike_times = np.cumsum(time_steps, axis=0)
             for ii, iUnitTimes in enumerate(spike_times.T):
                 valid_time_idxs = np.where(iUnitTimes < self.num_bins_per_trial)
-                # force_gated_spikes = np.intersect1d(iUnitTimes[valid_time_idxs],force_gate[:,ii].nonzero())
                 # assign spikes to 1, if sigmoidal uniform distribution was also 1
                 self.spikes[-1][iUnitTimes[valid_time_idxs], ii] = 1
                 # section below thins spikes from poisson process, according to sigmoidal response curves
@@ -611,7 +620,7 @@ class MUsim:
 
             plt.title("MU response curves")
             plt.xlabel("time (indexes)")
-            plt.ylabel("probability of zero spikes in each bin")
+            plt.ylabel("activation level")
             plt.show(block=False)
         elif target == "spikes":
             plt.rcParams["axes.prop_cycle"] = plt.cycler(

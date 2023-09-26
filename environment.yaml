@@ -10,7 +10,7 @@ dependencies:
   - pandas
   - pip
   - plotly
-  - python
+  - python=3.10
   - pytorch-gpu
   - scikit-learn
   - scipy
