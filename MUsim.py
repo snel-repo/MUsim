@@ -215,21 +215,27 @@ class MUsim:
         self.noise_level = np.zeros(transposed_binned_MU_session.shape[0])
         return
 
+    def save(self, save_path):
+        """
+        Function saves the MUsim object to a .npy file at save_path.
+        """
+        np.save(save_path, self, allow_pickle=False)
+        return
+
     def save_spikes(self, save_path, spikes_index=-1):
         """
         Function saves the spikes from self.spikes[spikes_index] to a .npy file at save_path.
         """
         np.save(save_path, self.spikes[spikes_index], allow_pickle=False)
         return
-    
+
     def save_session(self, save_path, session_index=-1):
         """
         Function saves the session from self.session[session_index] to a .npy file at save_path.
         """
         np.save(save_path, self.session[session_index], allow_pickle=False)
         return
-        
-    
+
     def sample_MUs(self, MUmode="static"):
         """
         Input:
@@ -396,10 +402,11 @@ class MUsim:
             # probabilistically by the sigmoidal response curves for each MU
             # https://en.wikipedia.org/wiki/Poisson_point_process#Thinning
             unit_rates = self.units[2]
-            time_steps = (
-                np.random.poisson(lam=unit_rates, size=self.spikes[-1].shape) # unique rates for MUs
-                + int(self.refractory_period * self.sample_rate / 1000) # enforce refractory period
-            )
+            time_steps = np.random.poisson(
+                lam=unit_rates, size=self.spikes[-1].shape
+            ) + int(  # unique rates for MUs
+                self.refractory_period * self.sample_rate / 1000
+            )  # enforce refractory period
             spike_times = np.cumsum(time_steps, axis=0)
             for ii, iUnitTimes in enumerate(spike_times.T):
                 valid_time_idxs = np.where(iUnitTimes < self.num_bins_per_trial)
