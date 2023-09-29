@@ -43,20 +43,20 @@ save_simulated_spikes = False
 kinematics_fs = 125
 ephys_fs = 30000
 nt0 = 61  # 2.033 ms
-num_chans = 16  # desired real number of channels in the output data
 SVD_dim = 9  # number of SVD components than were used in KiloSort
 num_chans_in_recording = 9  # number of channels in the recording
+num_chans_in_output = 17  # desired real number of channels in the output data
 SNR_of_simulated_data = 50  # controls amount of noise power added to the channels
-random_seed = 0
+random_seed = 1212  # can be set to an integer to get reproducible results, or None for random
 np.random.seed(random_seed)
 
 # set plotting parameters
-time_frame = [0, 0.025]  # time frame to plot, fractional bounds of 0 to 1
+time_frame = [0, 1]  # time frame to plot, fractional bounds of 0 to 1
 plot_template = "plotly_white"
 
 ## first load a 1D kinematic array from a csv file into a numpy array
 # format is YYYYMMDD-N, with N being the session number
-session_to_load = "20221116-3"  # "20230323-4"  # "20221116-7" # "20230323-4"
+anipose_sessions_to_load = ["20221116-3", "20221116-5", "20221116-7", "20221116-8", "20221116-9"]
 # format is bodypart_side_axis, with side being L or R, and axis being x, y, or z
 chosen_bodypart_to_load = "palm_L_y"  # "wrist_L_y"
 reference_bodypart_to_load = "tailbase_y"
@@ -67,26 +67,47 @@ anipose_folder = Path("/snel/share/data/anipose/analysis20230830_godzilla/")
 # load the csv file into a pandas dataframe and get numpy array of chosen bodypart
 kinematic_csv_folder_path = anipose_folder.joinpath("pose-3d")
 files = [f for f in kinematic_csv_folder_path.iterdir() if f.is_file() and f.suffix == ".csv"]
-kinematic_csv_file_path = [f for f in files if session_to_load in f.name][0]
-print(kinematic_csv_file_path)
-kinematic_dataframe = pd.read_csv(kinematic_csv_file_path)
-chosen_bodypart_array = kinematic_dataframe[chosen_bodypart_to_load].to_numpy()
-time_slice = slice(time_frame[0], round(len(chosen_bodypart_array) * time_frame[1]))
-chosen_bodypart_array = chosen_bodypart_array[time_slice]
+kinematic_csv_file_paths = [f for f in files if any(s in f.name for s in anipose_sessions_to_load)]
+print(f"Taking kinematic data from: \n{[f.name for f in kinematic_csv_file_paths]}")
+kinematic_dataframes = [pd.read_csv(f) for f in kinematic_csv_file_paths]
+chosen_bodypart_arrays = [
+    kinematic_dataframe[chosen_bodypart_to_load].to_numpy()
+    for kinematic_dataframe in kinematic_dataframes
+]
+time_slices = [
+    slice(
+        round(len(arr) * time_frame[0]),
+        round(len(arr) * time_frame[1]),
+    )
+    for arr in chosen_bodypart_arrays
+]
+chosen_bodypart_arrays = [
+    chosen_bodypart_array[time_slice]
+    for chosen_bodypart_array, time_slice in zip(chosen_bodypart_arrays, time_slices)
+]
 
-# plot the array with plotly express
-fig = px.line(chosen_bodypart_array)
-# add title and axis labels
-fig.update_layout(
-    title="Raw Kinematics-derived Force Profile",
-    xaxis_title="Time",
-    yaxis_title="Force Approximation",
-)
 if show_plotly_figures:
+    # plot each array with plotly express
+    for iArray in chosen_bodypart_arrays:
+        fig = px.line(iArray)
+    # add title and axis labels
+    fig.update_layout(
+        title="Raw Kinematics-derived Force Profile",
+        xaxis_title="Time",
+        yaxis_title="Force Approximation",
+    )
     fig.show()
 
 ## load, 2Hz lowpass, and subtract reference bodypart from chosen bodypart
-reference_bodypart_array = kinematic_dataframe[reference_bodypart_to_load].to_numpy()[time_slice]
+reference_bodypart_arrays = [
+    kinematic_dataframe[reference_bodypart_to_load].to_numpy()
+    for kinematic_dataframe in kinematic_dataframes
+]
+
+# combine all arrays into single arrays
+chosen_bodypart_array = np.concatenate(chosen_bodypart_arrays)
+reference_bodypart_array = np.concatenate(reference_bodypart_arrays)
+
 # lowpass filter the array
 nyq = 0.5 * kinematics_fs
 ref_lowcut = 2
@@ -97,14 +118,14 @@ ref_filtered_array = signal.filtfilt(ref_b, ref_a, reference_bodypart_array)
 # subtract reference bodypart from chosen bodypart
 ref_chosen_bodypart_array = chosen_bodypart_array - ref_filtered_array
 
-fig = px.line(ref_chosen_bodypart_array)
-# add title and axis labels
-fig.update_layout(
-    title="Raw Kinematics-derived Force Profile, Reference Subtracted",
-    xaxis_title="Time",
-    yaxis_title="Force Approximation",
-)
 if show_plotly_figures:
+    fig = px.line(ref_chosen_bodypart_array)
+    # add title and axis labels
+    fig.update_layout(
+        title="Raw Kinematics-derived Force Profile, Reference Subtracted",
+        xaxis_title="Time",
+        yaxis_title="Force Approximation",
+    )
     fig.show()
 
 # bandpass filter the array
@@ -117,28 +138,28 @@ b, a = signal.butter(order, [low, high], btype="band")
 filtered_array = signal.filtfilt(b, a, ref_chosen_bodypart_array)
 # invert the array to better simulate force from y kinematics
 inverted_filtered_array = -filtered_array
-# plot the filtered array with plotly express
-fig = px.line(inverted_filtered_array)
-# add title and axis labels
-fig.update_layout(
-    title="Filtered and Inverted Kinematics-derived Force Profile",
-    xaxis_title="Time",
-    yaxis_title="Force Approximation",
-)
 if show_plotly_figures:
+    # plot the filtered array with plotly express
+    fig = px.line(inverted_filtered_array)
+    # add title and axis labels
+    fig.update_layout(
+        title="Filtered and Inverted Kinematics-derived Force Profile",
+        xaxis_title="Time",
+        yaxis_title="Force Approximation",
+    )
     fig.show()
 
 # make all postive
 final_force_array = inverted_filtered_array - np.min(inverted_filtered_array)
-# plot the final array with plotly express
-fig = px.line(final_force_array)
-# add title and axis labels
-fig.update_layout(
-    title="Final Kinematics-derived Force Profile",
-    xaxis_title="Time",
-    yaxis_title="Force Approximation",
-)
 if show_plotly_figures:
+    # plot the final array with plotly express
+    fig = px.line(final_force_array)
+    # add title and axis labels
+    fig.update_layout(
+        title="Final Kinematics-derived Force Profile",
+        xaxis_title="Time",
+        yaxis_title="Force Approximation",
+    )
     fig.show()
 
 # interpolate final force array to match ephys sampling rate
@@ -146,16 +167,67 @@ interp_final_force_array = signal.resample(
     final_force_array, round(len(final_force_array) * (ephys_fs / kinematics_fs))
 )
 
+## load the spike history kernel csv's and plot them with plotly express to compare in 2 subplots
+# load each csv file into a pandas dataframe
+MU_spike_history_kernel_path = Path(__file__).parent.joinpath("spike_history_kernel_basis_MU.csv")
+orig_spike_history_kernel_path = Path(__file__).parent.joinpath("spike_history_kernel_basis.csv")
+
+MU_spike_history_kernel_df = pd.read_csv(MU_spike_history_kernel_path)
+orig_spike_history_kernel_df = pd.read_csv(orig_spike_history_kernel_path)
+
+if show_plotly_figures:
+    # now use plotly express to plot the two dataframes in two subplots
+    fig = subplots.make_subplots(rows=2, cols=1, shared_xaxes=True)
+
+    # add the original spike history kernel to the top subplot
+    for ii, iCol in enumerate(orig_spike_history_kernel_df.columns):
+        fig.add_trace(
+            go.Scatter(
+                x=orig_spike_history_kernel_df.index / ephys_fs * 1000,
+                y=orig_spike_history_kernel_df[iCol],
+                name=f"Component {ii}",
+            ),
+            row=1,
+            col=1,
+        )
+
+    # add the MU spike history kernel to the bottom subplot
+    for ii, iCol in enumerate(MU_spike_history_kernel_df.columns):
+        fig.add_trace(
+            go.Scatter(
+                x=MU_spike_history_kernel_df.index / ephys_fs * 1000,
+                y=MU_spike_history_kernel_df[iCol],
+                name=f"Component {ii}",
+            ),
+            row=2,
+            col=1,
+        )
+
+    # add title and axis labels, make sure x-axis title is only on bottom subplot
+    fig.update_layout(
+        title="<b>Spike History Kernel Bases</b>",
+        template=plot_template,
+    )
+    fig.update_yaxes(title_text="Original Kernel Values", row=1, col=1)
+    fig.update_yaxes(title_text="Motor Unit Kernel Values", row=2, col=1)
+    fig.update_xaxes(title_text="Time (ms)", row=2, col=1)
+    fig.show()
+# make first subplot be the original spike history kernel, and second subplot be the MU spike history kernel
+
+
 ## initialize MU simulation object, set number of units,
 #  and apply the inverted filtered array as the force profile
 mu = MUsim(random_seed)
-mu.num_units = 8
+mu.num_units = 8  # same number of units as in the real data
 mu.MUthresholds_dist = "exponential"
+mu.MUspike_dynamics = "spike_history"
 mu.sample_rate = ephys_fs  # 30000 Hz
-# fixed minimum threshold for the generated units' response curves
-mu.threshmin = np.percentile(interp_final_force_array, 30)
-# fixed maximum threshold for the generated units' response curves
-mu.threshmax = np.percentile(interp_final_force_array, 99)
+# fixed minimum force threshold for the generated units' response curves. Tune this for lower
+# bound of force thresholds sampled in the distribution of MUs during MU_sample()
+mu.threshmin = np.percentile(interp_final_force_array, 70)
+# fixed maximum force threshold for the generated units' response curves. Tune this for upper
+# bound of force thresholds sampled in the distribution of MUs during MU_sample()
+mu.threshmax = 5 * np.max(interp_final_force_array)  # np.percentile(interp_final_force_array, 99)
 mu.sample_MUs()
 mu.apply_new_force(interp_final_force_array)
 mu.simulate_spikes()
@@ -172,7 +244,9 @@ if show_matplotlib_figures:
     )
 
 # save spikes from simulation if user does not ^C
-kinematic_csv_file_name = kinematic_csv_file_path.stem
+kinematic_csv_file_name = (
+    kinematic_csv_file_paths[0].stem.split("-")[0] + kinematic_csv_file_paths[0].stem.split("_")[1]
+)  # just get the date and rat name
 if save_simulated_spikes:
     mu.save_spikes(
         f"synthetic_spikes_from_{kinematic_csv_file_name}_using_{chosen_bodypart_to_load}.npy"
@@ -288,7 +362,7 @@ for iUnit, iCount in enumerate(spike_counts_for_each_unit):
         spike_snippets_to_place[iUnit, iSpike, :, :] = np.dot(W_good[0][:, iUnit, :], iSpike_U.T)
 
 # multiply all waveforms by a Tukey window to make the edges go to zero
-tukey_window = signal.windows.tukey(nt0, 0.5)
+tukey_window = signal.windows.tukey(nt0, 0.25)
 tukey_window = np.tile(tukey_window, (num_chans_in_recording, 1)).T
 for iUnit in range(mu.num_units):
     for iSpike in range(spike_counts_for_each_unit[iUnit]):
@@ -326,8 +400,8 @@ for iUnit, iCount in enumerate(spike_counts_for_each_unit):
                 set_trace()
         except:
             raise
-
-num_chans_with_data = int(num_chans_in_recording - chan_map_adj_list[0]["numDummy"][0][0])
+num_dummy_chans = chan_map_adj_list[0]["numDummy"][0][0]
+num_chans_with_data = int(num_chans_in_recording - num_dummy_chans)
 # get spike band power of the data using the bandpass filter on range (300,1000) Hz
 # first, filter the data
 spike_filtered_dat = np.zeros((len(continuous_dat), num_chans_with_data))
@@ -458,7 +532,39 @@ else:
     fig.write_html(f"{kinematic_csv_file_name}_using_{chosen_bodypart_to_load}.html")
 
 # now save the continuous.dat array as a binary file
+# first add dummy channels to the data to make it 16 channels
+continuous_dat = np.hstack(
+    (
+        continuous_dat,
+        np.zeros((len(continuous_dat), num_chans_in_output - num_chans_in_recording)),
+    )
+)
 # first, convert to int16
+continuous_dat *= 200  # scale for Kilosort
 continuous_dat = continuous_dat.astype(np.int16)
-# now save as binary file
-continuous_dat.tofile(f"continuous.dat")
+print(f"Continuous.dat shape: {continuous_dat.shape}")
+# now save as binary file in int16 format, where elements are 2 bytes, and samples from each channel
+# are interleaved, such as: [chan1_sample1, chan2_sample1, chan3_sample1, ...]
+continuous_dat.tofile("continuous.dat")
+
+## compare synthetic data to real data
+# first, load real data
+mu_real = MUsim()
+# mu_real.num_units = mu.num_units
+# mu.sample_rate = ephys_fs  # 30000 Hz
+# mu_real.sample_MUs()
+# mu_real.apply_new_force(interp_final_force_array)
+mu_real.load_MUs(
+    "/home/smoconn/git/rat-loco/20221116-3_godzilla_speed05_incline00_time.npy",
+    bin_width=0.00003333333333333333,
+    load_as="trial",
+    slice=time_frame,
+)
+
+# set_trace()
+# mu_real.see("force")
+# mu_real.see("curves")
+if show_matplotlib_figures:
+    mu.see("spikes")
+    mu_real.see("spikes")
+    input("Press Enter to close all figures, and exit... (or Ctrl+C)")
