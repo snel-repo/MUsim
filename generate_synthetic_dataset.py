@@ -35,6 +35,44 @@ def butter_bandpass_filter(data, lowcut, highcut, fs, order=2):
     return y
 
 
+def sigmoid(x):
+    """
+    Sigmoid function.
+    """
+    z = np.exp(-x)
+    sig = 1 / (1 + z)
+    return sig
+
+
+# function to blend arrays at the edges
+def blend_arrays(array_list, Nsamp):
+    """
+    Blend arrays together overlapping at the edges using a sigmoid function.
+    """
+    if len(array_list) < 2:  # if only one array, return the unaltered array
+        return array_list[0]
+    blender_array = sigmoid(np.linspace(-12, 12, Nsamp))
+    blended_array = np.zeros(len(np.concatenate(array_list)) - (len(array_list) * Nsamp))
+    len_prev_arrays = 0
+    for ii, iArray in enumerate(array_list):
+        len_this_array = len(iArray)
+        if iArray is array_list[0]:
+            iArray[-Nsamp:] *= 1 - blender_array  # only blend the first array at the end
+            backward_shift = 0
+        elif iArray is array_list[-1]:
+            iArray[:Nsamp] *= blender_array  # only blend the last array at the beginning
+            backward_shift = Nsamp * len(array_list)
+        else:  # blend both ends of the array for all other arrays
+            iArray[:Nsamp] *= blender_array
+            iArray[-Nsamp:] *= 1 - blender_array
+            backward_shift = Nsamp * ii
+        blended_array[
+            len_prev_arrays - backward_shift : len_prev_arrays - backward_shift + len_this_array
+        ] += iArray
+        len_prev_arrays += len_this_array
+    return blended_array
+
+
 # set analysis parameters
 show_plotly_figures = False
 show_matplotlib_figures = False
@@ -46,8 +84,9 @@ nt0 = 61  # 2.033 ms
 SVD_dim = 9  # number of SVD components than were used in KiloSort
 num_chans_in_recording = 9  # number of channels in the recording
 num_chans_in_output = 17  # desired real number of channels in the output data
-SNR_of_simulated_data = 50  # controls amount of noise power added to the channels
-random_seed = 1212  # can be set to an integer to get reproducible results, or None for random
+SNR_of_simulated_data = None  # controls amount of noise power added to the channels
+shape_jitter_enable = False  # controls whether to jitter the waveform shapes
+random_seed = 11  # can be set to an integer to get reproducible results, or None for random
 np.random.seed(random_seed)
 
 # set plotting parameters
@@ -56,7 +95,14 @@ plot_template = "plotly_white"
 
 ## first load a 1D kinematic array from a csv file into a numpy array
 # format is YYYYMMDD-N, with N being the session number
-anipose_sessions_to_load = ["20221116-3", "20221116-5", "20221116-7", "20221116-8", "20221116-9"]
+anipose_sessions_to_load = [
+    "20221116-3",
+    "20221116-5",
+    "20221116-7",
+    # "20221116-8",
+    # "20221116-9",
+    # "20221116-9",
+]
 # format is bodypart_side_axis, with side being L or R, and axis being x, y, or z
 chosen_bodypart_to_load = "palm_L_y"  # "wrist_L_y"
 reference_bodypart_to_load = "tailbase_y"
@@ -104,22 +150,42 @@ reference_bodypart_arrays = [
     for kinematic_dataframe in kinematic_dataframes
 ]
 
-# combine all arrays into single arrays
-chosen_bodypart_array = np.concatenate(chosen_bodypart_arrays)
-reference_bodypart_array = np.concatenate(reference_bodypart_arrays)
 
-# lowpass filter the array
+# subtract filtered reference, lowpass filter, then combine all arrays into single arrays by using and overlap of N samples
+# blend the arrays using a linear relationship at the edges
+# lowpass filter the reference array
 nyq = 0.5 * kinematics_fs
 ref_lowcut = 2
 ref_low = ref_lowcut / nyq
 ref_order = 2
 ref_b, ref_a = signal.butter(ref_order, ref_low, btype="low")
-ref_filtered_array = signal.filtfilt(ref_b, ref_a, reference_bodypart_array)
+ref_filtered_array_list = []
+for iRef in reference_bodypart_arrays:
+    ref_filtered_array_list.append(signal.filtfilt(ref_b, ref_a, iRef))
 # subtract reference bodypart from chosen bodypart
-ref_chosen_bodypart_array = chosen_bodypart_array - ref_filtered_array
+ref_chosen_bodypart_array_list = []
+for ii, iSub in enumerate(ref_filtered_array_list):
+    ref_chosen_bodypart_array_list.append(chosen_bodypart_arrays[ii] - iSub)
+# bandpass filter the array
+lowcut = 1
+highcut = 8
+low = lowcut / nyq
+high = highcut / nyq
+order = 2
+b, a = signal.butter(order, [low, high], btype="band")
+inv_filtered_array_list = []
+# invert the array to better simulate force from y kinematics
+for ii, iFilt in enumerate(ref_chosen_bodypart_array_list):
+    inv_filtered_array_list.append(-signal.filtfilt(b, a, iFilt))
+# make all postive
+min_sub_array_list = []
+# for ii, iMinSub in enumerate(inv_filtered_array_list):
+#     min_sub_array_list.append(iMinSub - np.min(iMinSub))
+Nsamp = 25
+blended_chosen_array = blend_arrays(inv_filtered_array_list, Nsamp)
 
 if show_plotly_figures:
-    fig = px.line(ref_chosen_bodypart_array)
+    fig = px.line(np.concatenate(ref_chosen_bodypart_array_list))
     # add title and axis labels
     fig.update_layout(
         title="Raw Kinematics-derived Force Profile, Reference Subtracted",
@@ -128,19 +194,9 @@ if show_plotly_figures:
     )
     fig.show()
 
-# bandpass filter the array
-lowcut = 1
-highcut = 8
-low = lowcut / nyq
-high = highcut / nyq
-order = 2
-b, a = signal.butter(order, [low, high], btype="band")
-filtered_array = signal.filtfilt(b, a, ref_chosen_bodypart_array)
-# invert the array to better simulate force from y kinematics
-inverted_filtered_array = -filtered_array
 if show_plotly_figures:
     # plot the filtered array with plotly express
-    fig = px.line(inverted_filtered_array)
+    fig = px.line(np.concatenate(inv_filtered_array_list))
     # add title and axis labels
     fig.update_layout(
         title="Filtered and Inverted Kinematics-derived Force Profile",
@@ -149,11 +205,9 @@ if show_plotly_figures:
     )
     fig.show()
 
-# make all postive
-final_force_array = inverted_filtered_array - np.min(inverted_filtered_array)
 if show_plotly_figures:
     # plot the final array with plotly express
-    fig = px.line(final_force_array)
+    fig = px.line(blended_chosen_array)
     # add title and axis labels
     fig.update_layout(
         title="Final Kinematics-derived Force Profile",
@@ -164,7 +218,7 @@ if show_plotly_figures:
 
 # interpolate final force array to match ephys sampling rate
 interp_final_force_array = signal.resample(
-    final_force_array, round(len(final_force_array) * (ephys_fs / kinematics_fs))
+    blended_chosen_array, round(len(blended_chosen_array) * (ephys_fs / kinematics_fs))
 )
 
 ## load the spike history kernel csv's and plot them with plotly express to compare in 2 subplots
@@ -353,7 +407,7 @@ for iUnit, iCount in enumerate(spike_counts_for_each_unit):
     # jitter and scale by amplitude for this unit
     iUnit_U = (
         np.tile(U_good[0][:, iUnit, :], (iCount, 1, 1))
-        * jitter_mat
+        * (jitter_mat if shape_jitter_enable else 1)
         * amplitudes_df_list.loc[clusters_to_take_from[0][iUnit]].Amplitude
     )
     for iSpike in range(iCount):
@@ -412,16 +466,17 @@ for iChan in range(num_chans_with_data):
 # now square then average to get power
 spike_band_power = np.mean(np.square(spike_filtered_dat), axis=0)
 print(f"Spike Band Power: {spike_band_power}")
-# back-calculate the noise needed to get the amplitude of Gaussian noise to add to the data
-# to get the desired SNR
-noise_power = spike_band_power / SNR_of_simulated_data
-# now calculate the standard deviation of the Gaussian noise to add to the data
-noise_std = np.sqrt(noise_power)
-print(f"Noise STD: {noise_std}")
-# now add Gaussian noise to the data
-noise_std_with_dummies = np.zeros(num_chans_in_recording)
-noise_std_with_dummies[0:num_chans_with_data] = noise_std
-continuous_dat += np.random.normal(0, 2 * noise_std_with_dummies, continuous_dat.shape)
+if SNR_of_simulated_data is not None:
+    # back-calculate the noise needed to get the amplitude of Gaussian noise to add to the data
+    # to get the desired SNR
+    noise_power = spike_band_power / SNR_of_simulated_data
+    # now calculate the standard deviation of the Gaussian noise to add to the data
+    noise_std = np.sqrt(noise_power)
+    print(f"Noise STD: {noise_std}")
+    # now add Gaussian noise to the data
+    noise_std_with_dummies = np.zeros(num_chans_in_recording)
+    noise_std_with_dummies[0:num_chans_with_data] = noise_std
+    continuous_dat += np.random.normal(0, 2 * noise_std_with_dummies, continuous_dat.shape)
 
 # Verify that the SNR is correct
 # first, get the spike band power of the data
@@ -458,7 +513,9 @@ print(f"Computed SNR: {computed_SNR}")
 # first, create a time vector for ephys to plot against
 ephys_time_axis = np.linspace(0, len(continuous_dat) / ephys_fs, len(continuous_dat))
 # second, create a time vector for kinematics to plot against
-force_time_axis = np.linspace(0, len(final_force_array) / kinematics_fs, len(final_force_array))
+force_time_axis = np.linspace(
+    0, len(blended_chosen_array) / kinematics_fs, len(blended_chosen_array)
+)
 # include the anipose force profile on the top subplot
 # include MUsim object spike time eventplot on the final subplot
 # create a figure with subplots, make x-axis shared,
@@ -473,7 +530,7 @@ fig = subplots.make_subplots(
 fig.add_trace(
     go.Scatter(
         x=force_time_axis,
-        y=np.round(final_force_array, decimals=2),
+        y=np.round(blended_chosen_array, decimals=2),
         name="Force Profile",
     ),
     row=1,
