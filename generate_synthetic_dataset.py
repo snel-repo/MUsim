@@ -52,7 +52,7 @@ def blend_arrays(array_list, Nsamp):
     if len(array_list) < 2:  # if only one array, return the unaltered array
         return array_list[0]
     blender_array = sigmoid(np.linspace(-12, 12, Nsamp))
-    blended_array = np.zeros(len(np.concatenate(array_list)) - (len(array_list) * Nsamp))
+    blended_array = np.zeros(len(np.concatenate(array_list)) - Nsamp * (len(array_list) - 1))
     len_prev_arrays = 0
     for ii, iArray in enumerate(array_list):
         len_this_array = len(iArray)
@@ -61,7 +61,7 @@ def blend_arrays(array_list, Nsamp):
             backward_shift = 0
         elif iArray is array_list[-1]:
             iArray[:Nsamp] *= blender_array  # only blend the last array at the beginning
-            backward_shift = Nsamp * len(array_list)
+            backward_shift = Nsamp * ii
         else:  # blend both ends of the array for all other arrays
             iArray[:Nsamp] *= blender_array
             iArray[-Nsamp:] *= 1 - blender_array
@@ -76,18 +76,22 @@ def blend_arrays(array_list, Nsamp):
 # set analysis parameters
 show_plotly_figures = False
 show_matplotlib_figures = False
-show_final_plotly_figure = True
+show_final_plotly_figure = False
 save_simulated_spikes = False
 kinematics_fs = 125
 ephys_fs = 30000
 nt0 = 61  # 2.033 ms
 SVD_dim = 9  # number of SVD components than were used in KiloSort
 num_chans_in_recording = 9  # number of channels in the recording
-num_chans_in_output = 17  # desired real number of channels in the output data
-SNR_of_simulated_data = None  # controls amount of noise power added to the channels
+num_chans_in_output = 4  # desired real number of channels in the output data
+SNR_of_simulated_data = None  # number determines noise power added to channels, set None to disable
 shape_jitter_enable = False  # controls whether to jitter the waveform shapes
-random_seed = 11  # can be set to an integer to get reproducible results, or None for random
-np.random.seed(random_seed)
+random_seed = 296119143700119808136090155240865283345  # None for random seed, or int for fixed seed
+if random_seed is None:
+    random_seed_sqn = np.random.SeedSequence()
+else:
+    random_seed_sqn = np.random.SeedSequence(random_seed)
+np.random.default_rng(random_seed_sqn)
 
 # set plotting parameters
 time_frame = [0, 1]  # time frame to plot, fractional bounds of 0 to 1
@@ -96,7 +100,7 @@ plot_template = "plotly_white"
 ## first load a 1D kinematic array from a csv file into a numpy array
 # format is YYYYMMDD-N, with N being the session number
 anipose_sessions_to_load = [
-    "20221116-3",
+    # "20221116-3",
     "20221116-5",
     "20221116-7",
     # "20221116-8",
@@ -194,7 +198,6 @@ if show_plotly_figures:
     )
     fig.show()
 
-if show_plotly_figures:
     # plot the filtered array with plotly express
     fig = px.line(np.concatenate(inv_filtered_array_list))
     # add title and axis labels
@@ -205,7 +208,6 @@ if show_plotly_figures:
     )
     fig.show()
 
-if show_plotly_figures:
     # plot the final array with plotly express
     fig = px.line(blended_chosen_array)
     # add title and axis labels
@@ -271,7 +273,7 @@ if show_plotly_figures:
 
 ## initialize MU simulation object, set number of units,
 #  and apply the inverted filtered array as the force profile
-mu = MUsim(random_seed)
+mu = MUsim(random_seed_sqn)
 mu.num_units = 8  # same number of units as in the real data
 mu.MUthresholds_dist = "exponential"
 mu.MUspike_dynamics = "spike_history"
@@ -281,7 +283,7 @@ mu.sample_rate = ephys_fs  # 30000 Hz
 mu.threshmin = np.percentile(interp_final_force_array, 70)
 # fixed maximum force threshold for the generated units' response curves. Tune this for upper
 # bound of force thresholds sampled in the distribution of MUs during MU_sample()
-mu.threshmax = 5 * np.max(interp_final_force_array)  # np.percentile(interp_final_force_array, 99)
+mu.threshmax = 2 * np.max(interp_final_force_array)  # np.percentile(interp_final_force_array, 99)
 mu.sample_MUs()
 mu.apply_new_force(interp_final_force_array)
 mu.simulate_spikes()
@@ -298,8 +300,8 @@ if show_matplotlib_figures:
     )
 
 # save spikes from simulation if user does not ^C
-kinematic_csv_file_name = (
-    kinematic_csv_file_paths[0].stem.split("-")[0] + kinematic_csv_file_paths[0].stem.split("_")[1]
+kinematic_csv_file_name = "_".join(
+    (kinematic_csv_file_paths[0].stem.split("-")[0], kinematic_csv_file_paths[0].stem.split("_")[1])
 )  # just get the date and rat name
 if save_simulated_spikes:
     mu.save_spikes(
@@ -585,17 +587,21 @@ fig.update_xaxes(title_text="Time (s)", row=num_chans_with_data + 2, col=1)
 
 if show_final_plotly_figure:
     fig.show()
-else:
-    fig.write_html(f"{kinematic_csv_file_name}_using_{chosen_bodypart_to_load}.html")
+# else:
+fig.write_html(f"{kinematic_csv_file_name}_using_{chosen_bodypart_to_load}.html")
+
+# add dummy channels to the data to make it num_chans_in_output channels
+if num_chans_in_output > num_chans_in_recording:
+    continuous_dat = np.hstack(
+        (
+            continuous_dat,
+            np.zeros((len(continuous_dat), num_chans_in_output - num_chans_in_recording)),
+        )
+    )
+elif num_chans_in_output < num_chans_in_recording:
+    continuous_dat = continuous_dat[:, :num_chans_in_output]
 
 # now save the continuous.dat array as a binary file
-# first add dummy channels to the data to make it 16 channels
-continuous_dat = np.hstack(
-    (
-        continuous_dat,
-        np.zeros((len(continuous_dat), num_chans_in_output - num_chans_in_recording)),
-    )
-)
 # first, convert to int16
 continuous_dat *= 200  # scale for Kilosort
 continuous_dat = continuous_dat.astype(np.int16)

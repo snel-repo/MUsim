@@ -10,9 +10,8 @@ from scipy.special import expit, logit
 
 
 class MUsim:
-    def __init__(self, random_seed=False):
+    def __init__(self, random_seed_sqn=False):
         self.MUmode = "static"  # "static" for size-principle obediance, "dynamic" for yank-dependent thresholds
-        self.MUseed = random_seed  # int, set seed for repeatability, if desired
         self.MUactivation = "sigmoid"  # "sigmoid"/"heaviside" activation function of MUs
         self.MUthresholds_dist = "exponential"  # can be either "exponential", "uniform" or "normal". Distributes proportion of small vs large MUs
         self.MUspike_dynamics = "poisson"  # can be either "poisson", "independent", or "spike_history". Models spiking behavior as poisson process or as independent
@@ -79,9 +78,12 @@ class MUsim:
         self.threshmin = 2
         # fixed maximum threshold for the generated units' response curves
         self.threshmax = 10
-        if random_seed:
-            assert type(random_seed) is int, "`random_seed` variable must be `int`"
-            np.random.seed(random_seed)
+        if random_seed_sqn:
+            self.MUseed = random_seed_sqn.entropy
+        else:
+            self.MUseed = np.random.SeedSequence().entropy
+        print(f"Random seed entropy is: {self.MUseed}")
+        self.RNG = np.random.default_rng(np.random.SeedSequence(self.MUseed))
 
     def __repr__(self):
         return f"MUsim object with {self.num_units} units, {len(self.spikes)} trials across {len(self.session)} sessions."
@@ -142,7 +144,7 @@ class MUsim:
                 num_dynamic_units = int(self.MUreversal_frac * self.num_units)
                 num_static_units = int(self.num_units - num_dynamic_units)
                 static_MU_idxs = np.sort(
-                    np.random.choice(all_MU_idxs, num_static_units, replace=False)
+                    self.RNG.choice(all_MU_idxs, num_static_units, replace=False)
                 )
             dynamic_MU_idxs = np.setdiff1d(all_MU_idxs, static_MU_idxs)
 
@@ -154,16 +156,16 @@ class MUsim:
             if (
                 MUthresholds_dist == "uniform"
             ):  # equal distribution of thresholds for large/small units
-                MUthresholds_gen = (threshmax - threshmin) * np.random.random_sample(
+                MUthresholds_gen = (threshmax - threshmin) * self.RNG.random(
                     (self.num_units)
                 ) + threshmin
             elif MUthresholds_dist == "normal":  # more small units, normal dist
                 MUthresholds_gen = (
-                    threshmax * abs(np.random.standard_normal(self.num_units) / 4) + threshmin
+                    threshmax * abs(self.RNG.standard_normal(self.num_units) / 4) + threshmin
                 )
             elif MUthresholds_dist == "exponential":  # more small units, exponential dist
                 MUthresholds_gen = (
-                    threshmax * np.random.standard_exponential(self.num_units) / 10 + threshmin
+                    threshmax * self.RNG.standard_exponential(self.num_units) / 10 + threshmin
                 )
             else:
                 raise Exception(
@@ -334,17 +336,17 @@ class MUsim:
         if MUmode == "static":
             # equal distribution of thresholds for large/small units
             if MUthresholds_dist == "uniform":
-                MUthresholds = (threshmax - threshmin) * np.random.random_sample(
+                MUthresholds = (threshmax - threshmin) * self.RNG.random(
                     (self.num_units)
                 ) + threshmin
             # more small units, normal dist
             elif MUthresholds_dist == "normal":
                 MUthresholds = (
-                    threshmax * abs(np.random.standard_normal(self.num_units) / 4) + threshmin
+                    threshmax * abs(self.RNG.standard_normal(self.num_units) / 4) + threshmin
                 )
             elif MUthresholds_dist == "exponential":  # more small units, exponential dist
                 MUthresholds = (
-                    threshmax * np.random.standard_exponential(self.num_units) / 8 + threshmin
+                    threshmax * self.RNG.standard_exponential(self.num_units) / 10 + threshmin
                 )
             else:
                 raise Exception(
@@ -374,7 +376,9 @@ class MUsim:
             ys = np.empty(num_steps + 1)
             zs = np.empty(num_steps + 1)
             # Set initial values
-            xs[0], ys[0], zs[0] = 20 * np.random.rand(3, 1)  # random initial condition from [0,20)
+            xs[0], ys[0], zs[0] = 20 * self.RNG.random(
+                (3, 1)
+            )  # random initial condition from [0,20)
             # Step through "time", calculating the partial derivatives at the current point
             # and using them to estimate the next point
             for i in range(num_steps):
@@ -413,7 +417,7 @@ class MUsim:
         # randomize minimum ISI (poisson lambda) for each unit to be from 5-25 ms
         low_lambda = 8 * self.sample_rate / 1000
         high_lambda = 32 * self.sample_rate / 1000
-        self.units[2] = np.random.randint(low_lambda, high_lambda, size=(self.num_units))
+        self.units[2] = self.RNG.integers(low_lambda, high_lambda, size=(self.num_units))
         # sort self.units[2] in ascending order, to match with units[0] and units[1] ordering
         self.units[2] = np.sort(self.units[2])
         self.MUmode = MUmode  # record the last recruitment mode
@@ -432,17 +436,17 @@ class MUsim:
         if self.MUmode == "lorenz":
             # project latent variables to high-D space
             # don't care what the high-D space is, so use random
-            proj_mat = np.random.rand(self.num_units, 3) - 0.5  # balance it by subtracting 0.5
+            proj_mat = self.RNG.random((self.num_units, 3)) - 0.5  # balance it by subtracting 0.5
             latents = self.units[1]
             hiD_proj = proj_mat @ latents.T  # projection to hiD
             hiD_rates = np.exp(hiD_proj)
             # get spikes and transpose to Time x MU
-            spikes = np.random.poisson(hiD_rates * (1 / (self.sample_rate))).T
+            spikes = self.RNG.poisson(hiD_rates * (1 / (self.sample_rate))).T
             self.spikes.append(np.asarray(spikes, dtype=float))
             self.noise_level.append(noise_level)
         elif self.MUspike_dynamics == "independent":
             unit_response_curves = self.units[1]
-            selection = np.random.random(unit_response_curves.shape)
+            selection = self.RNG.random(unit_response_curves.shape)
             spike_idxs = np.where(selection > unit_response_curves)
             # initialize as array of zeros, spikes assigned later at spike_idxs
             self.spikes.append(np.zeros(unit_response_curves.shape))
@@ -450,7 +454,7 @@ class MUsim:
                 assert noise_level > 0 and noise_level <= 1, "noise required to be between 0 and 1."
                 self.spikes[-1] = (
                     self.spikes[-1]
-                    + noise_level * np.random.standard_normal(self.spikes[-1].shape).__abs__()
+                    + noise_level * self.RNG.standard_normal(self.spikes[-1].shape).__abs__()
                 )
             self.noise_level.append(noise_level)
             # all spikes are now assigned value of 1, regardless of noise
@@ -460,11 +464,11 @@ class MUsim:
             unit_response_curves = self.units[1]
             # initialize as array of zeros, spikes assigned later at spike_idxs
             self.spikes.append(np.zeros(unit_response_curves.shape))
-            # lam of np.random.poisson is the upper bound for poisson process, which will be thinned
+            # lam of self.RNG.poisson is the upper bound for poisson process, which will be thinned
             # probabilistically by the sigmoidal response curves for each MU
             # https://en.wikipedia.org/wiki/Poisson_point_process#Thinning
             unit_rates = self.units[2]
-            time_steps = np.random.poisson(
+            time_steps = self.RNG.poisson(
                 lam=unit_rates, size=self.spikes[-1].shape
             ) + int(  # unique rates for MUs
                 self.refractory_period * self.sample_rate / 1000
@@ -480,8 +484,7 @@ class MUsim:
                     (
                         (
                             unit_response_curves[:, ii]
-                            > self.threshmax
-                            * np.random.random_sample(unit_response_curves.shape[0])
+                            > self.threshmax * self.RNG.random(unit_response_curves.shape[0])
                         )  # thin spikes according to 1-sigmoidal relationship defined in _get_spiking_probability
                     ),
                     np.zeros(self.spikes[-1][:, ii].shape),
@@ -508,7 +511,7 @@ class MUsim:
             for iUnit in range(self.num_units):
                 for iTimestep in range(self.num_bins_per_trial):
                     bounded_response_curve_at_t = expit(self.units[1][iTimestep, iUnit])
-                    if np.random.binomial(1, bounded_response_curve_at_t):
+                    if self.RNG.binomial(1, bounded_response_curve_at_t):
                         try:
                             self.units[1][iTimestep : iTimestep + len(kernel), iUnit] += kernel
                         except ValueError:
