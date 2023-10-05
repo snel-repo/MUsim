@@ -10,7 +10,7 @@ from scipy.special import expit, logit
 
 
 class MUsim:
-    def __init__(self, random_seed_sqn=False):
+    def __init__(self, random_seed=False):
         self.MUmode = "static"  # "static" for size-principle obediance, "dynamic" for yank-dependent thresholds
         self.MUactivation = "sigmoid"  # "sigmoid"/"heaviside" activation function of MUs
         self.MUthresholds_dist = "exponential"  # can be either "exponential", "uniform" or "normal". Distributes proportion of small vs large MUs
@@ -78,16 +78,41 @@ class MUsim:
         self.threshmin = 2
         # fixed maximum threshold for the generated units' response curves
         self.threshmax = 10
-        if random_seed_sqn:
-            self.MUseed = random_seed_sqn.entropy
+        if random_seed:
+            if type(random_seed) == int:
+                print("random_seed is an integer.")
+                self.MUseed = random_seed
+                self.RNG = np.random.default_rng(self.MUseed)
+                self.MUseed_sqn = self.RNG.bit_generator._seed_seq
+            elif type(random_seed) == np.random.SeedSequence:
+                print("random_seed is a SeedSequence object.")
+                self.MUseed_sqn = random_seed
+                self.MUseed = self.MUseed_sqn.entropy
+                self.RNG = np.random.default_rng(self.MUseed_sqn.generate_state(1))
+            elif type(random_seed) == np.random.Generator:
+                print("random_seed is a Generator object.")
+                self.RNG = random_seed
+                self.MUseed_sqn = self.RNG.bit_generator._seed_seq
+                self.MUseed = self.MUseed_sqn.entropy
+            else:
+                raise Exception("random_seed must be either a BitGenerator, SeedSequence or an integer.")
         else:
-            self.MUseed = np.random.SeedSequence().entropy
-        print(f"Random seed entropy is: {self.MUseed}")
-        self.RNG = np.random.default_rng(np.random.SeedSequence(self.MUseed))
-
+            self.MUseed_sqn = np.random.SeedSequence()
+            self.MUseed = self.MUseed_sqn.entropy
+            self.RNG = np.random.default_rng(self.MUseed_sqn.generate_state(1))
+            
+        print(f"New MUsim object random seed entropy is: {self.MUseed}")
+        # generate random state with generate_state() method
+        
     def __repr__(self):
         return f"MUsim object with {self.num_units} units, {len(self.spikes)} trials across {len(self.session)} sessions."
 
+    def copy(self):
+        """
+        Function returns a shallow copy of the MUsim object.
+        """       
+        return self
+    
     def _get_spike_history_kernel(
         self,
         path_to_kernel_csv=Path(__file__).parent.joinpath("spike_history_kernel_basis.csv"),
@@ -127,6 +152,7 @@ class MUsim:
         return scaled_unit_response_curves
 
     def _get_dynamic_thresholds(self, threshmax, threshmin, new=False):
+        # self.RNG = np.random.default_rng(self.MUseed_sqn.generate_state(2)[-1])
         # create arrays from original static MU thresholds, to define MU thresholds that change with each timestep
         MUthresholds_dist = self.MUthresholds_dist
         static_MU_idxs = self.static_MU_idxs
@@ -152,7 +178,7 @@ class MUsim:
             self.dynamic_MU_idxs = dynamic_MU_idxs
             self.num_static_units = num_static_units
             self.num_dynamic_units = num_dynamic_units
-
+            # self.RNG = np.random.default_rng(self.MUseed_sqn.generate_state(3)[-1])
             if (
                 MUthresholds_dist == "uniform"
             ):  # equal distribution of thresholds for large/small units
@@ -309,7 +335,7 @@ class MUsim:
                 units[1] holds response curves from each MU [or holds lorenz latents if that mode is chosen]
                 units[2] holds minimum ISI (poisson lambda) for each unit
         """
-
+        # self.RNG = np.random.default_rng(self.MUseed_sqn.generate_state(4)[-1])
         # re-initialize all force/yank profiles if new trial length is set ( i.e., num_bins_per_trial )
         if self.num_bins_per_trial != len(self.init_force_profile):
             self.num_bins_per_trial = int(self.num_bins_per_trial)
@@ -417,6 +443,7 @@ class MUsim:
         # randomize minimum ISI (poisson lambda) for each unit to be from 5-25 ms
         low_lambda = 8 * self.sample_rate / 1000
         high_lambda = 32 * self.sample_rate / 1000
+        # self.RNG = np.random.default_rng(self.MUseed_sqn.generate_state(5)[-1])
         self.units[2] = self.RNG.integers(low_lambda, high_lambda, size=(self.num_units))
         # sort self.units[2] in ascending order, to match with units[0] and units[1] ordering
         self.units[2] = np.sort(self.units[2])
@@ -429,6 +456,7 @@ class MUsim:
         Input: unit response curve (probability of seeing a 0 each timestep, otherwise its 1)
         Returns: numpy array same length as response curve with  1's and 0's indicating spikes
         """
+        # self.RNG = np.random.default_rng(self.MUseed_sqn.generate_state(6)[-1])
         if len(self.units[0]) == 0:
             raise Exception(
                 "unit response curve empty. run '.sample_MUs()' method to define motor unit properties."
@@ -464,7 +492,7 @@ class MUsim:
             unit_response_curves = self.units[1]
             # initialize as array of zeros, spikes assigned later at spike_idxs
             self.spikes.append(np.zeros(unit_response_curves.shape))
-            # lam of self.RNG.poisson is the upper bound for poisson process, which will be thinned
+            # lam of RNG.poisson is the upper bound for poisson process, which will be thinned
             # probabilistically by the sigmoidal response curves for each MU
             # https://en.wikipedia.org/wiki/Poisson_point_process#Thinning
             unit_rates = self.units[2]

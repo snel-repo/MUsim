@@ -1,4 +1,6 @@
 # IMPORT packages
+import datetime
+import multiprocessing
 from pathlib import Path
 from pdb import set_trace
 
@@ -13,6 +15,32 @@ from scipy.io import loadmat
 from MUsim import MUsim
 
 
+# define a function to convert a timedelta object to a pretty string representation
+def strfdelta(tdelta, fmt):
+    d = {"days": tdelta.days}
+    d["hours"], rem = divmod(tdelta.seconds, 3600)
+    d["minutes"], d["seconds"] = divmod(rem, 60)
+    return fmt.format(**d)
+
+# define a lowpass filter
+def butter_lowpass(lowcut, fs, order=2):
+    """
+    Butterworth lowpass filter.
+    """
+    nyq = 0.5 * fs
+    low = lowcut / nyq
+    b, a = signal.butter(order, low, btype="low")
+    return b, a
+
+# define a function to filter data with lowpass filter
+def butter_lowpass_filter(data, lowcut, fs, order=2):
+    """
+    Butterworth lowpass filter.
+    """
+    b, a = butter_lowpass(lowcut, fs, order=order)
+    y = signal.filtfilt(b, a, data)
+    return y
+
 # define a bandpass filter
 def butter_bandpass(lowcut, highcut, fs, order=2):
     """
@@ -23,7 +51,6 @@ def butter_bandpass(lowcut, highcut, fs, order=2):
     high = highcut / nyq
     b, a = signal.butter(order, [low, high], btype="band")
     return b, a
-
 
 # define a function to filter data with bandpass filter
 def butter_bandpass_filter(data, lowcut, highcut, fs, order=2):
@@ -42,7 +69,6 @@ def sigmoid(x):
     z = np.exp(-x)
     sig = 1 / (1 + z)
     return sig
-
 
 # function to blend arrays at the edges
 def blend_arrays(array_list, Nsamp):
@@ -72,26 +98,37 @@ def blend_arrays(array_list, Nsamp):
         len_prev_arrays += len_this_array
     return blended_array
 
+## MUsim class initialization and simulation function
+def batch_run_MUsim(mu, force_profile, proc_num):
+    """
+    Initialize an MUsim object, set number of units, and apply the inverted filtered array as the force profile
+    """
+    mu.apply_new_force(force_profile)
+    mu.simulate_spikes()
+    print(f"({proc_num}) MU Thresholds " + str(mu.units[0]))
+    print(f"({proc_num}) MU Poisson Lambdas " + str(mu.units[2]))
+    return mu
+
+start_time = datetime.datetime.now()
 
 # set analysis parameters
 show_plotly_figures = False
 show_matplotlib_figures = False
 show_final_plotly_figure = False
-save_simulated_spikes = False
+save_final_plotly_figure = True
+save_simulated_spikes = True
 kinematics_fs = 125
 ephys_fs = 30000
 nt0 = 61  # 2.033 ms
 SVD_dim = 9  # number of SVD components than were used in KiloSort
 num_chans_in_recording = 9  # number of channels in the recording
-num_chans_in_output = 4  # desired real number of channels in the output data
+num_chans_in_output = 17  # desired real number of channels in the output data
 SNR_of_simulated_data = None  # number determines noise power added to channels, set None to disable
 shape_jitter_enable = False  # controls whether to jitter the waveform shapes
-random_seed = 296119143700119808136090155240865283345  # None for random seed, or int for fixed seed
-if random_seed is None:
-    random_seed_sqn = np.random.SeedSequence()
-else:
-    random_seed_sqn = np.random.SeedSequence(random_seed)
-np.random.default_rng(random_seed_sqn)
+random_seed_entropy = None # 75092699954400878964964014863999053929  # None for random behavior, or a previous entropy int value to reproduce
+if random_seed_entropy is None:
+    random_seed_entropy = np.random.SeedSequence().entropy
+RNG = np.random.default_rng(random_seed_entropy)  # create a random number generator
 
 # set plotting parameters
 time_frame = [0, 1]  # time frame to plot, fractional bounds of 0 to 1
@@ -100,11 +137,11 @@ plot_template = "plotly_white"
 ## first load a 1D kinematic array from a csv file into a numpy array
 # format is YYYYMMDD-N, with N being the session number
 anipose_sessions_to_load = [
-    # "20221116-3",
+    "20221116-3",
     "20221116-5",
     "20221116-7",
-    # "20221116-8",
-    # "20221116-9",
+    "20221116-8",
+    "20221116-9",
     # "20221116-9",
 ]
 # format is bodypart_side_axis, with side being L or R, and axis being x, y, or z
@@ -154,7 +191,6 @@ reference_bodypart_arrays = [
     for kinematic_dataframe in kinematic_dataframes
 ]
 
-
 # subtract filtered reference, lowpass filter, then combine all arrays into single arrays by using and overlap of N samples
 # blend the arrays using a linear relationship at the edges
 # lowpass filter the reference array
@@ -162,30 +198,29 @@ nyq = 0.5 * kinematics_fs
 ref_lowcut = 2
 ref_low = ref_lowcut / nyq
 ref_order = 2
-ref_b, ref_a = signal.butter(ref_order, ref_low, btype="low")
-ref_filtered_array_list = []
-for iRef in reference_bodypart_arrays:
-    ref_filtered_array_list.append(signal.filtfilt(ref_b, ref_a, iRef))
-# subtract reference bodypart from chosen bodypart
-ref_chosen_bodypart_array_list = []
-for ii, iSub in enumerate(ref_filtered_array_list):
-    ref_chosen_bodypart_array_list.append(chosen_bodypart_arrays[ii] - iSub)
-# bandpass filter the array
+# bandpass filter parameters
 lowcut = 1
 highcut = 8
 low = lowcut / nyq
 high = highcut / nyq
 order = 2
-b, a = signal.butter(order, [low, high], btype="band")
+# apply filters
+ref_filtered_array_list = []
+ref_chosen_bodypart_array_list = []
 inv_filtered_array_list = []
-# invert the array to better simulate force from y kinematics
-for ii, iFilt in enumerate(ref_chosen_bodypart_array_list):
-    inv_filtered_array_list.append(-signal.filtfilt(b, a, iFilt))
-# make all postive
 min_sub_array_list = []
-# for ii, iMinSub in enumerate(inv_filtered_array_list):
-#     min_sub_array_list.append(iMinSub - np.min(iMinSub))
 Nsamp = 25
+for ii in range(len(reference_bodypart_arrays)):
+    iRef = reference_bodypart_arrays[ii]
+    ref_filtered_array_list.append(butter_lowpass_filter(iRef, ref_lowcut, kinematics_fs, ref_order))
+    iSub = ref_filtered_array_list[ii]
+    # subtract reference bodypart from chosen bodypart
+    ref_chosen_bodypart_array_list.append(chosen_bodypart_arrays[ii] - iSub)
+    iFilt = ref_chosen_bodypart_array_list[ii]
+    # invert the array to better simulate force from y kinematics
+    inv_filtered_array_list.append(-butter_bandpass_filter(iFilt, lowcut, highcut, kinematics_fs, order))
+
+# blend the arrays together
 blended_chosen_array = blend_arrays(inv_filtered_array_list, Nsamp)
 
 if show_plotly_figures:
@@ -233,6 +268,8 @@ orig_spike_history_kernel_df = pd.read_csv(orig_spike_history_kernel_path)
 
 if show_plotly_figures:
     # now use plotly express to plot the two dataframes in two subplots
+    # make first subplot be the original spike history kernel,
+    # and second subplot be the MU spike history kernel
     fig = subplots.make_subplots(rows=2, cols=1, shared_xaxes=True)
 
     # add the original spike history kernel to the top subplot
@@ -268,27 +305,104 @@ if show_plotly_figures:
     fig.update_yaxes(title_text="Motor Unit Kernel Values", row=2, col=1)
     fig.update_xaxes(title_text="Time (ms)", row=2, col=1)
     fig.show()
-# make first subplot be the original spike history kernel, and second subplot be the MU spike history kernel
 
+## load Kilosort data
+# paths to the folders containing the Kilosort data
+paths_to_KS_session_folders = Path(
+    "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/godzilla/session20221116/",
+    # "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/inkblot/session20230323",
+    # "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/kitkat/session20230420",
+)
+sorts_from_each_path_to_load = ["20230924_151421"]  # , ["20230923_125645"], ["20230923_125645"]]
 
-## initialize MU simulation object, set number of units,
-#  and apply the inverted filtered array as the force profile
-mu = MUsim(random_seed_sqn)
-mu.num_units = 8  # same number of units as in the real data
-mu.MUthresholds_dist = "exponential"
-mu.MUspike_dynamics = "spike_history"
+# find the folder name which ends in _myo and append to the paths_to_session_folders
+paths_to_each_myo_folder = [
+    f for f in paths_to_KS_session_folders.iterdir() if f.is_dir() and f.name.endswith("_myo")
+]
+# inside each _myo folder, find the folder name which constains sort_from_each_path_to_load string
+for iPath in paths_to_each_myo_folder:
+    path_to_sort_folders = [
+        f
+        for f in iPath.iterdir()
+        if f.is_dir() and any(s in f.name for s in sorts_from_each_path_to_load)
+    ]
+
+# load the SVD matrixes from rez.mat
+rez_list = [
+    loadmat(str(path_to_sort_folder.joinpath("rez.mat")))
+    for path_to_sort_folder in path_to_sort_folders
+]
+ops_list = [
+    loadmat(str(path_to_sort_folder.joinpath("ops.mat")))
+    for path_to_sort_folder in path_to_sort_folders
+]
+
+chan_map_adj_list = [
+    loadmat(str(path_to_sort_folder.joinpath("chanMapAdjusted.mat")))
+    for path_to_sort_folder in path_to_sort_folders
+]
+
+amplitudes_df_list = [
+    pd.read_csv(str(path_to_sort_folder.joinpath("cluster_Amplitude.tsv")), sep="\t")
+    for path_to_sort_folder in path_to_sort_folders
+]
+# set index as the cluster_id column
+amplitudes_df_list = amplitudes_df_list[0].set_index("cluster_id")
+
+# list of lists of good clusters to take from each rez_list
+# place units in order of total spike count, from highest to lowest
+clusters_to_take_from = [[18, 2, 11, 0, 4, 10, 1, 9]]
+num_motor_units = len(clusters_to_take_from[0])
+
+# create N MUsim objects, and run them in parallel on N processes,
+# one for each segment of the anipoise data
+# initialize 1 MUsim object, then create identical copies of it for each process
+mu = MUsim(random_seed_entropy)
+mu.num_units = num_motor_units # set same number of motor units as in the Kilosort data
+mu.MUthresholds_dist = "exponential" # set the distribution of motor unit thresholds
+mu.MUspike_dynamics = "spike_history" 
 mu.sample_rate = ephys_fs  # 30000 Hz
 # fixed minimum force threshold for the generated units' response curves. Tune this for lower
 # bound of force thresholds sampled in the distribution of MUs during MU_sample()
 mu.threshmin = np.percentile(interp_final_force_array, 70)
 # fixed maximum force threshold for the generated units' response curves. Tune this for upper
 # bound of force thresholds sampled in the distribution of MUs during MU_sample()
-mu.threshmax = 2 * np.max(interp_final_force_array)  # np.percentile(interp_final_force_array, 99)
+mu.threshmax = 1.1 * np.max(interp_final_force_array)  # np.percentile(interp_final_force_array, 99)
 mu.sample_MUs()
-mu.apply_new_force(interp_final_force_array)
-mu.simulate_spikes()
-print("MU Thresholds " + str(mu.units[0]))
-print("MU Poisson Lambdas " + str(mu.units[2]))
+
+# now create N copies of the MUsim object
+chunk_size = 500 # number of samples to process in each multiprocessing process
+N_processes = (
+    len(anipose_sessions_to_load) * np.ceil(len(chosen_bodypart_arrays[0]) / chunk_size).astype(int)
+    )
+mu_list = [mu.copy() for i in range(N_processes)] # identical copies of the MUsim object
+interp_final_force_array_segments = np.array_split(interp_final_force_array, N_processes)
+with multiprocessing.Pool(processes=N_processes) as pool:
+    # cut interp_final_force_array into N processes segments
+    # use starmap to pass multiple arguments to the batch_run_MUsim function
+    results = pool.starmap(
+        batch_run_MUsim,
+        zip(
+            mu_list,
+            interp_final_force_array_segments,
+            range(N_processes),
+        ),
+    )
+
+# now combine the results from each process into a single MUsim object
+mu = MUsim(random_seed_entropy)
+mu.num_units = num_motor_units
+mu.MUspike_dynamics = "spike_history"
+mu.force_profile = np.hstack([i.force_profile.flatten() for i in results])
+# make sure all units have the same thresholds (units[0])
+assert all([np.all(i.units[0] == results[0].units[0]) for i in results])
+mu.units[0] = results[0].units[0] # then use the first units[0] as the new units[0]
+mu.units[1] = np.hstack([i.units[1] for i in results]) # stack the unit response curves
+# make sure all units have the same poisson lambdas (units[2])
+assert all([np.all(i.units[2] == results[0].units[2]) for i in results])
+mu.units[2] = np.hstack([i.units[2] for i in results]) # stack the poisson lambdas
+mu.spikes = np.hstack([i.spikes for i in results]) # stack the spike responses
+
 # pdb.set_trace()
 if show_matplotlib_figures:
     mu.see("force")  # plot the force profile
@@ -316,50 +430,6 @@ if save_simulated_spikes:
 #  these will then be placed at the simulated spike times for num_chans channels, and the resulting
 #  array will be saved as continuous.dat
 
-# load the SVD matrixes from rez.mat
-paths_to_session_folders = Path(
-    "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/godzilla/session20221116/",
-    # "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/inkblot/session20230323",
-    # "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/kitkat/session20230420",
-)
-sorts_from_each_path_to_load = ["20230924_151421"]  # , ["20230923_125645"], ["20230923_125645"]]
-# find the folder name which ends in _myo and append to the paths_to_session_folders
-paths_to_each_myo_folder = [
-    f for f in paths_to_session_folders.iterdir() if f.is_dir() and f.name.endswith("_myo")
-]
-# inside each _myo folder, find the folder name which constains sort_from_each_path_to_load string
-for iPath in paths_to_each_myo_folder:
-    path_to_sort_folders = [
-        f
-        for f in iPath.iterdir()
-        if f.is_dir() and any(s in f.name for s in sorts_from_each_path_to_load)
-    ]
-
-rez_list = [
-    loadmat(str(path_to_sort_folder.joinpath("rez.mat")))
-    for path_to_sort_folder in path_to_sort_folders
-]
-ops_list = [
-    loadmat(str(path_to_sort_folder.joinpath("ops.mat")))
-    for path_to_sort_folder in path_to_sort_folders
-]
-
-chan_map_adj_list = [
-    loadmat(str(path_to_sort_folder.joinpath("chanMapAdjusted.mat")))
-    for path_to_sort_folder in path_to_sort_folders
-]
-
-amplitudes_df_list = [
-    pd.read_csv(str(path_to_sort_folder.joinpath("cluster_Amplitude.tsv")), sep="\t")
-    for path_to_sort_folder in path_to_sort_folders
-]
-# set index as the cluster_id column
-amplitudes_df_list = amplitudes_df_list[0].set_index("cluster_id")
-
-# list of lists of good clusters to take from each rez_list
-# place units in order of total spike count, from highest to lowest
-clusters_to_take_from = [[18, 2, 11, 0, 4, 10, 1, 9]]
-
 # W are the temporal components to be used to reconstruct unique temporal components
 # U are the weights of each temporal component distrubuted across channels
 W = rez_list[0]["W"]  # shape is (nt0, mu.num_units, SVD_dim)
@@ -383,13 +453,13 @@ for ii, iRec in enumerate(rez_list):
 # statistics found for each row of the original U_std matrix
 # U_std_mean = np.mean(U_std, axis=1)
 # U_std_std = np.std(U_std, axis=1)
-# U_vals_to_add = np.random.normal(U_std_mean, U_std_std, (SVD_dim, num_chans - SVD_dim))
+# U_vals_to_add = RNG3.normal(U_std_mean, U_std_std, (SVD_dim, num_chans - SVD_dim))
 # U_std_extrap = np.hstack((U_std, U_vals_to_add))
 
 # now create a new U matrix with SVD_dim rows and num_chans columns
 # make it a random matrix with values between -1 and 1
 # it will project from SVD space to the number of channels in the data
-# base_sim_U = np.random.normal(0, U_std_extrap, (SVD_dim, num_chans_in_recording))
+# base_sim_U = RNG4.normal(0, U_std_extrap, (SVD_dim, num_chans_in_recording))
 spike_counts_for_each_unit = mu.spikes[-1].sum(axis=0).astype(int)
 
 # now create slightly jittered (by 20% of std) of waveform shapes for each MU, for each spike time in the simulation
@@ -401,16 +471,16 @@ spike_snippets_to_place = np.zeros(
 for iUnit, iCount in enumerate(spike_counts_for_each_unit):
     # add the jitter to each U_good element, and create a new waveform shape for each spike time
     # use jittermat to change the waveform shape slightly for each spike example (at each time)
-    jitter_mat = np.random.normal(
-        1,
-        U_std[0],
+    jitter_mat = RNG.normal(
+        0,
+        16*U_std[0],
         (iCount, num_chans_in_recording, SVD_dim),
     )
     # jitter and scale by amplitude for this unit
     iUnit_U = (
         np.tile(U_good[0][:, iUnit, :], (iCount, 1, 1))
-        * (jitter_mat if shape_jitter_enable else 1)
         * amplitudes_df_list.loc[clusters_to_take_from[0][iUnit]].Amplitude
+        + (jitter_mat if shape_jitter_enable else 0) # additive shape jitter
     )
     for iSpike in range(iCount):
         iSpike_U = iUnit_U[iSpike, :, :]  # get the weights for each channel for this spike
@@ -478,7 +548,7 @@ if SNR_of_simulated_data is not None:
     # now add Gaussian noise to the data
     noise_std_with_dummies = np.zeros(num_chans_in_recording)
     noise_std_with_dummies[0:num_chans_with_data] = noise_std
-    continuous_dat += np.random.normal(0, 2 * noise_std_with_dummies, continuous_dat.shape)
+    continuous_dat += RNG.normal(0, 2 * noise_std_with_dummies, continuous_dat.shape)
 
 # Verify that the SNR is correct
 # first, get the spike band power of the data
@@ -511,84 +581,86 @@ outside_spike_band_power = low_band_power + high_band_power
 computed_SNR = spike_band_power / outside_spike_band_power
 print(f"Computed SNR: {computed_SNR}")
 
-# now plot the continuous.dat array with plotly graph objects
-# first, create a time vector for ephys to plot against
-ephys_time_axis = np.linspace(0, len(continuous_dat) / ephys_fs, len(continuous_dat))
-# second, create a time vector for kinematics to plot against
-force_time_axis = np.linspace(
-    0, len(blended_chosen_array) / kinematics_fs, len(blended_chosen_array)
-)
-# include the anipose force profile on the top subplot
-# include MUsim object spike time eventplot on the final subplot
-# create a figure with subplots, make x-axis shared,
-# make the layout tight (subplots, close together)
-fig = subplots.make_subplots(
-    rows=num_chans_with_data + 2,
-    cols=1,
-    shared_xaxes=True,
-    vertical_spacing=0.005,
-)
-# add the force profile to the top subplot
-fig.add_trace(
-    go.Scatter(
-        x=force_time_axis,
-        y=np.round(blended_chosen_array, decimals=2),
-        name="Force Profile",
-    ),
-    row=1,
-    col=1,
-)
-
-# add traces, one for each channel
-for iChan in range(num_chans_with_data):
+if show_final_plotly_figure or save_final_plotly_figure:
+    # now plot the continuous.dat array with plotly graph objects
+    # first, create a time vector for ephys to plot against
+    ephys_time_axis = np.linspace(0, len(continuous_dat) / ephys_fs, len(continuous_dat))
+    # second, create a time vector for kinematics to plot against
+    force_time_axis = np.linspace(
+        0, len(blended_chosen_array) / kinematics_fs, len(blended_chosen_array)
+    )
+    # include the anipose force profile on the top subplot
+    # include MUsim object spike time eventplot on the final subplot
+    # create a figure with subplots, make x-axis shared,
+    # make the layout tight (subplots, close together)
+    fig = subplots.make_subplots(
+        rows=num_chans_with_data + 2,
+        cols=1,
+        shared_xaxes=True,
+        vertical_spacing=0.005,
+    )
+    # add the force profile to the top subplot
     fig.add_trace(
         go.Scatter(
-            x=ephys_time_axis,
-            y=np.round(continuous_dat[:, iChan], decimals=2),
-            name=f"Channel {iChan}",
-            line=dict(width=0.5),
+            x=force_time_axis,
+            y=np.round(blended_chosen_array, decimals=2),
+            name="Force Profile",
         ),
-        row=iChan + 2,
+        row=1,
         col=1,
     )
 
-# add eventplot of spike times to the last subplot, vertically spacing times and coloring by unit
-MU_colors = px.colors.sequential.Rainbow
-for iUnit in range(mu.num_units):
-    fig.add_trace(
-        go.Scatter(
-            x=mu.spikes[-1][:, iUnit].nonzero()[0] / ephys_fs,
-            y=np.ones(int(mu.spikes[-1][:, iUnit].sum())) * -iUnit,
-            mode="markers",
-            marker_symbol="line-ns",
-            marker=dict(
-                color=MU_colors[iUnit],
-                line_color=MU_colors[iUnit],
-                line_width=1.2,
-                size=10,
+    # add traces, one for each channel
+    for iChan in range(num_chans_with_data):
+        fig.add_trace(
+            go.Scatter(
+                x=ephys_time_axis,
+                y=np.round(continuous_dat[:, iChan], decimals=2),
+                name=f"Channel {iChan}",
+                line=dict(width=0.5),
             ),
-            name=f"Unit {clusters_to_take_from[0][iUnit]}",
-            showlegend=False,
-        ),
-        row=num_chans_with_data + 2,
-        col=1,
+            row=iChan + 2,
+            col=1,
+        )
+
+    # add eventplot of spike times to the last subplot, vertically spacing times and coloring by unit
+    MU_colors = px.colors.sequential.Rainbow
+    for iUnit in range(mu.num_units):
+        fig.add_trace(
+            go.Scatter(
+                x=mu.spikes[-1][:, iUnit].nonzero()[0] / ephys_fs,
+                y=np.ones(int(mu.spikes[-1][:, iUnit].sum())) * -iUnit,
+                mode="markers",
+                marker_symbol="line-ns",
+                marker=dict(
+                    color=MU_colors[iUnit],
+                    line_color=MU_colors[iUnit],
+                    line_width=1.2,
+                    size=10,
+                ),
+                name=f"Unit {clusters_to_take_from[0][iUnit]}",
+                showlegend=False,
+            ),
+            row=num_chans_with_data + 2,
+            col=1,
+        )
+
+    # add title and axis labels, make sure x-axis title is only on bottom subplot
+    fig.update_layout(
+        title=f"<b>Simulated Data from {kinematic_csv_file_name} using {chosen_bodypart_to_load}</b>",
+        template=plot_template,
     )
+    fig.update_yaxes(title_text="Simulated Force", row=1, col=1)
+    fig.update_yaxes(title_text="Simulated Voltage (μV)", row=num_chans_with_data // 2 + 2, col=1)
+    fig.update_yaxes(title_text="MUsim Object Spike Times", row=num_chans_with_data + 2, col=1)
 
-# add title and axis labels, make sure x-axis title is only on bottom subplot
-fig.update_layout(
-    title=f"<b>Simulated Data from {kinematic_csv_file_name} using {chosen_bodypart_to_load}</b>",
-    template=plot_template,
-)
-fig.update_yaxes(title_text="Simulated Force", row=1, col=1)
-fig.update_yaxes(title_text="Simulated Voltage (μV)", row=num_chans_with_data // 2 + 2, col=1)
-fig.update_yaxes(title_text="MUsim Object Spike Times", row=num_chans_with_data + 2, col=1)
-
-fig.update_xaxes(title_text="Time (s)", row=num_chans_with_data + 2, col=1)
-
-if show_final_plotly_figure:
-    fig.show()
-# else:
-fig.write_html(f"{kinematic_csv_file_name}_using_{chosen_bodypart_to_load}.html")
+    fig.update_xaxes(title_text="Time (s)", row=num_chans_with_data + 2, col=1)
+    
+    if show_final_plotly_figure:
+        print("Showing final plotly figure...")
+        fig.show()
+    if save_final_plotly_figure:
+        fig.write_html(f"{kinematic_csv_file_name}_using_{chosen_bodypart_to_load}.html")
 
 # add dummy channels to the data to make it num_chans_in_output channels
 if num_chans_in_output > num_chans_in_recording:
@@ -606,28 +678,41 @@ elif num_chans_in_output < num_chans_in_recording:
 continuous_dat *= 200  # scale for Kilosort
 continuous_dat = continuous_dat.astype(np.int16)
 print(f"Continuous.dat shape: {continuous_dat.shape}")
+print(f"Overall recording length: {len(continuous_dat) / ephys_fs} seconds")
 # now save as binary file in int16 format, where elements are 2 bytes, and samples from each channel
 # are interleaved, such as: [chan1_sample1, chan2_sample1, chan3_sample1, ...]
-continuous_dat.tofile("continuous.dat")
+# save simulation properties in continuous.dat file name
+continuous_dat.tofile(f"continuous_{kinematic_csv_file_name}_SNR-{SNR_of_simulated_data}_jitter-{shape_jitter_enable}_files-{len(anipose_sessions_to_load)}.dat")
+print("Synthetic Data Generated Successfully!")
 
-## compare synthetic data to real data
-# first, load real data
-mu_real = MUsim()
-# mu_real.num_units = mu.num_units
-# mu.sample_rate = ephys_fs  # 30000 Hz
-# mu_real.sample_MUs()
-# mu_real.apply_new_force(interp_final_force_array)
-mu_real.load_MUs(
-    "/home/smoconn/git/rat-loco/20221116-3_godzilla_speed05_incline00_time.npy",
-    bin_width=0.00003333333333333333,
-    load_as="trial",
-    slice=time_frame,
+# ## compare synthetic data to real data
+# # first, load real data
+# mu_real = MUsim()
+# # mu_real.num_units = mu.num_units
+# # mu.sample_rate = ephys_fs  # 30000 Hz
+# # mu_real.sample_MUs()
+# # mu_real.apply_new_force(interp_final_force_array)
+# mu_real.load_MUs(
+#     "/home/smoconn/git/rat-loco/20221116-3_godzilla_speed05_incline00_time.npy",
+#     bin_width=0.00003333333333333333,
+#     load_as="trial",
+#     slice=time_frame,
+# )
+
+# # set_trace()
+# # mu_real.see("force")
+# # mu_real.see("curves")
+# if show_matplotlib_figures:
+#     mu.see("spikes")
+#     mu_real.see("spikes")
+#     input("Press Enter to close all figures, and exit... (or Ctrl+C)")
+
+finish_time = datetime.datetime.now()
+time_elapsed = finish_time - start_time
+# use strfdelta to format time elapsed prettily
+print(
+    (
+        "Time elapsed: "
+        f"{strfdelta(time_elapsed, '{hours} hours, {minutes} minutes, {seconds} seconds')}"
+    )
 )
-
-# set_trace()
-# mu_real.see("force")
-# mu_real.see("curves")
-if show_matplotlib_figures:
-    mu.see("spikes")
-    mu_real.see("spikes")
-    input("Press Enter to close all figures, and exit... (or Ctrl+C)")
