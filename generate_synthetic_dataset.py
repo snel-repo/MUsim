@@ -14,6 +14,8 @@ from scipy.io import loadmat
 
 from MUsim import MUsim
 
+start_time = datetime.datetime.now()  # begin timer for script execution time
+
 
 # define a function to convert a timedelta object to a pretty string representation
 def strfdelta(tdelta, fmt):
@@ -21,6 +23,7 @@ def strfdelta(tdelta, fmt):
     d["hours"], rem = divmod(tdelta.seconds, 3600)
     d["minutes"], d["seconds"] = divmod(rem, 60)
     return fmt.format(**d)
+
 
 # define a lowpass filter
 def butter_lowpass(lowcut, fs, order=2):
@@ -32,6 +35,7 @@ def butter_lowpass(lowcut, fs, order=2):
     b, a = signal.butter(order, low, btype="low")
     return b, a
 
+
 # define a function to filter data with lowpass filter
 def butter_lowpass_filter(data, lowcut, fs, order=2):
     """
@@ -40,6 +44,7 @@ def butter_lowpass_filter(data, lowcut, fs, order=2):
     b, a = butter_lowpass(lowcut, fs, order=order)
     y = signal.filtfilt(b, a, data)
     return y
+
 
 # define a bandpass filter
 def butter_bandpass(lowcut, highcut, fs, order=2):
@@ -51,6 +56,7 @@ def butter_bandpass(lowcut, highcut, fs, order=2):
     high = highcut / nyq
     b, a = signal.butter(order, [low, high], btype="band")
     return b, a
+
 
 # define a function to filter data with bandpass filter
 def butter_bandpass_filter(data, lowcut, highcut, fs, order=2):
@@ -69,6 +75,7 @@ def sigmoid(x):
     z = np.exp(-x)
     sig = 1 / (1 + z)
     return sig
+
 
 # function to blend arrays at the edges
 def blend_arrays(array_list, Nsamp):
@@ -98,6 +105,7 @@ def blend_arrays(array_list, Nsamp):
         len_prev_arrays += len_this_array
     return blended_array
 
+
 ## MUsim class initialization and simulation function
 def batch_run_MUsim(mu, force_profile, proc_num):
     """
@@ -109,7 +117,6 @@ def batch_run_MUsim(mu, force_profile, proc_num):
     print(f"({proc_num}) MU Poisson Lambdas " + str(mu.units[2]))
     return mu
 
-start_time = datetime.datetime.now()
 
 # set analysis parameters
 show_plotly_figures = False
@@ -123,9 +130,12 @@ nt0 = 61  # 2.033 ms
 SVD_dim = 9  # number of SVD components than were used in KiloSort
 num_chans_in_recording = 9  # number of channels in the recording
 num_chans_in_output = 17  # desired real number of channels in the output data
-SNR_of_simulated_data = None  # number determines noise power added to channels, set None to disable
-shape_jitter_enable = False  # controls whether to jitter the waveform shapes
-random_seed_entropy = None # 75092699954400878964964014863999053929  # None for random behavior, or a previous entropy int value to reproduce
+# number determines noise power added to channels (e.g. 50), or set None to disable
+change_SNR_to = None  # 50
+# factor to multiply U_std by to get amount of jitter to add to waveform shapes
+shape_jitter_amount = 0
+# set None for random behavior, or a previous entropy int value to reproduce
+random_seed_entropy = 75092699954400878964964014863999053929  # None
 if random_seed_entropy is None:
     random_seed_entropy = np.random.SeedSequence().entropy
 RNG = np.random.default_rng(random_seed_entropy)  # create a random number generator
@@ -134,14 +144,28 @@ RNG = np.random.default_rng(random_seed_entropy)  # create a random number gener
 time_frame = [0, 1]  # time frame to plot, fractional bounds of 0 to 1
 plot_template = "plotly_white"
 
+# check inputs
+assert type(kinematics_fs) is int and kinematics_fs > 0, "kinematics_fs must be a positive integer"
+assert type(ephys_fs) is int and ephys_fs > 0, "ephys_fs must be a positive integer"
+assert (
+    type(shape_jitter_amount) in [int, float] and shape_jitter_amount >= 0
+), "shape_jitter_amount must be a positive number or None"
+assert (type(change_SNR_to) in [int, float] and change_SNR_to >= 0) or (
+    change_SNR_to is None
+), "SNR_of_simulated_data must be a positive number or None"
+assert time_frame[0] >= 0 and time_frame[1] <= 1 and time_frame[0] < time_frame[1], (
+    "time_frame must be a list of two numbers between 0 and 1, " "with the first number smaller"
+)
+
+
 ## first load a 1D kinematic array from a csv file into a numpy array
 # format is YYYYMMDD-N, with N being the session number
 anipose_sessions_to_load = [
     "20221116-3",
-    "20221116-5",
-    "20221116-7",
-    "20221116-8",
-    "20221116-9",
+    # "20221116-5",
+    # "20221116-7",
+    # "20221116-8",
+    # "20221116-9",
     # "20221116-9",
 ]
 # format is bodypart_side_axis, with side being L or R, and axis being x, y, or z
@@ -212,13 +236,17 @@ min_sub_array_list = []
 Nsamp = 25
 for ii in range(len(reference_bodypart_arrays)):
     iRef = reference_bodypart_arrays[ii]
-    ref_filtered_array_list.append(butter_lowpass_filter(iRef, ref_lowcut, kinematics_fs, ref_order))
+    ref_filtered_array_list.append(
+        butter_lowpass_filter(iRef, ref_lowcut, kinematics_fs, ref_order)
+    )
     iSub = ref_filtered_array_list[ii]
     # subtract reference bodypart from chosen bodypart
     ref_chosen_bodypart_array_list.append(chosen_bodypart_arrays[ii] - iSub)
     iFilt = ref_chosen_bodypart_array_list[ii]
     # invert the array to better simulate force from y kinematics
-    inv_filtered_array_list.append(-butter_bandpass_filter(iFilt, lowcut, highcut, kinematics_fs, order))
+    inv_filtered_array_list.append(
+        -butter_bandpass_filter(iFilt, lowcut, highcut, kinematics_fs, order)
+    )
 
 # blend the arrays together
 blended_chosen_array = blend_arrays(inv_filtered_array_list, Nsamp)
@@ -358,9 +386,9 @@ num_motor_units = len(clusters_to_take_from[0])
 # one for each segment of the anipoise data
 # initialize 1 MUsim object, then create identical copies of it for each process
 mu = MUsim(random_seed_entropy)
-mu.num_units = num_motor_units # set same number of motor units as in the Kilosort data
-mu.MUthresholds_dist = "exponential" # set the distribution of motor unit thresholds
-mu.MUspike_dynamics = "spike_history" 
+mu.num_units = num_motor_units  # set same number of motor units as in the Kilosort data
+mu.MUthresholds_dist = "exponential"  # set the distribution of motor unit thresholds
+mu.MUspike_dynamics = "spike_history"
 mu.sample_rate = ephys_fs  # 30000 Hz
 # fixed minimum force threshold for the generated units' response curves. Tune this for lower
 # bound of force thresholds sampled in the distribution of MUs during MU_sample()
@@ -371,11 +399,11 @@ mu.threshmax = 1.1 * np.max(interp_final_force_array)  # np.percentile(interp_fi
 mu.sample_MUs()
 
 # now create N copies of the MUsim object
-chunk_size = 500 # number of samples to process in each multiprocessing process
-N_processes = (
-    len(anipose_sessions_to_load) * np.ceil(len(chosen_bodypart_arrays[0]) / chunk_size).astype(int)
-    )
-mu_list = [mu.copy() for i in range(N_processes)] # identical copies of the MUsim object
+chunk_size = 500  # number of samples to process in each multiprocessing process
+N_processes = len(anipose_sessions_to_load) * np.ceil(
+    len(chosen_bodypart_arrays[0]) / chunk_size
+).astype(int)
+mu_list = [mu.copy() for i in range(N_processes)]  # identical copies of the MUsim object
 interp_final_force_array_segments = np.array_split(interp_final_force_array, N_processes)
 with multiprocessing.Pool(processes=N_processes) as pool:
     # cut interp_final_force_array into N processes segments
@@ -396,12 +424,12 @@ mu.MUspike_dynamics = "spike_history"
 mu.force_profile = np.hstack([i.force_profile.flatten() for i in results])
 # make sure all units have the same thresholds (units[0])
 assert all([np.all(i.units[0] == results[0].units[0]) for i in results])
-mu.units[0] = results[0].units[0] # then use the first units[0] as the new units[0]
-mu.units[1] = np.hstack([i.units[1] for i in results]) # stack the unit response curves
+mu.units[0] = results[0].units[0]  # then use the first units[0] as the new units[0]
+mu.units[1] = np.hstack([i.units[1] for i in results])  # stack the unit response curves
 # make sure all units have the same poisson lambdas (units[2])
 assert all([np.all(i.units[2] == results[0].units[2]) for i in results])
-mu.units[2] = np.hstack([i.units[2] for i in results]) # stack the poisson lambdas
-mu.spikes = np.hstack([i.spikes for i in results]) # stack the spike responses
+mu.units[2] = np.hstack([i.units[2] for i in results])  # stack the poisson lambdas
+mu.spikes = np.hstack([i.spikes for i in results])  # stack the spike responses
 
 # pdb.set_trace()
 if show_matplotlib_figures:
@@ -419,7 +447,8 @@ kinematic_csv_file_name = "_".join(
 )  # just get the date and rat name
 if save_simulated_spikes:
     mu.save_spikes(
-        f"synthetic_spikes_from_{kinematic_csv_file_name}_using_{chosen_bodypart_to_load}.npy"
+        # f"synthetic_spikes_from_{kinematic_csv_file_name}_using_{chosen_bodypart_to_load}.npy"
+        f"spikes_{kinematic_csv_file_name}_SNR-{change_SNR_to}_jitter-{shape_jitter_amount}std_files-{len(anipose_sessions_to_load)}.npy"
     )
 
 ## next section will place real multichannel electrophysiological spike waveform shapes at each
@@ -429,6 +458,8 @@ if save_simulated_spikes:
 #  electrophysiological data snippets of length nt0 (2.033 ms) from the simulated spikes
 #  these will then be placed at the simulated spike times for num_chans channels, and the resulting
 #  array will be saved as continuous.dat
+num_dummy_chans = chan_map_adj_list[0]["numDummy"][0][0]
+num_chans_with_data = int(num_chans_in_recording - num_dummy_chans)
 
 # W are the temporal components to be used to reconstruct unique temporal components
 # U are the weights of each temporal component distrubuted across channels
@@ -471,17 +502,19 @@ spike_snippets_to_place = np.zeros(
 for iUnit, iCount in enumerate(spike_counts_for_each_unit):
     # add the jitter to each U_good element, and create a new waveform shape for each spike time
     # use jittermat to change the waveform shape slightly for each spike example (at each time)
-    jitter_mat = RNG.normal(
+    jitter_mat = np.zeros((iCount, num_chans_in_recording, SVD_dim))
+    jitter_mat_to_chans_with_data = RNG.normal(
         0,
-        16*U_std[0],
-        (iCount, num_chans_in_recording, SVD_dim),
+        shape_jitter_amount * U_std[0],
+        (iCount, num_chans_with_data, SVD_dim),
     )
+    jitter_mat[:, :num_chans_with_data, :] = jitter_mat_to_chans_with_data
     # jitter and scale by amplitude for this unit
-    iUnit_U = (
-        np.tile(U_good[0][:, iUnit, :], (iCount, 1, 1))
-        * amplitudes_df_list.loc[clusters_to_take_from[0][iUnit]].Amplitude
-        + (jitter_mat if shape_jitter_enable else 0) # additive shape jitter
-    )
+    iUnit_U = np.tile(U_good[0][:, iUnit, :], (iCount, 1, 1)) * amplitudes_df_list.loc[
+        clusters_to_take_from[0][iUnit]
+    ].Amplitude + (
+        jitter_mat if shape_jitter_amount else 0
+    )  # additive shape jitter
     for iSpike in range(iCount):
         iSpike_U = iUnit_U[iSpike, :, :]  # get the weights for each channel for this spike
         # now project from the templates to create the waveform shape for each spike time
@@ -526,8 +559,7 @@ for iUnit, iCount in enumerate(spike_counts_for_each_unit):
                 set_trace()
         except:
             raise
-num_dummy_chans = chan_map_adj_list[0]["numDummy"][0][0]
-num_chans_with_data = int(num_chans_in_recording - num_dummy_chans)
+
 # get spike band power of the data using the bandpass filter on range (300,1000) Hz
 # first, filter the data
 spike_filtered_dat = np.zeros((len(continuous_dat), num_chans_with_data))
@@ -538,10 +570,10 @@ for iChan in range(num_chans_with_data):
 # now square then average to get power
 spike_band_power = np.mean(np.square(spike_filtered_dat), axis=0)
 print(f"Spike Band Power: {spike_band_power}")
-if SNR_of_simulated_data is not None:
+if change_SNR_to is not None:
     # back-calculate the noise needed to get the amplitude of Gaussian noise to add to the data
     # to get the desired SNR
-    noise_power = spike_band_power / SNR_of_simulated_data
+    noise_power = spike_band_power / change_SNR_to
     # now calculate the standard deviation of the Gaussian noise to add to the data
     noise_std = np.sqrt(noise_power)
     print(f"Noise STD: {noise_std}")
@@ -655,7 +687,7 @@ if show_final_plotly_figure or save_final_plotly_figure:
     fig.update_yaxes(title_text="MUsim Object Spike Times", row=num_chans_with_data + 2, col=1)
 
     fig.update_xaxes(title_text="Time (s)", row=num_chans_with_data + 2, col=1)
-    
+
     if show_final_plotly_figure:
         print("Showing final plotly figure...")
         fig.show()
@@ -682,7 +714,9 @@ print(f"Overall recording length: {len(continuous_dat) / ephys_fs} seconds")
 # now save as binary file in int16 format, where elements are 2 bytes, and samples from each channel
 # are interleaved, such as: [chan1_sample1, chan2_sample1, chan3_sample1, ...]
 # save simulation properties in continuous.dat file name
-continuous_dat.tofile(f"continuous_{kinematic_csv_file_name}_SNR-{SNR_of_simulated_data}_jitter-{shape_jitter_enable}_files-{len(anipose_sessions_to_load)}.dat")
+continuous_dat.tofile(
+    f"continuous_{kinematic_csv_file_name}_SNR-{change_SNR_to}_jitter-{shape_jitter_amount}std_files-{len(anipose_sessions_to_load)}.dat"
+)
 print("Synthetic Data Generated Successfully!")
 
 # ## compare synthetic data to real data
