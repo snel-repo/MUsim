@@ -9,7 +9,12 @@ from MUsim import MUsim
 # %%
 # # TRADITIONAL MODE (SIZE PRINCIPLE)
 # INITIALIZE SIMULATION OBJECT, mu_stat
-mu_stat = MUsim()
+random_seed = None  # set a random seed for reproducibility, None for completely random
+if random_seed is None:
+    random_seed_sqn = np.random.SeedSequence()
+else:
+    random_seed_sqn = np.random.SeedSequence(random_seed)
+mu_stat = MUsim(random_seed_sqn)
 # GET STATIC MOTOR UNIT THRESHOLDS
 mu_stat.num_units = 32
 mu_stat.MUthresholds_dist = "normal"
@@ -51,7 +56,7 @@ mu_stat.see("unit", unit=select_units[1])
 mu_stat.see("unit", unit=select_units[2])
 mu_stat.see("unit", unit=select_units[3])
 # %% ###################################################
-mu_lorenz = MUsim()
+mu_lorenz = MUsim(random_seed_sqn)
 # GET LORENZ SIMULATED MOTOR UNITS
 mu_lorenz.num_units = 30
 mu_lorenz.sample_rate = 1 / (0.006)  # 166.7 Hz
@@ -78,7 +83,7 @@ from MUsim import MUsim
 #########################################################
 # %% # DYNAMIC MODE (THRESHOLD REVERSAL)
 # INITIALIZE SIMULATION OBJECT, mu_dyn
-mu_dyn = MUsim()
+mu_dyn = MUsim(random_seed_sqn)
 # # GET DYNAMIC MOTOR UNIT THRESHOLDS
 mu_dyn.num_units = 10
 mu_dyn.MUthresholds_dist = "uniform"
