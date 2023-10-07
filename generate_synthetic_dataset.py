@@ -1,6 +1,6 @@
 # IMPORT packages
-import datetime
 import multiprocessing
+from datetime import datetime
 from pathlib import Path
 from pdb import set_trace
 
@@ -14,7 +14,7 @@ from scipy.io import loadmat
 
 from MUsim import MUsim
 
-start_time = datetime.datetime.now()  # begin timer for script execution time
+start_time = datetime.now()  # begin timer for script execution time
 
 
 # define a function to convert a timedelta object to a pretty string representation
@@ -131,7 +131,7 @@ SVD_dim = 9  # number of SVD components than were used in KiloSort
 num_chans_in_recording = 9  # number of channels in the recording
 num_chans_in_output = 17  # desired real number of channels in the output data
 # number determines noise power added to channels (e.g. 50), or set None to disable
-change_SNR_to = None  # 50
+adjust_SNR_to = None  # 50
 # factor to multiply U_std by to get amount of jitter to add to waveform shapes
 shape_jitter_amount = 0
 # set None for random behavior, or a previous entropy int value to reproduce
@@ -150,8 +150,8 @@ assert type(ephys_fs) is int and ephys_fs > 0, "ephys_fs must be a positive inte
 assert (
     type(shape_jitter_amount) in [int, float] and shape_jitter_amount >= 0
 ), "shape_jitter_amount must be a positive number or None"
-assert (type(change_SNR_to) in [int, float] and change_SNR_to >= 0) or (
-    change_SNR_to is None
+assert (type(adjust_SNR_to) in [int, float] and adjust_SNR_to >= 0) or (
+    adjust_SNR_to is None
 ), "SNR_of_simulated_data must be a positive number or None"
 assert time_frame[0] >= 0 and time_frame[1] <= 1 and time_frame[0] < time_frame[1], (
     "time_frame must be a list of two numbers between 0 and 1, " "with the first number smaller"
@@ -288,91 +288,99 @@ interp_final_force_array = signal.resample(
 
 ## load the spike history kernel csv's and plot them with plotly express to compare in 2 subplots
 # load each csv file into a pandas dataframe
-MU_spike_history_kernel_path = Path(__file__).parent.joinpath("spike_history_kernel_basis_MU.csv")
+# MU_spike_history_kernel_path = Path(__file__).parent.joinpath("spike_history_kernel_basis_MU.csv")
 orig_spike_history_kernel_path = Path(__file__).parent.joinpath("spike_history_kernel_basis.csv")
 
-MU_spike_history_kernel_df = pd.read_csv(MU_spike_history_kernel_path)
+# MU_spike_history_kernel_df = pd.read_csv(MU_spike_history_kernel_path)
 orig_spike_history_kernel_df = pd.read_csv(orig_spike_history_kernel_path)
 
-if show_plotly_figures:
-    # now use plotly express to plot the two dataframes in two subplots
-    # make first subplot be the original spike history kernel,
-    # and second subplot be the MU spike history kernel
-    fig = subplots.make_subplots(rows=2, cols=1, shared_xaxes=True)
+# if show_plotly_figures:
+#     # now use plotly express to plot the two dataframes in two subplots
+#     # make first subplot be the original spike history kernel,
+#     # and second subplot be the MU spike history kernel
+#     fig = subplots.make_subplots(rows=2, cols=1, shared_xaxes=True)
 
-    # add the original spike history kernel to the top subplot
-    for ii, iCol in enumerate(orig_spike_history_kernel_df.columns):
-        fig.add_trace(
-            go.Scatter(
-                x=orig_spike_history_kernel_df.index / ephys_fs * 1000,
-                y=orig_spike_history_kernel_df[iCol],
-                name=f"Component {ii}",
-            ),
-            row=1,
-            col=1,
-        )
+#     # add the original spike history kernel to the top subplot
+#     for ii, iCol in enumerate(orig_spike_history_kernel_df.columns):
+#         fig.add_trace(
+#             go.Scatter(
+#                 x=orig_spike_history_kernel_df.index / ephys_fs * 1000,
+#                 y=orig_spike_history_kernel_df[iCol],
+#                 name=f"Component {ii}",
+#             ),
+#             row=1,
+#             col=1,
+#         )
 
-    # add the MU spike history kernel to the bottom subplot
-    for ii, iCol in enumerate(MU_spike_history_kernel_df.columns):
-        fig.add_trace(
-            go.Scatter(
-                x=MU_spike_history_kernel_df.index / ephys_fs * 1000,
-                y=MU_spike_history_kernel_df[iCol],
-                name=f"Component {ii}",
-            ),
-            row=2,
-            col=1,
-        )
+#     # add the MU spike history kernel to the bottom subplot
+#     for ii, iCol in enumerate(MU_spike_history_kernel_df.columns):
+#         fig.add_trace(
+#             go.Scatter(
+#                 x=MU_spike_history_kernel_df.index / ephys_fs * 1000,
+#                 y=MU_spike_history_kernel_df[iCol],
+#                 name=f"Component {ii}",
+#             ),
+#             row=2,
+#             col=1,
+#         )
 
-    # add title and axis labels, make sure x-axis title is only on bottom subplot
-    fig.update_layout(
-        title="<b>Spike History Kernel Bases</b>",
-        template=plot_template,
-    )
-    fig.update_yaxes(title_text="Original Kernel Values", row=1, col=1)
-    fig.update_yaxes(title_text="Motor Unit Kernel Values", row=2, col=1)
-    fig.update_xaxes(title_text="Time (ms)", row=2, col=1)
-    fig.show()
+#     # add title and axis labels, make sure x-axis title is only on bottom subplot
+#     fig.update_layout(
+#         title="<b>Spike History Kernel Bases</b>",
+#         template=plot_template,
+#     )
+#     fig.update_yaxes(title_text="Original Kernel Values", row=1, col=1)
+#     fig.update_yaxes(title_text="Motor Unit Kernel Values", row=2, col=1)
+#     fig.update_xaxes(title_text="Time (ms)", row=2, col=1)
+#     fig.show()
 
 ## load Kilosort data
 # paths to the folders containing the Kilosort data
-paths_to_KS_session_folders = Path(
-    "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/godzilla/session20221116/",
-    # "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/inkblot/session20230323",
-    # "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/kitkat/session20230420",
-)
+paths_to_KS_session_folders = [
+    Path(
+        "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/godzilla/session20221116/"
+    ),
+    # Path(
+    #     "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/inkblot/session20230323"
+    # ),
+    # Path("/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/kitkat/session20230420"),
+]
 sorts_from_each_path_to_load = ["20230924_151421"]  # , ["20230923_125645"], ["20230923_125645"]]
 
 # find the folder name which ends in _myo and append to the paths_to_session_folders
-paths_to_each_myo_folder = [
-    f for f in paths_to_KS_session_folders.iterdir() if f.is_dir() and f.name.endswith("_myo")
-]
+paths_to_each_myo_folder = []
+for iDir in paths_to_KS_session_folders:
+    myo = [f for f in iDir.iterdir() if (f.is_dir() and f.name.endswith("_myo"))]
+    assert len(myo) == 1, "There should only be one _myo folder in each session folder"
+    paths_to_each_myo_folder.append(myo[0])
 # inside each _myo folder, find the folder name which constains sort_from_each_path_to_load string
+list_of_paths_to_sorted_folders = []
 for iPath in paths_to_each_myo_folder:
-    path_to_sort_folders = [
+    matches = [
         f
         for f in iPath.iterdir()
         if f.is_dir() and any(s in f.name for s in sorts_from_each_path_to_load)
     ]
+    assert len(matches) == 1, "There should only be one sort folder match in each _myo folder"
+    list_of_paths_to_sorted_folders.append(matches[0])
 
-# load the SVD matrixes from rez.mat
 rez_list = [
-    loadmat(str(path_to_sort_folder.joinpath("rez.mat")))
-    for path_to_sort_folder in path_to_sort_folders
+    loadmat(str(path_to_sorted_folder.joinpath("rez.mat")))
+    for path_to_sorted_folder in list_of_paths_to_sorted_folders
 ]
 ops_list = [
-    loadmat(str(path_to_sort_folder.joinpath("ops.mat")))
-    for path_to_sort_folder in path_to_sort_folders
+    loadmat(str(path_to_sorted_folder.joinpath("ops.mat")))
+    for path_to_sorted_folder in list_of_paths_to_sorted_folders
 ]
 
 chan_map_adj_list = [
-    loadmat(str(path_to_sort_folder.joinpath("chanMapAdjusted.mat")))
-    for path_to_sort_folder in path_to_sort_folders
+    loadmat(str(path_to_sorted_folder.joinpath("chanMapAdjusted.mat")))
+    for path_to_sorted_folder in list_of_paths_to_sorted_folders
 ]
 
 amplitudes_df_list = [
-    pd.read_csv(str(path_to_sort_folder.joinpath("cluster_Amplitude.tsv")), sep="\t")
-    for path_to_sort_folder in path_to_sort_folders
+    pd.read_csv(str(path_to_sorted_folder.joinpath("cluster_Amplitude.tsv")), sep="\t")
+    for path_to_sorted_folder in list_of_paths_to_sorted_folders
 ]
 # set index as the cluster_id column
 amplitudes_df_list = amplitudes_df_list[0].set_index("cluster_id")
@@ -448,7 +456,7 @@ kinematic_csv_file_name = "_".join(
 if save_simulated_spikes:
     mu.save_spikes(
         # f"synthetic_spikes_from_{kinematic_csv_file_name}_using_{chosen_bodypart_to_load}.npy"
-        f"spikes_{kinematic_csv_file_name}_SNR-{change_SNR_to}_jitter-{shape_jitter_amount}std_files-{len(anipose_sessions_to_load)}.npy"
+        f"spikes_{kinematic_csv_file_name}_SNR-{adjust_SNR_to}_jitter-{shape_jitter_amount}std_files-{len(anipose_sessions_to_load)}.npy"
     )
 
 ## next section will place real multichannel electrophysiological spike waveform shapes at each
@@ -570,10 +578,10 @@ for iChan in range(num_chans_with_data):
 # now square then average to get power
 spike_band_power = np.mean(np.square(spike_filtered_dat), axis=0)
 print(f"Spike Band Power: {spike_band_power}")
-if change_SNR_to is not None:
+if adjust_SNR_to is not None:
     # back-calculate the noise needed to get the amplitude of Gaussian noise to add to the data
     # to get the desired SNR
-    noise_power = spike_band_power / change_SNR_to
+    noise_power = spike_band_power / adjust_SNR_to
     # now calculate the standard deviation of the Gaussian noise to add to the data
     noise_std = np.sqrt(noise_power)
     print(f"Noise STD: {noise_std}")
@@ -715,7 +723,7 @@ print(f"Overall recording length: {len(continuous_dat) / ephys_fs} seconds")
 # are interleaved, such as: [chan1_sample1, chan2_sample1, chan3_sample1, ...]
 # save simulation properties in continuous.dat file name
 continuous_dat.tofile(
-    f"continuous_{kinematic_csv_file_name}_SNR-{change_SNR_to}_jitter-{shape_jitter_amount}std_files-{len(anipose_sessions_to_load)}.dat"
+    f"continuous_{kinematic_csv_file_name}_SNR-{adjust_SNR_to}_jitter-{shape_jitter_amount}std_files-{len(anipose_sessions_to_load)}.dat"
 )
 print("Synthetic Data Generated Successfully!")
 
@@ -741,7 +749,7 @@ print("Synthetic Data Generated Successfully!")
 #     mu_real.see("spikes")
 #     input("Press Enter to close all figures, and exit... (or Ctrl+C)")
 
-finish_time = datetime.datetime.now()
+finish_time = datetime.now()
 time_elapsed = finish_time - start_time
 # use strfdelta to format time elapsed prettily
 print(

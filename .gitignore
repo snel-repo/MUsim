@@ -1,4 +1,7 @@
 *.txt
+*.html
+*.npy
+*.png
 /mu
 !requirements.txt
 .vscode/

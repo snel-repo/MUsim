@@ -1,5 +1,5 @@
 import pdb
-from pathlib import Path
+from pathlib import Path, PosixPath
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -27,8 +27,6 @@ class MUsim:
         self.refractory_period = 1
         # spiking responses appended here each time .simulate_spikes() is called
         self.spikes = []
-        # non-negative Gaussian noise level term added to spikes
-        self.noise_level = []
         # matrix of spiking responses appended to this list here each time .simulate_session() is called
         self.session = []
         # current force profile appended to this list here each time .simulate_session() is called
@@ -43,8 +41,6 @@ class MUsim:
         self.session_MUactivations = []
         # save random seed for each session
         self.session_MUseed = []
-        # noise level for session
-        self.session_noise_level = 0
         # smoothed spiking responses appended here each time .convolve() is called
         self.smooth_spikes = []
         # matrix of smoothed spiking responses appended here each time .convolve(target=session) is called
@@ -54,9 +50,10 @@ class MUsim:
         # default number of trials to simulate
         self.num_trials = 50
         # amount of time per trial is (num_bins_per_trial/sample_rate)
-        self.num_bins_per_trial = 1000
+        self.num_bins_per_trial = 30000
         # Hz, default sampling rate. it's inverse results in the time alloted to each bin
-        self.sample_rate = 1000
+        self.sample_rate = 30000
+        self.bin_width = 1 / self.sample_rate
         self.default_max_force = 5
         # define initial force profile
         self.init_force_profile = np.linspace(0, self.default_max_force, self.num_bins_per_trial)
@@ -95,24 +92,26 @@ class MUsim:
                 self.MUseed_sqn = self.RNG.bit_generator._seed_seq
                 self.MUseed = self.MUseed_sqn.entropy
             else:
-                raise Exception("random_seed must be either a BitGenerator, SeedSequence or an integer.")
+                raise Exception(
+                    "random_seed must be either a BitGenerator, SeedSequence or an integer."
+                )
         else:
             self.MUseed_sqn = np.random.SeedSequence()
             self.MUseed = self.MUseed_sqn.entropy
             self.RNG = np.random.default_rng(self.MUseed_sqn.generate_state(1))
-            
+
         print(f"New MUsim object random seed entropy is: {self.MUseed}")
         # generate random state with generate_state() method
-        
+
     def __repr__(self):
         return f"MUsim object with {self.num_units} units, {len(self.spikes)} trials across {len(self.session)} sessions."
 
     def copy(self):
         """
         Function returns a shallow copy of the MUsim object.
-        """       
+        """
         return self
-    
+
     def _get_spike_history_kernel(
         self,
         path_to_kernel_csv=Path(__file__).parent.joinpath("spike_history_kernel_basis.csv"),
@@ -227,7 +226,7 @@ class MUsim:
 
     def _lorenz(self, x, y, z, s=10, r=28, b=2.667):
         """
-        Given:
+        Input:
         x, y, z: a point of interest in three dimensional space
         s, r, b: parameters defining the lorenz attractor
         Returns:
@@ -239,88 +238,241 @@ class MUsim:
         z_dot = x * y - b * z
         return x_dot, y_dot, z_dot
 
-    def load_MUs(self, npy_file_path, bin_width, load_as="session", slice=[0, 1]):
+    def _create_trial_from_kilsort(self, kilosort_path):
+        """
+        Function loads data from a kilosort output and creates a trial from it. It will load the
+        spike times and spike clusters from spike_times.npy and spike_clusters.npy, respectively.
+        It will then create a MUsim format trial from this data.
+        """
+        spike_times = np.load(kilosort_path.joinpath("spike_times.npy")).ravel()
+        spike_clusters = np.load(kilosort_path.joinpath("spike_clusters.npy")).ravel()
+        num_units = len(np.unique(spike_clusters))
+        # get number of bins
+        num_bins = int(
+            np.round(spike_times[-1]) + 1
+        )  # use last spike time because it is the largest
+        # create empty trial
+        trial = np.zeros((num_bins, num_units))
+        # fill trial with spikes
+        for ii in range(num_units):
+            unit_spike_times = spike_times[spike_clusters == ii]
+            trial[unit_spike_times, ii] = 1
+        return trial
+
+    def load_MUs(
+        self,
+        npy_file_path,
+        recording_bin_width,
+        load_as="session",
+        slice=[0, 1],
+        load_type="rat-loco",
+    ):
         """
         Function loads data and appends into MUsim().session, just like with simulated sessions.
         Data axes are transposed to make structure compatible transpose operation:
         (Trials x Time x MUs) --> (Time x MUs x Trials)
 
         Input:
-            npy_file_path: path to load real data from rat_loco_analysis
-            bin_width: provide the time width of the bins of the input data
+            npy_file_path: if load type is "rat-loco", then this is the path to the .npy file
+                containing the binned MU data.
+                If load type is "kilosort", then this is the path to the kilosort output folder
+                (containing spike_times.npy and spike_clusters.npy)
+            recording_bin_width: provide the time width between samples of the input data
             load_as: "session" or "trial". If "session", then the entire session is loaded into MUsim().session.
                 Otherwise, all trials in the session are concatenated and placed as a single trial into MUsim().spikes[-1].
                 If "session", then the data is transposed to (Time x MUs x Trials).
                 If "trial", then the data is reshaped into ((Time x Trials) x MUs)
+            slice: slice of the data to load, as a fraction of the total data. Default is [0, 1], which loads all data.
+            load_type: "MUsim", "rat-loco" or "kilosort". If "rat-loco", then the data is loaded from the rat_loco_analysis
+                repository format. If "kilosort", then the data is loaded from the kilosort output format.
         Returns: nothing.
         """
-        binned_MU_data = np.load(npy_file_path)
-        if load_as == "session":
-            # (Trials x Time x MUs) --> (Time x MUs x Trials)
-            transposed_binned_MU_data = np.transpose(binned_MU_data, (1, 2, 0))
-            # remove trials according to session fraction dictated by slice
-            transposed_binned_MU_data = transposed_binned_MU_data[
-                :,
-                :,
-                int(np.round(transposed_binned_MU_data.shape[2] * slice[0])) : int(
-                    np.round(transposed_binned_MU_data.shape[2] * slice[1])
-                ),
-            ]
-            self.sample_rate = int(np.round(1 / bin_width))
-            self.session.append(transposed_binned_MU_data)
-            for ii in range(transposed_binned_MU_data.shape[2]):  # add trials
-                self.spikes.append(transposed_binned_MU_data[:, :, ii])
-            self.num_trials = transposed_binned_MU_data.shape[2]
-            self.session_num_trials.append(self.num_trials)
-            self.MUmode = "loaded"  # record that this session was loaded
-        elif load_as == "trial":
-            # (Trials x Time x MUs) --> ((Time x Trials) x MUs)
-            self.sample_rate = int(np.round(1 / bin_width))
-            transposed_binned_MU_data = np.reshape(
-                binned_MU_data,
-                (
-                    binned_MU_data.shape[0] * binned_MU_data.shape[1],
-                    binned_MU_data.shape[2],
-                ),
-            )
-            # time slice according to trial fraction dictated by slice
-            transposed_binned_MU_data = transposed_binned_MU_data[
-                int(np.round(transposed_binned_MU_data.shape[0] * slice[0])) : int(
-                    np.round(transposed_binned_MU_data.shape[0] * slice[1])
-                ),
-                :,
-            ]
-            # sort rows by total count (descending)
-            sorted_MU_trial = transposed_binned_MU_data[
-                :, np.argsort(-transposed_binned_MU_data.sum(axis=0))
-            ]
-            self.spikes.append(sorted_MU_trial)
-            self.num_trials = 1
+        # check inputs
+        assert type(npy_file_path) in [
+            str,
+            Path,
+            PosixPath,
+        ], "npy_file_path must be a string or a Path object."
+        assert recording_bin_width > 0 and type(recording_bin_width) in [
+            int,
+            float,
+        ], "recording_bin_width must be a positive number."
+        assert load_as in ["session", "trial"], "load_as must be either 'session' or 'trial'."
+        assert (
+            type(slice) == list
+            and len(slice) == 2
+            and 0 <= slice[0] <= 1
+            and 0 <= slice[1] <= 1
+            and slice[0] < slice[1]
+        ), "slice must be a list of length 2, with values between 0 and 1, and slice[0] < slice[1]."
+        assert load_type in [
+            "MUsim",
+            "rat-loco",
+            "kilosort",
+        ], "load_type must be 'MUsim', 'rat-loco' or 'kilosort'."
 
-        self.num_bins_per_trial = transposed_binned_MU_data.shape[0]
-        self.num_units = transposed_binned_MU_data.shape[1]
-        self.session_forces.append(np.repeat(np.nan, len(self.force_profile)))
-        self.session_yanks.append(np.repeat(np.nan, len(self.yank_profile)))
-        self.noise_level = np.zeros(transposed_binned_MU_data.shape[0])
+        if load_type in ["MUsim", "rat-loco"]:
+            input_MU_data = np.load(npy_file_path)
+            if load_as == "session":
+                if load_type == "MUsim":
+                    # if MUsim data, do not transpose
+                    loaded_MU_data = input_MU_data
+                elif load_type == "rat-loco":
+                    # (Trials x Time x MUs) --> (Time x MUs x Trials)
+                    loaded_MU_data = np.transpose(input_MU_data, (1, 2, 0))
+                # remove trials according to session fraction dictated by slice
+                sliced_MU_data = loaded_MU_data[
+                    :,
+                    :,
+                    int(np.round(loaded_MU_data.shape[2] * slice[0])) : int(
+                        np.round(loaded_MU_data.shape[2] * slice[1])
+                    ),
+                ]
+                self.session.append(sliced_MU_data)
+                for ii in range(sliced_MU_data.shape[2]):  # add trials
+                    self.spikes.append(sliced_MU_data[:, :, ii])
+                self.num_trials = sliced_MU_data.shape[2]
+                self.session_num_trials.append(self.num_trials)
+                self.MUmode = "loaded"  # record that this session was loaded
+            elif load_as == "trial":
+                if load_type == "MUsim":
+                    # if MUsim data, this will be 2D (Time x MUs), so no need to transpose or reshape
+                    loaded_MU_data = input_MU_data
+                elif load_type == "rat-loco":
+                    loaded_MU_data = input_MU_data
+                    # (Trials x Time x MUs) --> ((Time x Trials) x MUs)
+                    loaded_MU_data = np.reshape(
+                        input_MU_data,
+                        (
+                            input_MU_data.shape[0] * input_MU_data.shape[1],
+                            input_MU_data.shape[2],
+                        ),
+                    )
+                # time slice according to trial fraction dictated by slice
+                sliced_MU_data = loaded_MU_data[
+                    int(np.round(loaded_MU_data.shape[0] * slice[0])) : int(
+                        np.round(loaded_MU_data.shape[0] * slice[1])
+                    ),
+                    :,
+                ]
+                # sort rows by total count (descending)
+                sorted_MU_trial = sliced_MU_data[:, np.argsort(-sliced_MU_data.sum(axis=0))]
+                self.spikes.append(sorted_MU_trial)
+                self.num_trials = 1
+        elif load_type == "kilosort":
+            if load_as == "session":
+                raise Exception("load_as=session not implemented for load_type=kilosort.")
+            elif load_as == "trial":
+                # use _create_trial_from_kilsort() to create a trial from kilosort output
+                trial_from_KS = self._create_trial_from_kilsort(npy_file_path)
+                sliced_trial_from_KS = trial_from_KS[
+                    int(np.round(trial_from_KS.shape[0] * slice[0])) : int(
+                        np.round(trial_from_KS.shape[0] * slice[1])
+                    ),
+                    :,
+                ]
+                sorted_MU_trial = sliced_trial_from_KS[
+                    :, np.argsort(-sliced_trial_from_KS.sum(axis=0))
+                ]  # sort rows by total count (descending)
+                self.spikes.append(sorted_MU_trial)
+                self.num_trials = 1
+
+        self.sample_rate = 1 / recording_bin_width
+        self.num_bins_per_trial = self.spikes[-1].shape[0]
+        self.num_units = self.spikes[-1].shape[1]
+        # self.session_forces.append(np.repeat(np.nan, len(self.force_profile)))
+        # self.session_yanks.append(np.repeat(np.nan, len(self.yank_profile)))
         return
 
-    def save(self, save_path):
+    def rebin(self, new_bin_width, target="trial", index=-1):
+        """
+        Function re-bins the data in MUsim().spikes[-1] or MUsim().session[-1] to a new bin width.
+        To do this, all spikes in the original bins are indexed with new spacing and matrix
+        multiplication (no for loops). For each unit, all spikes in previous bins are summed
+        to create each new bin value.
+        Input:
+            new_bin_width: new bin width to re-bin the data to.
+            target: "trial" or "session". If "trial", then the data is re-binned in MUsim().spikes[-1].
+                Otherwise, the data is re-binned in MUsim().session[-1]. For the "session" target,
+                the data is reshaped from (Time x MUs x Trials) to ((Time x Trials) x MUs), re-binned,
+                then reshaped back to (Time x MUs x Trials).
+            index: index of the trial or session to re-bin. Default is -1,
+                which re-bins the last trial or session.
+
+        Returns: nothing.
+        """
+        if target == "trial":
+            spikes = self.spikes[index]
+            # get number of bins in new bin width
+            new_num_bins = int(np.round(spikes.shape[0] * self.bin_width / new_bin_width))
+            new_spikes = np.zeros((new_num_bins, spikes.shape[1]))
+            # get indexes of new bins
+            new_bin_indexes = np.arange(
+                0, spikes.shape[0], int(np.round(new_bin_width / self.bin_width))
+            )
+            for ii in range(len(new_bin_indexes) - 1):
+                # get indexes of spikes in previous bins
+                prev_bin_indexes = np.arange(new_bin_indexes[ii], new_bin_indexes[ii + 1])
+                # sum spikes in previous bins, and assign to new bin, including all units
+                new_spikes[ii, :] = np.sum(spikes[prev_bin_indexes, :], axis=0)
+
+            # update bin width
+            self.bin_width = new_bin_width
+            # update number of bins
+            self.num_bins_per_trial = new_num_bins
+            # update spikes
+            self.spikes[index] = new_spikes
+        if target == "session":
+            raise Exception("target=session not implemented yet.")
+        return
+
+    def rebin_trials(self, new_bin_width, trial_indexes=[-1]):
+        """
+        Function re-bins the data in MUsim().spikes[session_indexes] to a new bin width.
+        This function is a wrapper for MUsim().rebin(), to apply the re-binning to multiple trials.
+        Input:
+            new_bin_width: new bin width to re-bin the data to.
+            session_indexes: list of session indexes to re-bin. Default is [-1], which re-bins
+            the last session. Alternatively, can be a list of indexes.
+        Returns: nothing.
+        """
+        for ii in trial_indexes:
+            self.rebin(new_bin_width, target="trial", index=ii)
+        return
+
+    def rebin_sessions(self, new_bin_width, session_indexes=[-1]):
+        """
+        Function re-bins the data in MUsim().session[session_indexes] to a new bin width.
+        This function is a wrapper for MUsim().rebin(), to apply the re-binning to multiple sessions.
+        Input:
+            new_bin_width: new bin width to re-bin the data to.
+            session_indexes: list of session indexes to re-bin. Default is [-1], which re-bins
+            the last session. Alternatively, can be a list of indexes.
+        Returns: nothing.
+        """
+        for ii in session_indexes:
+            self.rebin(new_bin_width, target="session", index=ii)
+        return
+
+    def save(self, save_path="./MUsim.npy"):
         """
         Function saves the MUsim object to a .npy file at save_path.
         """
         np.save(save_path, self, allow_pickle=False)
         return
 
-    def save_spikes(self, save_path, spikes_index=-1):
+    def save_spikes(self, save_path="./MUsim_spikes.npy", spikes_index=-1):
         """
         Function saves the spikes from self.spikes[spikes_index] to a .npy file at save_path.
+        Save shape is (Time x MUs).
         """
         np.save(save_path, self.spikes[spikes_index], allow_pickle=False)
         return
 
-    def save_session(self, save_path, session_index=-1):
+    def save_session(self, save_path="./MUsim_session.npy", session_index=-1):
         """
         Function saves the session from self.session[session_index] to a .npy file at save_path.
+        Save shape is (Time x MUs x Trials).
         """
         np.save(save_path, self.session[session_index], allow_pickle=False)
         return
@@ -450,7 +602,7 @@ class MUsim:
         self.MUmode = MUmode  # record the last recruitment mode
         return units
 
-    def simulate_spikes(self, noise_level=0):
+    def simulate_spikes(self):
         """
         simple routine to generate spikes with probabilities according to the (sigmoidal) response curve.
         Input: unit response curve (probability of seeing a 0 each timestep, otherwise its 1)
@@ -471,21 +623,13 @@ class MUsim:
             # get spikes and transpose to Time x MU
             spikes = self.RNG.poisson(hiD_rates * (1 / (self.sample_rate))).T
             self.spikes.append(np.asarray(spikes, dtype=float))
-            self.noise_level.append(noise_level)
         elif self.MUspike_dynamics == "independent":
             unit_response_curves = self.units[1]
             selection = self.RNG.random(unit_response_curves.shape)
             spike_idxs = np.where(selection > unit_response_curves)
             # initialize as array of zeros, spikes assigned later at spike_idxs
             self.spikes.append(np.zeros(unit_response_curves.shape))
-            if noise_level != 0:  # add noise before spikes
-                assert noise_level > 0 and noise_level <= 1, "noise required to be between 0 and 1."
-                self.spikes[-1] = (
-                    self.spikes[-1]
-                    + noise_level * self.RNG.standard_normal(self.spikes[-1].shape).__abs__()
-                )
-            self.noise_level.append(noise_level)
-            # all spikes are now assigned value of 1, regardless of noise
+            # all spikes are now assigned value of 1
             self.spikes[-1][spike_idxs] = 1
         elif self.MUspike_dynamics == "poisson":
             # use second units descriptor as relation with force signal
@@ -524,7 +668,6 @@ class MUsim:
                 #     np.zeros(unit_response_curves.shape),
                 #     self.spikes[-1],
                 # )
-            self.noise_level.append(noise_level)
             # for iUnit in range(self.num_units):
             #     for iTimestep in range(self.num_bins_per_trial):
         elif self.MUspike_dynamics == "spike_history":
@@ -552,7 +695,6 @@ class MUsim:
                             raise
                         self.spikes[-1][iTimestep, iUnit] = 1
 
-            self.noise_level.append(noise_level)
         return self.spikes[-1]
 
     def simulate_session(self):
@@ -564,7 +706,7 @@ class MUsim:
         session_data_shape = (len(self.force_profile), self.num_units, trials)
         self.session.append(np.zeros(session_data_shape))
         for iTrial in range(trials):
-            self.session[-1][:, :, iTrial] = self.simulate_spikes(self.session_noise_level)
+            self.session[-1][:, :, iTrial] = self.simulate_spikes()
         self.session_forces.append(self.force_profile)
         self.session_yanks.append(self.yank_profile)
         self.session_num_trials.append(self.num_trials)
@@ -760,7 +902,6 @@ class MUsim:
             if self.num_units > 10 and legend == True:
                 legend = False
                 print("could not plot legend with more than 10 MUs.")
-            if self.noise_level[-1] == 0:
                 counts = np.sum(self.spikes[trial], axis=0)
             else:
                 peaks = np.zeros(self.spikes[trial].shape)
