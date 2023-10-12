@@ -6,4 +6,4 @@
 !requirements.txt
 .vscode/
 __pycache__/
-continuous*dat
+*dat

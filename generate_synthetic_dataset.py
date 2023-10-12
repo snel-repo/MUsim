@@ -1,5 +1,6 @@
 # IMPORT packages
 import multiprocessing
+import os
 from datetime import datetime
 from pathlib import Path
 from pdb import set_trace
@@ -9,6 +10,7 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import plotly.subplots as subplots
+import torch
 from scipy import signal
 from scipy.io import loadmat
 
@@ -131,9 +133,11 @@ SVD_dim = 9  # number of SVD components than were used in KiloSort
 num_chans_in_recording = 9  # number of channels in the recording
 num_chans_in_output = 17  # desired real number of channels in the output data
 # number determines noise power added to channels (e.g. 50), or set None to disable
-adjust_SNR_to = None  # 50
-# factor to multiply U_std by to get amount of jitter to add to waveform shapes
-shape_jitter_amount = 0
+SNR_mode = "from_data"  # 'power' to compute desired SNR with power,'from_data' simulates from the real data values
+# target SNR value if "power", or factor to adjust SNR by if "from_data", or set None to disable
+adjust_SNR = 8
+# set 0 for no shape jitter, or a positive number for standard deviations of additive shape jitter
+shape_jitter_amount = 4
 # set None for random behavior, or a previous entropy int value to reproduce
 random_seed_entropy = 75092699954400878964964014863999053929  # None
 if random_seed_entropy is None:
@@ -149,10 +153,10 @@ assert type(kinematics_fs) is int and kinematics_fs > 0, "kinematics_fs must be 
 assert type(ephys_fs) is int and ephys_fs > 0, "ephys_fs must be a positive integer"
 assert (
     type(shape_jitter_amount) in [int, float] and shape_jitter_amount >= 0
-), "shape_jitter_amount must be a positive number or None"
-assert (type(adjust_SNR_to) in [int, float] and adjust_SNR_to >= 0) or (
-    adjust_SNR_to is None
-), "SNR_of_simulated_data must be a positive number or None"
+), "shape_jitter_amount must be a number greater than or equal to 0"
+assert (type(adjust_SNR) in [int, float] and adjust_SNR >= 0) or (
+    adjust_SNR is None
+), "adjust_SNR must be a positive number or None"
 assert time_frame[0] >= 0 and time_frame[1] <= 1 and time_frame[0] < time_frame[1], (
     "time_frame must be a list of two numbers between 0 and 1, " "with the first number smaller"
 )
@@ -456,8 +460,10 @@ kinematic_csv_file_name = "_".join(
 if save_simulated_spikes:
     mu.save_spikes(
         # f"synthetic_spikes_from_{kinematic_csv_file_name}_using_{chosen_bodypart_to_load}.npy"
-        f"spikes_{kinematic_csv_file_name}_SNR-{adjust_SNR_to}_jitter-{shape_jitter_amount}std_files-{len(anipose_sessions_to_load)}.npy"
+        f"spikes_{kinematic_csv_file_name}_SNR-{adjust_SNR}-{SNR_mode}_jitter-{shape_jitter_amount}std_files-{len(anipose_sessions_to_load)}.npy"
     )
+    # also save a copy with name "most_recent_synthetic_spikes.npy"
+    mu.save_spikes("most_recent_synthetic_spikes.npy")
 
 ## next section will place real multichannel electrophysiological spike waveform shapes at each
 #  simulated spike time, onto multiple data channels. The final result will be an int16 binary file
@@ -578,17 +584,102 @@ for iChan in range(num_chans_with_data):
 # now square then average to get power
 spike_band_power = np.mean(np.square(spike_filtered_dat), axis=0)
 print(f"Spike Band Power: {spike_band_power}")
-if adjust_SNR_to is not None:
-    # back-calculate the noise needed to get the amplitude of Gaussian noise to add to the data
-    # to get the desired SNR
-    noise_power = spike_band_power / adjust_SNR_to
-    # now calculate the standard deviation of the Gaussian noise to add to the data
-    noise_std = np.sqrt(noise_power)
-    print(f"Noise STD: {noise_std}")
-    # now add Gaussian noise to the data
-    noise_std_with_dummies = np.zeros(num_chans_in_recording)
-    noise_std_with_dummies[0:num_chans_with_data] = noise_std
-    continuous_dat += RNG.normal(0, 2 * noise_std_with_dummies, continuous_dat.shape)
+if adjust_SNR is not None:
+    if SNR_mode == "from_data":
+        os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
+        os.environ["CUDA_VISIBLE_DEVICES"] = "6"
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        print(f"DEVICE: {device}")
+        torch_continuous_dat = torch.tensor(continuous_dat, device=device)
+        # get Gaussian_STDs variable from chanMapAdjusted.mat file
+        Gaussian_STDs_of_data = torch.tensor(
+            chan_map_adj_list[0]["Gaussian_STDs"][0], device=device
+        )
+        Gaussian_STDs_of_data = (
+            Gaussian_STDs_of_data[0 : num_chans_with_data + num_dummy_chans] * adjust_SNR
+        )  # multiply by factor of adjust_SNR
+        Gaussian_STDs_of_data[num_chans_with_data:] = 0
+        # target MAD of data should be to get within 1% of Gaussian_STDs_of_data values
+        # initialize it
+        MAD_k = torch.median(
+            torch.abs(torch_continuous_dat - torch.mean(torch_continuous_dat, axis=0)), axis=0
+        )
+        # get the Gaussian noise standard deviation of the data
+        Gaussian_STDs_of_sim = MAD_k.values / 0.6745
+
+        # make this shape of torch_continuous_dat
+        new_noise_STD = torch.tensor(
+            np.zeros(num_chans_in_recording), requires_grad=True, device=device
+        )
+
+        def forward(torch_continuous_dat):
+            # add Gaussian noise to the data
+            torch_continuous_dat_out = (
+                torch_continuous_dat
+                + torch.randn_like(torch_continuous_dat, device=device) * new_noise_STD
+            )
+            # get the median absolute deviation of the data
+            MAD_k = torch.median(
+                torch.abs(torch_continuous_dat_out - torch.mean(torch_continuous_dat_out, axis=0)),
+                axis=0,
+            )
+            # get the Gaussian noise standard deviation of the data
+            Gaussian_STDs_of_sim = MAD_k.values / 0.6745
+            return Gaussian_STDs_of_sim, torch_continuous_dat_out
+
+        def criterion(Gaussian_STDs_of_sim, Gaussian_STDs_of_data):
+            return torch.mean(torch.abs(Gaussian_STDs_of_sim - Gaussian_STDs_of_data))
+
+        # back calculate the additional noise needed to make Gaussian_STDs_of_sim equal to
+        # Gaussian_STDs_of_data
+        # add noise gradually to be absolutely sure NOT to overshoot
+        # goal is to make Gaussian_STDs_of_sim within 1% of Gaussian_STDs_of_data for all channels
+        # now use optimizer to change learning rate
+        print(f"Target Noise STD: {Gaussian_STDs_of_data}")
+        optimizer = torch.optim.Adam([new_noise_STD], lr=0.001)
+        loss_BGD = []
+
+        for i in range(10000):
+            Gaussian_STDs_of_sim, torch_continuous_dat_out = forward(torch_continuous_dat)
+            loss = criterion(Gaussian_STDs_of_sim, Gaussian_STDs_of_data)
+            loss_BGD.append(loss.item())
+            loss.backward()
+            with torch.no_grad():
+                optimizer.step()
+                optimizer.zero_grad()
+            print(f"New Noise STD: {new_noise_STD}")
+            print(f"Loss: {loss.item()}")
+            print(f"Gaussian_STDs_of_sim: {Gaussian_STDs_of_sim}")
+            print(f"Gaussian_STDs_of_data: {Gaussian_STDs_of_data}")
+            # ignore nan values, but make sure all equal to or less than 1% of Gaussian_STDs_of_data
+            if (
+                torch.abs(Gaussian_STDs_of_sim - Gaussian_STDs_of_data) / Gaussian_STDs_of_data
+                <= 0.01
+            )[:num_chans_with_data].all():
+                print("Loss is less than 1% of Gaussian_STDs_of_data")
+                print(f"Took {i} iterations to converge")
+                break
+        else:
+            print("Loss did not converge to less than 1% of Gaussian_STDs_of_data")
+        print(f"Final Loss: {loss.item()}")
+        continuous_dat = torch_continuous_dat_out.detach().cpu().numpy()
+    elif SNR_mode == "power":
+        # back-calculate the noise needed to get the amplitude of Gaussian noise to add to the data
+        # to get the desired SNR
+        noise_power = spike_band_power / adjust_SNR
+        # now calculate the standard deviation of the Gaussian noise to add to the data
+        noise_std = np.sqrt(noise_power)
+        print(f"Noise STD: {noise_std}")
+        # now add Gaussian noise to the data
+        noise_std_with_dummies = np.zeros(num_chans_in_recording)
+        noise_std_with_dummies[0:num_chans_with_data] = noise_std
+        continuous_dat += RNG.normal(0, 2 * noise_std_with_dummies, continuous_dat.shape)
+    # elif SNR_mode == "mean_waveforms":
+    #     # mean subtract each channel, take absolute value, then take median for each channel
+    #     MAD_k = np.median(np.abs(continuous_dat - np.mean(continuous_dat, axis=0)), axis=0)
+    #     Gaussian_noise_std_k = MAD / 0.6745
+    #     # for SNR take max of each mean waveform, then divide by Gaussian_noise_std_k
+    #     SNR_k = np.max(np.abs(mu.units[0]), axis=0) / Gaussian_noise_std_k
 
 # Verify that the SNR is correct
 # first, get the spike band power of the data
@@ -723,8 +814,10 @@ print(f"Overall recording length: {len(continuous_dat) / ephys_fs} seconds")
 # are interleaved, such as: [chan1_sample1, chan2_sample1, chan3_sample1, ...]
 # save simulation properties in continuous.dat file name
 continuous_dat.tofile(
-    f"continuous_{kinematic_csv_file_name}_SNR-{adjust_SNR_to}_jitter-{shape_jitter_amount}std_files-{len(anipose_sessions_to_load)}.dat"
+    f"continuous_{kinematic_csv_file_name}_SNR-{adjust_SNR}-{SNR_mode}_jitter-{shape_jitter_amount}std_files-{len(anipose_sessions_to_load)}.dat"
 )
+# overwrite a copy of most recent continuous.dat file
+continuous_dat.tofile("most_recent_continuous.dat")
 print("Synthetic Data Generated Successfully!")
 
 # ## compare synthetic data to real data

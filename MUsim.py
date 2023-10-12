@@ -246,17 +246,22 @@ class MUsim:
         """
         spike_times = np.load(kilosort_path.joinpath("spike_times.npy")).ravel()
         spike_clusters = np.load(kilosort_path.joinpath("spike_clusters.npy")).ravel()
-        num_units = len(np.unique(spike_clusters))
+        units_in_sort = np.sort(np.unique(spike_clusters).astype(int))
+        largest_cluster_number = units_in_sort[-1]
+        num_units = len(units_in_sort)
         # get number of bins
         num_bins = int(
             np.round(spike_times[-1]) + 1
-        )  # use last spike time because it is the largest
+        )  # use last spike time because it is the largest in time
         # create empty trial
-        trial = np.zeros((num_bins, num_units))
-        # fill trial with spikes
-        for ii in range(num_units):
+        trial = np.zeros((num_bins, largest_cluster_number + 1))
+        # fill trial with spikes in order of KS cluster number
+        for ii in range(largest_cluster_number + 1):
             unit_spike_times = spike_times[spike_clusters == ii]
-            trial[unit_spike_times, ii] = 1
+            if len(unit_spike_times) > 0:
+                trial[unit_spike_times, ii] = 1
+            else:
+                trial[:, ii] = np.nan  # no spikes for this cluster number
         return trial
 
     def load_MUs(
@@ -371,10 +376,10 @@ class MUsim:
                     ),
                     :,
                 ]
-                sorted_MU_trial = sliced_trial_from_KS[
-                    :, np.argsort(-sliced_trial_from_KS.sum(axis=0))
-                ]  # sort rows by total count (descending)
-                self.spikes.append(sorted_MU_trial)
+                # sorted_MU_trial = sliced_trial_from_KS[
+                #     :, np.argsort(-sliced_trial_from_KS.sum(axis=0))
+                # ]  # sort rows by total count (descending)
+                self.spikes.append(sliced_trial_from_KS)  # spikes in order of KS cluster number
                 self.num_trials = 1
 
         self.sample_rate = 1 / recording_bin_width
@@ -391,7 +396,7 @@ class MUsim:
         multiplication (no for loops). For each unit, all spikes in previous bins are summed
         to create each new bin value.
         Input:
-            new_bin_width: new bin width to re-bin the data to.
+            new_bin_width: new bin width to re-bin the data to, in seconds.
             target: "trial" or "session". If "trial", then the data is re-binned in MUsim().spikes[-1].
                 Otherwise, the data is re-binned in MUsim().session[-1]. For the "session" target,
                 the data is reshaped from (Time x MUs x Trials) to ((Time x Trials) x MUs), re-binned,
@@ -403,18 +408,16 @@ class MUsim:
         """
         if target == "trial":
             spikes = self.spikes[index]
-            # get number of bins in new bin width
             new_num_bins = int(np.round(spikes.shape[0] * self.bin_width / new_bin_width))
-            new_spikes = np.zeros((new_num_bins, spikes.shape[1]))
-            # get indexes of new bins
-            new_bin_indexes = np.arange(
-                0, spikes.shape[0], int(np.round(new_bin_width / self.bin_width))
-            )
-            for ii in range(len(new_bin_indexes) - 1):
-                # get indexes of spikes in previous bins
-                prev_bin_indexes = np.arange(new_bin_indexes[ii], new_bin_indexes[ii + 1])
-                # sum spikes in previous bins, and assign to new bin, including all units
-                new_spikes[ii, :] = np.sum(spikes[prev_bin_indexes, :], axis=0)
+            # get new bin edges as floats
+            new_bin_edges = np.linspace(0, new_num_bins * new_bin_width, new_num_bins + 1)
+            # now snap all edges to nearest integer
+            new_bin_indexes = np.round(new_bin_edges * self.sample_rate).astype(int)
+            new_spikes = np.zeros((new_num_bins, spikes.shape[1]), dtype=int)
+            for ii in range(new_num_bins):
+                new_spikes[ii, :] = np.sum(
+                    spikes[new_bin_indexes[ii] : new_bin_indexes[ii + 1], :], axis=0
+                )
 
             # update bin width
             self.bin_width = new_bin_width
@@ -622,20 +625,20 @@ class MUsim:
             hiD_rates = np.exp(hiD_proj)
             # get spikes and transpose to Time x MU
             spikes = self.RNG.poisson(hiD_rates * (1 / (self.sample_rate))).T
-            self.spikes.append(np.asarray(spikes, dtype=float))
+            self.spikes.append(np.asarray(spikes, dtype=int))
         elif self.MUspike_dynamics == "independent":
             unit_response_curves = self.units[1]
             selection = self.RNG.random(unit_response_curves.shape)
             spike_idxs = np.where(selection > unit_response_curves)
             # initialize as array of zeros, spikes assigned later at spike_idxs
-            self.spikes.append(np.zeros(unit_response_curves.shape))
+            self.spikes.append(np.zeros(unit_response_curves.shape, dtype=int))
             # all spikes are now assigned value of 1
             self.spikes[-1][spike_idxs] = 1
         elif self.MUspike_dynamics == "poisson":
             # use second units descriptor as relation with force signal
             unit_response_curves = self.units[1]
             # initialize as array of zeros, spikes assigned later at spike_idxs
-            self.spikes.append(np.zeros(unit_response_curves.shape))
+            self.spikes.append(np.zeros(unit_response_curves.shape, dtype=int))
             # lam of RNG.poisson is the upper bound for poisson process, which will be thinned
             # probabilistically by the sigmoidal response curves for each MU
             # https://en.wikipedia.org/wiki/Poisson_point_process#Thinning
@@ -674,7 +677,7 @@ class MUsim:
             # use second units descriptor as relation with force signal
             unit_response_curves = self.units[1]
             # initialize as array of zeros, spikes assigned later at spike_idxs
-            self.spikes.append(np.zeros(unit_response_curves.shape))
+            self.spikes.append(np.zeros(unit_response_curves.shape, dtype=int))
             kernel = self._get_spike_history_kernel()
             # For each MU and time t, compute whether a spike occured using a binomial distribution,
             # and if so, add the spike_history_kernel from t:t+len(kernel) timesteps of the response
