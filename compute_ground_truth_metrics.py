@@ -1,5 +1,4 @@
 # IMPORT packages
-import multiprocessing as mp
 from datetime import datetime
 from pathlib import Path
 from pdb import set_trace
@@ -8,6 +7,7 @@ import colorlover as cl
 import numpy as np
 import plotly.graph_objects as go
 import plotly.subplots as subplots
+from pandas import DataFrame as df
 from scipy.signal import correlate, correlation_lags
 
 from MUsim import MUsim
@@ -33,24 +33,6 @@ def compute_recall(num_matches, num_ground_truth_spikes):
 
 def compute_accuracy(num_matches, num_kilosort_spikes, num_ground_truth_spikes):
     return num_matches / (num_kilosort_spikes + num_ground_truth_spikes - num_matches)
-
-
-def compute_spike_matches(ground_truth_spikes, kilosort_spikes):
-    # ground_truth_spikes and kilosort_spikes are numpy arrays with shape (num_bins, num_units)
-    # rows are time bins, columns are units
-    # each entry is a spike count
-    # compute the number of spikes in each time bin
-    num_ground_truth_spikes = np.sum(ground_truth_spikes, axis=0)
-    num_kilosort_spikes = np.sum(kilosort_spikes, axis=0)
-    # compute the number of matches in each time bin, do not assume only 1 spike per time bin
-    # ensure each time bin has the same number of spikes in order to count as a match
-    num_matches = np.sum(
-        np.logical_and(
-            ground_truth_spikes == kilosort_spikes, ground_truth_spikes * kilosort_spikes
-        ),
-        axis=0,
-    )
-    return num_matches, num_kilosort_spikes, num_ground_truth_spikes
 
 
 def compare_spike_trains(
@@ -87,7 +69,7 @@ def compare_spike_trains(
     )
 
     # subselect clusters in mu_KS using clusters_to_take_from, now in that specified order
-    mu_KS.spikes[-1] = mu_KS.spikes[-1][:, clusters_to_take_from[0]]
+    mu_KS.spikes[-1] = mu_KS.spikes[-1][:, clusters_to_take_from]
 
     # ensure kilosort_spikes and ground_truth_spikes have the same shape
     # add more kilosort bins to match ground truth
@@ -143,9 +125,11 @@ def compare_spike_trains(
             shift = lags[lag_constraint_idxs][min_correlation_index]
         # shift the kilosort spikes
         mu_KS.spikes[-1][:, iUnit] = np.roll(mu_KS.spikes[-1][:, iUnit], -shift)
-        print(
-            f"Shifted Kilosort spikes for unit {clusters_to_take_from[0][iUnit]} by {-shift} samples"
-        )
+        # make sure shift hasn't gone near the edge of the min or max delay
+        if shift <= min_delay_samples + 1 or shift >= max_delay_samples - 1:
+            print(
+                f"WARNING: Shifted Kilosort spikes for unit {clusters_to_take_from[iUnit]} by {shift} samples"
+            )
 
     # rebin the spike trains to the bin width for comparison
     mu_GT.rebin_trials(bin_width_for_comparison / 1000)  # rebin to bin_width_for_comparison ms bins
@@ -155,15 +139,6 @@ def compare_spike_trains(
     mu_KS.rebin_trials(bin_width_for_comparison / 1000)  # rebin to bin_width_for_comparison ms bins
     mu_KS.save_spikes("./KS_spikes.npy")
     kilosort_spikes = mu_KS.spikes[-1]  # shape is (num_bins, num_units)
-
-    # compute metrics
-    num_matches, num_kilosort_spikes, num_ground_truth_spikes = compute_spike_matches(
-        ground_truth_spikes, kilosort_spikes
-    )
-
-    precision = compute_precision(num_matches, num_kilosort_spikes)
-    recall = compute_recall(num_matches, num_ground_truth_spikes)
-    accuracy = compute_accuracy(num_matches, num_kilosort_spikes, num_ground_truth_spikes)
 
     # compute false positive, false negative, and true positive spikes
     # create a new array for each type of error (false positive, false negative, true positive)
@@ -220,10 +195,27 @@ def compare_spike_trains(
                     )
                 )
 
-            # time = iBin * bin_width_for_comparison / 1000
-            # if iUnit == 0 and time > 7.998 and time < 8.002:
-            #     print("debugging")
-            #     set_trace()
+    num_matches = np.sum(true_positive_spikes, axis=0)
+    num_kilosort_spikes = np.sum(kilosort_spikes, axis=0)
+    num_ground_truth_spikes = np.sum(ground_truth_spikes, axis=0)
+
+    precision = compute_precision(num_matches, num_kilosort_spikes)
+    recall = compute_recall(num_matches, num_ground_truth_spikes)
+    accuracy = compute_accuracy(num_matches, num_kilosort_spikes, num_ground_truth_spikes)
+
+    # time = iBin * bin_width_for_comparison / 1000
+    # if iUnit == 0 and time > 7.998 and time < 8.002:
+    #     print("debugging")
+    #     set_trace()
+
+    # prettily print the results for each unit
+    # print(f"Bin width for comparison: {bin_width_for_comparison} ms")
+    # print(f"Number of matches: {num_matches}")
+    # print(f"Number of Kilosort spikes: {num_kilosort_spikes}")
+    # print(f"Number of ground truth spikes: {num_ground_truth_spikes}")
+    # print(f"Precision: {precision}")
+    # print(f"Recall: {recall}")
+    # print(f"Accuracy: {accuracy}")
 
     return (
         kilosort_spikes,
@@ -311,7 +303,12 @@ def plot1(
         yaxis=dict(title="<b>Spike Count</b>"),
         yaxis2=dict(title="<b>Metric Score</b>", range=[0, 1], overlaying="y", side="right"),
     )
-    fig.update_xaxes(tickvals=clusters_to_take_from)
+    # update the x tick label of the bar graph to match the cluster ID
+    fig.update_xaxes(
+        ticktext=[f"Unit {clusters_to_take_from[iUnit]}" for iUnit in range(num_motor_units)],
+        tickvals=np.arange(0, num_motor_units),
+    )
+
     if save_png_plot1:
         fig.write_image(
             f"KS_vs_GT_performance_metrics_{bin_width_for_comparison}ms_{start_time.strftime('%Y%m%d_%H%M%S')}.png",
@@ -577,46 +574,68 @@ if __name__ == "__main__":
     xstart = np.log2(0.125)
     bin_widths_for_comparison = np.logspace(xstart, -xstart, num=13, base=2)
     # index of which bin width of bin_widths_for_comparison to show in plots
-    iShow = -1
+    iShow = 6
 
     nt0 = 61  # 2.033 ms
-    random_seed_entropy = 75092699954400878964964014863999053929  # int
-    clusters_to_take_from = [
-        # [8, 5, 7, 1, 3, 2, 0, 6]  # 1 std, 4 jitter
-        [7, 4, 5, 3, 2, 1, 0, 6]  # 2 std, 4 jitter
-        # [8, 5, 7, 1, 3, 4, 0, 6]  # 4 std, 4 jitter
-        # [9, 3, 7, 1, 2, 8, 0, 6]  # 8 std, 4 jitter
-    ]  # [[18, 2, 11, 0, 4, 10, 1, 9]]  # list of lists
-    num_motor_units = len(clusters_to_take_from[0])
+    random_seed_entropy = (
+        218530072159092100005306709809425040261  # 75092699954400878964964014863999053929  # int
+    )
+    sorts_from_each_path_to_load = [
+        ## simulated20221116:
+        # "20231011_185107"  # 1 std, 4 jitter
+        # "20231011_195053"  # 2 std, 4 jitter
+        # "20231011_201450"  # 4 std, 4 jitter
+        # "20231011_202716"  # 8 std, 4 jitter
+        ## simulated20221117:
+        # "20231027_183121"  # 1 std, 4 jitter, all MUsort options ON
+        # "20231031_141254"  # 1 std, 4 jitter, all MUsort options ON, slightly better
+        "20231101_165306036638"  # 1 std, 4 jitter, optimal template selection routines OFF, Th=[1,0.5], spkTh=[-6]
+        # "20231101_164409249821"  # 1 std, 4 jitter, optimal template selection routines OFF, Th=[1,0.5], spkTh=[-2]
+        # "20231101_164937098773"  # 1 std, 4 jitter, optimal template selection routines OFF, Th=[5,2], spkTh=[-6]
+        # "20231101_164129797219"  # 1 std, 4 jitter, optimal template selection routines OFF, Th=[5,2], spkTh=[-2]
+        # "20231101_165135058289"  # 1 std, 4 jitter, optimal template selection routines OFF, Th=[2,1], spkTh=[-6]
+    ]  # , ["20230923_125645"], ["20230923_125645"]]
+    clusters_to_take_from = {
+        "20231027_183121": [24, 2, 3, 1, 23, 26, 0, 4, 32, 27],
+        "20231031_141254": [26, 4, 3, 1, 24, 28, 0, 2, 34, 29],
+        "20231101_165306036638": [35, 13, 11, 1, 29, 39, 0, 10, 37, 36],
+        "20231101_164409249821": [26, 9, 7, 11, 23, 29, 0, 8, 30, 25],
+        "20231101_164937098773": [22, 11, 5, 2, 21, 28, 1, 7, 25, 27],
+        "20231101_164129797219": [25, 9, 7, 1, 24, 27, 0, 8, 29, 28],
+        "20231101_165135058289": [21, 9, 3, 2, 19, 23, 0, 4, 28, 24],
+    }
+    # [ # godzilla 11-16-2022
+    # [8, 5, 7, 1, 3, 2, 0, 6]  # 1 std, 4 jitter
+    # [7, 4, 5, 3, 2, 1, 0, 6]  # 2 std, 4 jitter
+    # [8, 5, 7, 1, 3, 4, 0, 6]  # 4 std, 4 jitter
+    # [9, 3, 7, 1, 2, 8, 0, 6]  # 8 std, 4 jitter
+    # ]  # [[18, 2, 11, 0, 4, 10, 1, 9]]  # list of lists
+    num_motor_units = len(clusters_to_take_from[sorts_from_each_path_to_load[0]])
     plot_template = "plotly_white"
-    plot2_xlim = [0, 0.125]
-    show_plot1 = True
-    show_plot2 = True
-    show_plot3 = True
-    save_png_plot1 = True
-    save_png_plot2 = True
-    save_png_plot3 = True
+    plot2_xlim = [0, 0.1]
+    show_plot1 = False
+    show_plot2 = False
+    show_plot3 = False
+    save_png_plot1 = False
+    save_png_plot2 = False
+    save_png_plot3 = False
     save_html_plot1 = False
     save_html_plot2 = False
     save_html_plot3 = False
     ## load ground truth data
     ground_truth_path = Path(
-        # "spikes_20221116_godzilla_SNR-1-from_data_jitter-4std_files-1.npy"
-        "spikes_20221116_godzilla_SNR-2-from_data_jitter-4std_files-1.npy"
+        "spikes_20221117_godzilla_SNR-1-from_data_jitter-4std_files-11.npy"
+        # "spikes_20221117_godzilla_SNR-1-from_data_jitter-1std_files-5.npy"
+        # "spikes_20221116_godzilla_SNR-8-from_data_jitter-4std_files-1.npy"
     )  # spikes_20221116_godzilla_SNR-None_jitter-0std_files-1.npy
     ## load Kilosort data
     # paths to the folders containing the Kilosort data
     paths_to_KS_session_folders = [
         Path(
-            "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/godzilla/simulated20221116/"
+            # "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/godzilla/simulated20221116/"
+            "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/godzilla/simulated20221117/"
         ),
     ]
-    sorts_from_each_path_to_load = [
-        # "20231011_185107"  # 1 std, 4 jitter
-        "20231011_195053"  # 2 std, 4 jitter
-        # "20231011_201450"  # 4 std, 4 jitter
-        # "20231011_202716"  # 8 std, 4 jitter
-    ]  # , ["20230923_125645"], ["20230923_125645"]]
     # find the folder name which ends in _myo and append to the paths_to_session_folders
     paths_to_each_myo_folder = []
     for iDir in paths_to_KS_session_folders:
@@ -635,6 +654,8 @@ if __name__ == "__main__":
         list_of_paths_to_sorted_folders.append(matches[0])
 
     if parallel:
+        import multiprocessing as mp
+
         with mp.Pool(processes=len(bin_widths_for_comparison)) as pool:
             zip_obj = zip(
                 [ground_truth_path] * len(bin_widths_for_comparison),
@@ -643,7 +664,8 @@ if __name__ == "__main__":
                 [ephys_fs] * len(bin_widths_for_comparison),
                 [time_frame] * len(bin_widths_for_comparison),
                 [list_of_paths_to_sorted_folders] * len(bin_widths_for_comparison),
-                [clusters_to_take_from] * len(bin_widths_for_comparison),
+                [clusters_to_take_from[sorts_from_each_path_to_load[0]]]
+                * len(bin_widths_for_comparison),
             )
             results = pool.starmap(
                 compare_spike_trains,
@@ -700,7 +722,7 @@ if __name__ == "__main__":
                 ephys_fs,
                 time_frame,
                 list_of_paths_to_sorted_folders,
-                clusters_to_take_from,
+                clusters_to_take_from[sorts_from_each_path_to_load[0]],
             )
 
             # convert all to numpy arrays before appending
@@ -732,7 +754,7 @@ if __name__ == "__main__":
             recalls[iShow],
             accuracies[iShow],
             bin_widths_for_comparison[iShow],
-            clusters_to_take_from[0],
+            clusters_to_take_from[sorts_from_each_path_to_load[0]],
             plot_template,
             show_plot1,
             save_png_plot1,
@@ -741,31 +763,54 @@ if __name__ == "__main__":
             figsize=(1920, 1080),
         )
 
+    # print(
+    #     f"Total number of Kilosort spikes: {np.sum(kilosort_spikes[iShow])} ({np.sum(kilosort_spikes[iShow])/np.sum(ground_truth_spikes[iShow])*100:.2f}%)"
+    # )
+    # print(
+    #     f"\tTotal number of true positive spikes: {np.sum(true_positive_spikes[iShow])} ({np.sum(true_positive_spikes[iShow])/np.sum(ground_truth_spikes[iShow])*100:.2f}%)"
+    # )
+    # print(
+    #     f"\tTotal number of false positive spikes: {np.sum(false_positive_spikes[iShow])} ({np.sum(false_positive_spikes[iShow])/np.sum(kilosort_spikes[iShow])*100:.2f}%)"
+    # )
+    # print(
+    #     f"\tTotal number of false negative spikes: {np.sum(false_negative_spikes[iShow])} ({np.sum(false_negative_spikes[iShow])/np.sum(ground_truth_spikes[iShow])*100:.2f}%)"
+    # )
+    # for iUnit in range(num_motor_units):
+    #     print(
+    #         f"Total number of Kilosort spikes in unit {clusters_to_take_from[sorts_from_each_path_to_load[0]][iUnit]}: {np.sum(kilosort_spikes[iShow][:,iUnit])} ({np.sum(kilosort_spikes[iShow][:,iUnit])/np.sum(ground_truth_spikes[iShow][:,iUnit])*100:.2f}%)"
+    #     )
+    #     print(
+    #         f"\tTotal number of true positive spikes in unit {clusters_to_take_from[sorts_from_each_path_to_load[0]][iUnit]}: {np.sum(true_positive_spikes[iShow][:,iUnit])} ({np.sum(true_positive_spikes[iShow][:,iUnit])/np.sum(ground_truth_spikes[iShow][:,iUnit])*100:.2f}%)"
+    #     )
+    #     print(
+    #         f"\tTotal number of false positive spikes in unit {clusters_to_take_from[sorts_from_each_path_to_load[0]][iUnit]}: {np.sum(false_positive_spikes[iShow][:,iUnit])} ({np.sum(false_positive_spikes[iShow][:,iUnit])/np.sum(kilosort_spikes[iShow][:,iUnit])*100:.2f}%)"
+    #     )
+    #     print(
+    #         f"\tTotal number of false negative spikes in unit {clusters_to_take_from[sorts_from_each_path_to_load[0]][iUnit]}: {np.sum(false_negative_spikes[iShow][:,iUnit])} ({np.sum(false_negative_spikes[iShow][:,iUnit])/np.sum(ground_truth_spikes[iShow][:,iUnit])*100:.2f}%)"
+    #     )
+    # print metrics for each unit
+    print("\n")  # add a newline for readability
+    print("Sort: ", sorts_from_each_path_to_load[0])
+    unit_df = df()
+    unit_df["Unit"] = np.array(clusters_to_take_from[sorts_from_each_path_to_load[0]]).astype(int)
+    unit_df["True Count"] = num_ground_truth_spikes[iShow]
+    unit_df["KS Count"] = num_kilosort_spikes[iShow]
+    unit_df["Precision"] = precisions[iShow]
+    unit_df["Recall"] = recalls[iShow]
+    unit_df["Accuracy"] = accuracies[iShow]
+    unit_df["Unit"].astype(int)
+    unit_df.set_index("Unit", inplace=True)
+    print(unit_df)
+    print("\n")  # add a newline for readability
+    # print lowest accuracy, limit to 3 decimal places
+    print(f"Lowest accuracy: {unit_df['Accuracy'].min():.3f}, Unit {unit_df['Accuracy'].idxmin()}")
+    # print average accuracy plus or minus standard deviation
+    print(f"Average accuracy: {unit_df['Accuracy'].mean():.3f} +/- {unit_df['Accuracy'].std():.3f}")
+    # print average accuracy weighted by number of spikes in each unit
     print(
-        f"Total number of Kilosort spikes: {np.sum(kilosort_spikes[iShow])} ({np.sum(kilosort_spikes[iShow])/np.sum(ground_truth_spikes[iShow])*100:.2f}%)"
+        f"Weighted average accuracy: {np.average(unit_df['Accuracy'], weights=unit_df['True Count']):.3f}"
     )
-    print(
-        f"\tTotal number of true positive spikes: {np.sum(true_positive_spikes[iShow])} ({np.sum(true_positive_spikes[iShow])/np.sum(ground_truth_spikes[iShow])*100:.2f}%)"
-    )
-    print(
-        f"\tTotal number of false positive spikes: {np.sum(false_positive_spikes[iShow])} ({np.sum(false_positive_spikes[iShow])/np.sum(kilosort_spikes[iShow])*100:.2f}%)"
-    )
-    print(
-        f"\tTotal number of false negative spikes: {np.sum(false_negative_spikes[iShow])} ({np.sum(false_negative_spikes[iShow])/np.sum(ground_truth_spikes[iShow])*100:.2f}%)"
-    )
-    for iUnit in range(num_motor_units):
-        print(
-            f"Total number of Kilosort spikes in unit {iUnit+1}: {np.sum(kilosort_spikes[iShow][:,iUnit])} ({np.sum(kilosort_spikes[iShow][:,iUnit])/np.sum(ground_truth_spikes[iShow][:,iUnit])*100:.2f}%)"
-        )
-        print(
-            f"\tTotal number of true positive spikes in unit {iUnit+1}: {np.sum(true_positive_spikes[iShow][:,iUnit])} ({np.sum(true_positive_spikes[iShow][:,iUnit])/np.sum(ground_truth_spikes[iShow][:,iUnit])*100:.2f}%)"
-        )
-        print(
-            f"\tTotal number of false positive spikes in unit {iUnit+1}: {np.sum(false_positive_spikes[iShow][:,iUnit])} ({np.sum(false_positive_spikes[iShow][:,iUnit])/np.sum(kilosort_spikes[iShow][:,iUnit])*100:.2f}%)"
-        )
-        print(
-            f"\tTotal number of false negative spikes in unit {iUnit+1}: {np.sum(false_negative_spikes[iShow][:,iUnit])} ({np.sum(false_negative_spikes[iShow][:,iUnit])/np.sum(ground_truth_spikes[iShow][:,iUnit])*100:.2f}%)"
-        )
+
     if show_plot2 or save_png_plot2 or save_html_plot2:
         ### plot 2: spike trains
 
@@ -778,7 +823,7 @@ if __name__ == "__main__":
             false_negative_spikes[iShow],
             true_positive_spikes[iShow],
             bin_widths_for_comparison[iShow],
-            clusters_to_take_from[0],
+            clusters_to_take_from[sorts_from_each_path_to_load[0]],
             plot_template,
             show_plot2,
             save_png_plot2,
@@ -797,7 +842,7 @@ if __name__ == "__main__":
             recalls,
             accuracies,
             num_motor_units,
-            clusters_to_take_from[0],
+            clusters_to_take_from[sorts_from_each_path_to_load[0]],
             plot_template,
             show_plot3,
             save_png_plot3,

@@ -129,11 +129,19 @@ class MUsim:
 
     def _get_spiking_probability(self, thresholded_forces):
         # this function approximates sigmoidal relationship between motor unit firing rate and output force
+
+        if self.MUspike_dynamics == "spike_history":
+            # just use regular activation function, without flipping, since
+            # probabilities are now predicting the presence of spikes, not the absence
+            return thresholded_forces
+
         # vertical scaling and offset of each units' response curve is applied to generate probability curves
         if self.MUactivation == "sigmoid":
             unit_response_curves = 1 - expit(thresholded_forces)
         elif self.MUactivation == "heaviside":
             unit_response_curves = 1 - np.heaviside(thresholded_forces, 0)
+
+        # now adjust the response curves according to the MUspike_dynamics setting
         if self.MUspike_dynamics == "independent":
             p = self.max_spike_prob
             scaled_unit_response_curves = (unit_response_curves * p) + (1 - p)
@@ -144,10 +152,6 @@ class MUsim:
             # scale and offset based on threshmin and threshmax values
             # this gives headspace for the MU firing rates, and ensures no spikes with no force
             scaled_unit_response_curves = self.threshmax * unit_response_curves + self.threshmin
-        elif self.MUspike_dynamics == "spike_history":
-            # just use regular activation function, without flipping, since
-            # probabilities are now predicting the presence of spikes, not the absence
-            scaled_unit_response_curves = logit(-(unit_response_curves - 1))
         return scaled_unit_response_curves
 
     def _get_dynamic_thresholds(self, threshmax, threshmin, new=False):
@@ -190,7 +194,7 @@ class MUsim:
                 )
             elif MUthresholds_dist == "exponential":  # more small units, exponential dist
                 MUthresholds_gen = (
-                    threshmax * self.RNG.standard_exponential(self.num_units) / 10 + threshmin
+                    threshmax * self.RNG.standard_exponential(self.num_units) + threshmin
                 )
             else:
                 raise Exception(
@@ -487,7 +491,7 @@ class MUsim:
             (MU thresholds will be distributed according to "uniform" or "normal" setting at self.MUthresholds_dist)
         Returns: list of lists,
                 units[0] holds threshold of each unit [or an array of np.empty(self.num_units) if "lorenz" mode is chosen]
-                units[1] holds response curves from each MU [or holds lorenz latents if that mode is chosen]
+                units[1] holds response curves from each MU [or holds lorenz latents if that mode is chosen]. shape is (num_bins_per_trial x num_units)
                 units[2] holds minimum ISI (poisson lambda) for each unit
         """
         # self.RNG = np.random.default_rng(self.MUseed_sqn.generate_state(4)[-1])
@@ -697,7 +701,6 @@ class MUsim:
                         except:
                             raise
                         self.spikes[-1][iTimestep, iUnit] = 1
-
         return self.spikes[-1]
 
     def simulate_session(self):

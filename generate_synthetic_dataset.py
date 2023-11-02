@@ -1,5 +1,4 @@
 # IMPORT packages
-import multiprocessing
 import os
 from datetime import datetime
 from pathlib import Path
@@ -126,20 +125,23 @@ show_matplotlib_figures = False
 show_final_plotly_figure = False
 save_final_plotly_figure = True
 save_simulated_spikes = True
+multiprocess = True  # set to True to run on multiple processes
 kinematics_fs = 125
 ephys_fs = 30000
 nt0 = 61  # 2.033 ms
 SVD_dim = 9  # number of SVD components than were used in KiloSort
 num_chans_in_recording = 9  # number of channels in the recording
-num_chans_in_output = 17  # desired real number of channels in the output data
+num_chans_in_output = 24  # desired real number of channels in the output data
 # number determines noise power added to channels (e.g. 50), or set None to disable
 SNR_mode = "from_data"  # 'power' to compute desired SNR with power,'from_data' simulates from the real data values
 # target SNR value if "power", or factor to adjust SNR by if "from_data", or set None to disable
-adjust_SNR = 8
+adjust_SNR = 1
 # set 0 for no shape jitter, or a positive number for standard deviations of additive shape jitter
 shape_jitter_amount = 4
 # set None for random behavior, or a previous entropy int value to reproduce
-random_seed_entropy = 75092699954400878964964014863999053929  # None
+random_seed_entropy = (
+    218530072159092100005306709809425040261  # 75092699954400878964964014863999053929  # None
+)
 if random_seed_entropy is None:
     random_seed_entropy = np.random.SeedSequence().entropy
 RNG = np.random.default_rng(random_seed_entropy)  # create a random number generator
@@ -166,11 +168,16 @@ assert time_frame[0] >= 0 and time_frame[1] <= 1 and time_frame[0] < time_frame[
 # format is YYYYMMDD-N, with N being the session number
 anipose_sessions_to_load = [
     "20221116-3",
-    # "20221116-5",
-    # "20221116-7",
-    # "20221116-8",
-    # "20221116-9",
-    # "20221116-9",
+    "20221116-5",
+    "20221116-7",
+    "20221116-8",
+    "20221116-9",
+    "20221116-9",
+    "20221117-4",
+    "20221117-5",
+    "20221117-6",
+    "20221117-8",
+    "20221117-9",
 ]
 # format is bodypart_side_axis, with side being L or R, and axis being x, y, or z
 chosen_bodypart_to_load = "palm_L_y"  # "wrist_L_y"
@@ -237,13 +244,13 @@ ref_filtered_array_list = []
 ref_chosen_bodypart_array_list = []
 inv_filtered_array_list = []
 min_sub_array_list = []
-Nsamp = 25
+Nsamp = 25  # this is the number of samples to blend at the edges
 for ii in range(len(reference_bodypart_arrays)):
     iRef = reference_bodypart_arrays[ii]
     ref_filtered_array_list.append(
         butter_lowpass_filter(iRef, ref_lowcut, kinematics_fs, ref_order)
     )
-    iSub = ref_filtered_array_list[ii]
+    iSub = ref_filtered_array_list[ii][time_slices[ii]]
     # subtract reference bodypart from chosen bodypart
     ref_chosen_bodypart_array_list.append(chosen_bodypart_arrays[ii] - iSub)
     iFilt = ref_chosen_bodypart_array_list[ii]
@@ -342,14 +349,17 @@ orig_spike_history_kernel_df = pd.read_csv(orig_spike_history_kernel_path)
 # paths to the folders containing the Kilosort data
 paths_to_KS_session_folders = [
     Path(
-        "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/godzilla/session20221116/"
+        # "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/godzilla/session20221116/"
+        "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/godzilla/session20221117/"
     ),
     # Path(
     #     "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/inkblot/session20230323"
     # ),
     # Path("/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/kitkat/session20230420"),
 ]
-sorts_from_each_path_to_load = ["20230924_151421"]  # , ["20230923_125645"], ["20230923_125645"]]
+sorts_from_each_path_to_load = [
+    "20231027_163931"
+]  # ["20230924_151421"]  # , ["20230923_125645"], ["20230923_125645"]]
 
 # find the folder name which ends in _myo and append to the paths_to_session_folders
 paths_to_each_myo_folder = []
@@ -391,7 +401,10 @@ amplitudes_df_list = amplitudes_df_list[0].set_index("cluster_id")
 
 # list of lists of good clusters to take from each rez_list
 # place units in order of total spike count, from highest to lowest
-clusters_to_take_from = [[18, 2, 11, 0, 4, 10, 1, 9]]
+clusters_to_take_from = [
+    [26, 13, 10, 3, 22, 32, 1, 15, 40, 27]
+]  # [[25, 3, 1, 5, 17, 18, 0, 22, 20, 30]]  # [[18, 2, 11, 0, 4, 10, 1, 9]]
+
 num_motor_units = len(clusters_to_take_from[0])
 
 # create N MUsim objects, and run them in parallel on N processes,
@@ -404,46 +417,55 @@ mu.MUspike_dynamics = "spike_history"
 mu.sample_rate = ephys_fs  # 30000 Hz
 # fixed minimum force threshold for the generated units' response curves. Tune this for lower
 # bound of force thresholds sampled in the distribution of MUs during MU_sample()
-mu.threshmin = np.percentile(interp_final_force_array, 70)
+mu.threshmin = np.percentile(interp_final_force_array, 40)
 # fixed maximum force threshold for the generated units' response curves. Tune this for upper
 # bound of force thresholds sampled in the distribution of MUs during MU_sample()
-mu.threshmax = 1.1 * np.max(interp_final_force_array)  # np.percentile(interp_final_force_array, 99)
+mu.threshmax = 2 * np.max(interp_final_force_array)  # np.percentile(interp_final_force_array, 99)
 mu.sample_MUs()
 
 # now create N copies of the MUsim object
-chunk_size = 500  # number of samples to process in each multiprocessing process
-N_processes = len(anipose_sessions_to_load) * np.ceil(
-    len(chosen_bodypart_arrays[0]) / chunk_size
-).astype(int)
-mu_list = [mu.copy() for i in range(N_processes)]  # identical copies of the MUsim object
-interp_final_force_array_segments = np.array_split(interp_final_force_array, N_processes)
-with multiprocessing.Pool(processes=N_processes) as pool:
-    # cut interp_final_force_array into N processes segments
-    # use starmap to pass multiple arguments to the batch_run_MUsim function
-    results = pool.starmap(
-        batch_run_MUsim,
-        zip(
-            mu_list,
-            interp_final_force_array_segments,
-            range(N_processes),
-        ),
-    )
+chunk_size = 7500 / 2  # number of samples to process in each multiprocessing process
+if multiprocess:
+    import multiprocessing
 
-# now combine the results from each process into a single MUsim object
-mu = MUsim(random_seed_entropy)
-mu.num_units = num_motor_units
-mu.MUspike_dynamics = "spike_history"
-mu.force_profile = np.hstack([i.force_profile.flatten() for i in results])
-# make sure all units have the same thresholds (units[0])
-assert all([np.all(i.units[0] == results[0].units[0]) for i in results])
-mu.units[0] = results[0].units[0]  # then use the first units[0] as the new units[0]
-mu.units[1] = np.hstack([i.units[1] for i in results])  # stack the unit response curves
-# make sure all units have the same poisson lambdas (units[2])
-assert all([np.all(i.units[2] == results[0].units[2]) for i in results])
-mu.units[2] = np.hstack([i.units[2] for i in results])  # stack the poisson lambdas
-mu.spikes = np.hstack([i.spikes for i in results])  # stack the spike responses
+    N_processes = int(np.hstack(chosen_bodypart_arrays).shape[0] / chunk_size)
+    print(f"Using {N_processes} processes to simulate spikes in parallel")
+    mu_list = [mu.copy() for i in range(N_processes)]  # identical copies of the MUsim object
+    interp_final_force_array_segments = np.array_split(interp_final_force_array, N_processes)
+    with multiprocessing.Pool(processes=N_processes) as pool:
+        # cut interp_final_force_array into N processes segments
+        # use starmap to pass multiple arguments to the batch_run_MUsim function
+        results = pool.starmap(
+            batch_run_MUsim,
+            zip(
+                mu_list,
+                interp_final_force_array_segments,
+                range(N_processes),
+            ),
+        )
 
-# pdb.set_trace()
+    # now combine the results from each process into a single MUsim object
+    mu = MUsim(random_seed_entropy)
+    mu.num_units = num_motor_units
+    mu.MUspike_dynamics = "spike_history"
+    mu.force_profile = np.hstack([i.force_profile.flatten() for i in results])
+    # make sure all units have the same thresholds (units[0])
+    assert all([np.all(i.units[0] == results[0].units[0]) for i in results])
+    mu.units[0] = results[0].units[0]  # then use the first units[0] as the new units[0]
+    try:
+        mu.units[1] = np.hstack([i.units[1] for i in results])  # stack the unit response curves
+    except ValueError:
+        # concatenate the unit response curves if they are different lengths using minimum length
+        min_length = min([len(i.units[1]) for i in results])
+        mu.units[1] = np.hstack([i.units[1][:min_length] for i in results])
+
+    # make sure all units have the same poisson lambdas (units[2])
+    assert all([np.all(i.units[2] == results[0].units[2]) for i in results])
+    mu.units[2] = np.hstack([i.units[2] for i in results])  # stack the poisson lambdas
+    mu.spikes = np.hstack([i.spikes for i in results])  # stack the spike responses
+else:
+    mu = batch_run_MUsim(mu, interp_final_force_array, 0)
+
 if show_matplotlib_figures:
     mu.see("force")  # plot the force profile
     mu.see("curves")  # plot the unit response curves
@@ -639,7 +661,7 @@ if adjust_SNR is not None:
         optimizer = torch.optim.Adam([new_noise_STD], lr=0.001)
         loss_BGD = []
 
-        for i in range(10000):
+        for i in range(400):
             Gaussian_STDs_of_sim, torch_continuous_dat_out = forward(torch_continuous_dat)
             loss = criterion(Gaussian_STDs_of_sim, Gaussian_STDs_of_data)
             loss_BGD.append(loss.item())
@@ -647,20 +669,24 @@ if adjust_SNR is not None:
             with torch.no_grad():
                 optimizer.step()
                 optimizer.zero_grad()
-            print(f"New Noise STD: {new_noise_STD}")
-            print(f"Loss: {loss.item()}")
-            print(f"Gaussian_STDs_of_sim: {Gaussian_STDs_of_sim}")
-            print(f"Gaussian_STDs_of_data: {Gaussian_STDs_of_data}")
+            if i % 100 == 0:
+                print(f"Iteration: {i}")
+                print(f"New Noise STD: {new_noise_STD}")
+                print(f"Loss: {loss.item()}")
+                print(f"Gaussian_STDs_of_sim: {Gaussian_STDs_of_sim}")
+                print(f"Gaussian_STDs_of_data: {Gaussian_STDs_of_data}")
             # ignore nan values, but make sure all equal to or less than 1% of Gaussian_STDs_of_data
             if (
                 torch.abs(Gaussian_STDs_of_sim - Gaussian_STDs_of_data) / Gaussian_STDs_of_data
                 <= 0.01
             )[:num_chans_with_data].all():
-                print("Loss is less than 1% of Gaussian_STDs_of_data")
+                print("Gaussian_STDs_of_sim is less than 1% of Gaussian_STDs_of_data")
                 print(f"Took {i} iterations to converge")
                 break
         else:
-            print("Loss did not converge to less than 1% of Gaussian_STDs_of_data")
+            print(
+                "Gaussian_STDs_of_sim values did not converge to less than 1% of Gaussian_STDs_of_data"
+            )
         print(f"Final Loss: {loss.item()}")
         continuous_dat = torch_continuous_dat_out.detach().cpu().numpy()
     elif SNR_mode == "power":
@@ -755,7 +781,20 @@ if show_final_plotly_figure or save_final_plotly_figure:
         )
 
     # add eventplot of spike times to the last subplot, vertically spacing times and coloring by unit
-    MU_colors = px.colors.sequential.Rainbow
+    MU_colors = [
+        "royalblue",
+        "firebrick",
+        "forestgreen",
+        "darkorange",
+        "darkorchid",
+        "darkgreen",
+        "lightcoral",
+        "rgb(116, 77, 37)",
+        "cyan",
+        "mediumpurple",
+        "lightslategray",
+        "seinna",
+    ]
     for iUnit in range(mu.num_units):
         fig.add_trace(
             go.Scatter(
@@ -787,11 +826,11 @@ if show_final_plotly_figure or save_final_plotly_figure:
 
     fig.update_xaxes(title_text="Time (s)", row=num_chans_with_data + 2, col=1)
 
+    if save_final_plotly_figure:
+        fig.write_html(f"{kinematic_csv_file_name}_using_{chosen_bodypart_to_load}.html")
     if show_final_plotly_figure:
         print("Showing final plotly figure...")
         fig.show()
-    if save_final_plotly_figure:
-        fig.write_html(f"{kinematic_csv_file_name}_using_{chosen_bodypart_to_load}.html")
 
 # add dummy channels to the data to make it num_chans_in_output channels
 if num_chans_in_output > num_chans_in_recording:
