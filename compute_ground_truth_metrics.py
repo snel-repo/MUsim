@@ -1,4 +1,5 @@
 # IMPORT packages
+import subprocess
 from datetime import datetime
 from pathlib import Path
 from pdb import set_trace
@@ -101,7 +102,9 @@ def compare_spike_trains(
     max_delay_samples = int(round(max_delay_ms * ephys_fs / 1000))
 
     for iUnit in range(mu_KS.spikes[-1].shape[1]):
-        correlation = correlate(mu_KS.spikes[-1][:, iUnit], mu_GT.spikes[-1][:, iUnit], "same")
+        correlation = correlate(
+            mu_KS.spikes[-1][:, iUnit], mu_GT.spikes[-1][:, iUnit], "same"
+        )
         lags = correlation_lags(
             len(mu_KS.spikes[-1][:, iUnit]), len(mu_GT.spikes[-1][:, iUnit]), "same"
         )
@@ -132,11 +135,15 @@ def compare_spike_trains(
             )
 
     # rebin the spike trains to the bin width for comparison
-    mu_GT.rebin_trials(bin_width_for_comparison / 1000)  # rebin to bin_width_for_comparison ms bins
+    mu_GT.rebin_trials(
+        bin_width_for_comparison / 1000
+    )  # rebin to bin_width_for_comparison ms bins
     mu_GT.save_spikes("./GT_spikes.npy")
     ground_truth_spikes = mu_GT.spikes[-1]  # shape is (num_bins, num_units)
 
-    mu_KS.rebin_trials(bin_width_for_comparison / 1000)  # rebin to bin_width_for_comparison ms bins
+    mu_KS.rebin_trials(
+        bin_width_for_comparison / 1000
+    )  # rebin to bin_width_for_comparison ms bins
     mu_KS.save_spikes("./KS_spikes.npy")
     kilosort_spikes = mu_KS.spikes[-1]  # shape is (num_bins, num_units)
 
@@ -149,29 +156,52 @@ def compare_spike_trains(
     for iBin in range(kilosort_spikes.shape[0]):
         for iUnit in range(kilosort_spikes.shape[1]):
             # check cases in order of most likely to least likely for efficiency
-            if kilosort_spikes[iBin, iUnit] == 0 and ground_truth_spikes[iBin, iUnit] == 0:
+            if (
+                kilosort_spikes[iBin, iUnit] == 0
+                and ground_truth_spikes[iBin, iUnit] == 0
+            ):
                 continue  # no spike in this bin for either kilosort or ground truth, go to next bin
             # if kilosort spike and ground truth spike, true positive
-            elif kilosort_spikes[iBin, iUnit] == 1 and ground_truth_spikes[iBin, iUnit] == 1:
+            elif (
+                kilosort_spikes[iBin, iUnit] == 1
+                and ground_truth_spikes[iBin, iUnit] == 1
+            ):
                 true_positive_spikes[iBin, iUnit] = 1
             # if kilosort spike but no ground truth spike, false positive
-            elif kilosort_spikes[iBin, iUnit] >= 1 and ground_truth_spikes[iBin, iUnit] == 0:
+            elif (
+                kilosort_spikes[iBin, iUnit] >= 1
+                and ground_truth_spikes[iBin, iUnit] == 0
+            ):
                 false_positive_spikes[iBin, iUnit] = kilosort_spikes[iBin, iUnit]
             # if no kilosort spike but ground truth spike, false negative
-            elif kilosort_spikes[iBin, iUnit] == 0 and ground_truth_spikes[iBin, iUnit] >= 1:
+            elif (
+                kilosort_spikes[iBin, iUnit] == 0
+                and ground_truth_spikes[iBin, iUnit] >= 1
+            ):
                 false_negative_spikes[iBin, iUnit] = ground_truth_spikes[iBin, iUnit]
             # now, must check for numbers larger than 1, and handle those cases appropriately
-            elif kilosort_spikes[iBin, iUnit] > 1 and ground_truth_spikes[iBin, iUnit] == 1:
+            elif (
+                kilosort_spikes[iBin, iUnit] > 1
+                and ground_truth_spikes[iBin, iUnit] == 1
+            ):
                 # if kilosort spike and ground truth spike, true positive
                 true_positive_spikes[iBin, iUnit] = 1
                 # if kilosort spike but no ground truth spike, false positive
                 false_positive_spikes[iBin, iUnit] = kilosort_spikes[iBin, iUnit] - 1
-            elif kilosort_spikes[iBin, iUnit] == 1 and ground_truth_spikes[iBin, iUnit] > 1:
+            elif (
+                kilosort_spikes[iBin, iUnit] == 1
+                and ground_truth_spikes[iBin, iUnit] > 1
+            ):
                 # if kilosort spike and ground truth spike, true positive
                 true_positive_spikes[iBin, iUnit] = 1
                 # if no kilosort spike but ground truth spike, false negative
-                false_negative_spikes[iBin, iUnit] = ground_truth_spikes[iBin, iUnit] - 1
-            elif kilosort_spikes[iBin, iUnit] > 1 and ground_truth_spikes[iBin, iUnit] > 1:
+                false_negative_spikes[iBin, iUnit] = (
+                    ground_truth_spikes[iBin, iUnit] - 1
+                )
+            elif (
+                kilosort_spikes[iBin, iUnit] > 1
+                and ground_truth_spikes[iBin, iUnit] > 1
+            ):
                 # if kilosort spike and ground truth spike, true positive
                 true_positive_spikes[iBin, iUnit] = min(
                     kilosort_spikes[iBin, iUnit], ground_truth_spikes[iBin, iUnit]
@@ -201,7 +231,9 @@ def compare_spike_trains(
 
     precision = compute_precision(num_matches, num_kilosort_spikes)
     recall = compute_recall(num_matches, num_ground_truth_spikes)
-    accuracy = compute_accuracy(num_matches, num_kilosort_spikes, num_ground_truth_spikes)
+    accuracy = compute_accuracy(
+        num_matches, num_kilosort_spikes, num_ground_truth_spikes
+    )
 
     # time = iBin * bin_width_for_comparison / 1000
     # if iUnit == 0 and time > 7.998 and time < 8.002:
@@ -240,12 +272,18 @@ def plot1(
     accuracy,
     bin_width_for_comparison,
     clusters_to_take_from,
+    sort_from_each_path_to_load,
     plot_template,
     show_plot1,
     save_png_plot1,
+    save_svg_plot1,
     save_html_plot1,
     figsize=(1920, 1080),
 ):
+    # get suffix after the KS folder name, which is the repo branch name for that sort
+    PPP_branch_name = list_of_paths_to_sorted_folders[0].name.split("_")[-1]
+    sort_type = "Kilosort" if PPP_branch_name == "KS" else "MUsort"
+
     fig = go.Figure()
     fig.add_trace(
         go.Bar(
@@ -260,7 +298,7 @@ def plot1(
         go.Bar(
             x=np.arange(0, num_motor_units),
             y=num_kilosort_spikes,
-            name="Kilosort",
+            name=sort_type,
             marker_color="rgb(26, 118, 255)",
             opacity=0.5,
         )
@@ -296,28 +334,38 @@ def plot1(
         )
     )
     fig.update_layout(
-        title=f"<b>Comparison of MUsort Performance to Ground Truth, {bin_width_for_comparison} ms Bins</b>",
+        title=f"<b>Comparison of {sort_type} Performance to Ground Truth, {bin_width_for_comparison} ms Bins</b><br><sup>Sort: {sort_from_each_path_to_load}</sup>",
         xaxis_title="<b>KS Cluster ID</b>",
         legend_title="Ground Truth Metrics",
         template=plot_template,
         yaxis=dict(title="<b>Spike Count</b>"),
-        yaxis2=dict(title="<b>Metric Score</b>", range=[0, 1], overlaying="y", side="right"),
+        yaxis2=dict(
+            title="<b>Metric Score</b>", range=[0, 1], overlaying="y", side="right"
+        ),
     )
     # update the x tick label of the bar graph to match the cluster ID
     fig.update_xaxes(
-        ticktext=[f"Unit {clusters_to_take_from[iUnit]}" for iUnit in range(num_motor_units)],
+        ticktext=[
+            f"Unit {clusters_to_take_from[iUnit]}" for iUnit in range(num_motor_units)
+        ],
         tickvals=np.arange(0, num_motor_units),
     )
 
     if save_png_plot1:
         fig.write_image(
-            f"KS_vs_GT_performance_metrics_{bin_width_for_comparison}ms_{start_time.strftime('%Y%m%d_%H%M%S')}.png",
+            f"KS_vs_GT_performance_metrics_{bin_width_for_comparison}ms_{sort_from_each_path_to_load}_{PPP_branch_name}.png",
+            width=figsize[0],
+            height=figsize[1],
+        )
+    if save_svg_plot1:
+        fig.write_image(
+            f"KS_vs_GT_performance_metrics_{bin_width_for_comparison}ms_{sort_from_each_path_to_load}_{PPP_branch_name}.svg",
             width=figsize[0],
             height=figsize[1],
         )
     if save_html_plot1:
         fig.write_html(
-            f"KS_vs_GT_performance_metrics_{bin_width_for_comparison}ms.html",
+            f"KS_vs_GT_performance_metrics_{bin_width_for_comparison}ms_{sort_from_each_path_to_load}_{PPP_branch_name}.html",
             include_plotlyjs="cdn",
             full_html=False,
         )
@@ -333,14 +381,18 @@ def plot2(
     true_positive_spikes,
     bin_width_for_comparison,
     clusters_to_take_from,
+    sort_from_each_path_to_load,
     plot_template,
     show_plot2,
     save_png_plot2,
+    save_svg_plot2,
     save_html_plot2,
     figsize=(1920, 1080),
 ):
     # make a subplot for each unit
-    subtitles = [f"Unit {clusters_to_take_from[iUnit]}" for iUnit in range(num_motor_units)]
+    subtitles = [
+        f"Unit {clusters_to_take_from[iUnit]}" for iUnit in range(num_motor_units)
+    ]
     # insert a "" between each list element
     for i in range(len(subtitles)):
         subtitles.insert(2 * i + 1, "")
@@ -361,8 +413,11 @@ def plot2(
         color_GT = "hsl(" + str(iUnit / float(num_motor_units) * 360) + ",100%,25%)"
         fig.add_trace(
             go.Scatter(
-                x=np.where(kilosort_spikes[:, iUnit] >= 1)[0] * bin_width_for_comparison / 1000,
-                y=kilosort_spikes[np.where(kilosort_spikes[:, iUnit] >= 1)[0], iUnit] + 0.5,
+                x=np.where(kilosort_spikes[:, iUnit] >= 1)[0]
+                * bin_width_for_comparison
+                / 1000,
+                y=kilosort_spikes[np.where(kilosort_spikes[:, iUnit] >= 1)[0], iUnit]
+                + 0.5,
                 mode="markers",
                 name="Kilosort",
                 marker_symbol="line-ns",
@@ -379,8 +434,12 @@ def plot2(
         )
         fig.add_trace(
             go.Scatter(
-                x=np.where(ground_truth_spikes[:, iUnit] >= 1)[0] * bin_width_for_comparison / 1000,
-                y=ground_truth_spikes[np.where(ground_truth_spikes[:, iUnit] >= 1)[0], iUnit],
+                x=np.where(ground_truth_spikes[:, iUnit] >= 1)[0]
+                * bin_width_for_comparison
+                / 1000,
+                y=ground_truth_spikes[
+                    np.where(ground_truth_spikes[:, iUnit] >= 1)[0], iUnit
+                ],
                 mode="markers",
                 name="Ground Truth",
                 marker_symbol="line-ns",
@@ -441,8 +500,12 @@ def plot2(
         template=plot_template,
     )
 
-    left_bound = int(round(plot2_xlim[0] * len(kilosort_spikes) * bin_width_for_comparison / 1000))
-    right_bound = int(round(plot2_xlim[1] * len(kilosort_spikes) * bin_width_for_comparison / 1000))
+    left_bound = int(
+        round(plot2_xlim[0] * len(kilosort_spikes) * bin_width_for_comparison / 1000)
+    )
+    right_bound = int(
+        round(plot2_xlim[1] * len(kilosort_spikes) * bin_width_for_comparison / 1000)
+    )
     fig.update_xaxes(
         title_text="<b>Time (s)</b>",
         row=2 * num_motor_units,
@@ -452,18 +515,25 @@ def plot2(
 
     # remove y axes numbers from all plots
     fig.update_yaxes(showticklabels=False)
+    # get suffix after the KS folder name, which is the repo branch name for that sort
+    PPP_branch_name = list_of_paths_to_sorted_folders[0].name.split("_")[-1]
 
+    # append sort name instead of time stamp
     if save_png_plot2:
         fig.write_image(
-            f"KS_vs_GT_spike_trains_{bin_width_for_comparison}ms_{start_time.strftime('%Y%m%d_%H%M%S')}.png",
+            f"KS_vs_GT_spike_trains_{bin_width_for_comparison}ms_{sort_from_each_path_to_load}_{PPP_branch_name}.png",
+            width=figsize[0],
+            height=figsize[1],
+        )
+    if save_svg_plot2:
+        fig.write_image(
+            f"KS_vs_GT_spike_trains_{bin_width_for_comparison}ms_{sort_from_each_path_to_load}_{PPP_branch_name}.svg",
             width=figsize[0],
             height=figsize[1],
         )
     if save_html_plot2:
         fig.write_html(
-            f"KS_vs_GT_spike_trains_{bin_width_for_comparison}ms.html",
-            include_plotlyjs="cdn",
-            full_html=False,
+            f"KS_vs_GT_spike_trains_{bin_width_for_comparison}ms_{sort_from_each_path_to_load}_{PPP_branch_name}.html",
         )
     if show_plot2:
         fig.show()
@@ -476,9 +546,11 @@ def plot3(
     accuracy,
     num_motor_units,
     clusters_to_take_from,
+    sort_from_each_path_to_load,
     plot_template,
     show_plot3,
     save_png_plot3,
+    save_svg_plot3,
     save_html_plot3,
     figsize=(1920, 1080),
 ):
@@ -495,7 +567,9 @@ def plot3(
     )
 
     # interpolate within darker half the color map to get as many colors as there are motor units
-    precision_color_map = cl.interp(cl.scales["9"]["seq"]["Greens"][4:9], num_motor_units)
+    precision_color_map = cl.interp(
+        cl.scales["9"]["seq"]["Greens"][4:9], num_motor_units
+    )
     recall_color_map = cl.interp(cl.scales["9"]["seq"]["Oranges"][4:9], num_motor_units)
     accuracy_color_map = cl.interp(cl.scales["9"]["seq"]["Blues"][4:9], num_motor_units)
 
@@ -549,15 +623,24 @@ def plot3(
         # range=[0, 8],
     )
 
+    # get suffix after the KS folder name, which is the repo branch name for that sort
+    PPP_branch_name = list_of_paths_to_sorted_folders[0].name.split("_")[-1]
+
     if save_png_plot3:
         fig.write_image(
-            f"KS_vs_GT_bin_width_comparison_{start_time.strftime('%Y%m%d_%H%M%S')}.png",
+            f"KS_vs_GT_bin_width_comparison_{sort_from_each_path_to_load}_{PPP_branch_name}.png",
+            width=figsize[0],
+            height=figsize[1],
+        )
+    if save_svg_plot3:
+        fig.write_image(
+            f"KS_vs_GT_bin_width_comparison_{sort_from_each_path_to_load}_{PPP_branch_name}.svg",
             width=figsize[0],
             height=figsize[1],
         )
     if save_html_plot3:
         fig.write_html(
-            f"KS_vs_GT_bin_width_comparison.html",
+            f"KS_vs_GT_bin_width_comparison_{sort_from_each_path_to_load}_{PPP_branch_name}.html",
             include_plotlyjs="cdn",
             full_html=False,
         )
@@ -568,6 +651,7 @@ def plot3(
 if __name__ == "__main__":
     # set parameters
     parallel = True
+    use_custom_merge_clusters = False
     time_frame = [0, 1]  # must be between 0 and 1
     ephys_fs = 30000  # Hz
     # range from 0.125 ms to 8 ms in log2 increments
@@ -577,32 +661,52 @@ if __name__ == "__main__":
     iShow = 6
 
     nt0 = 61  # 2.033 ms
-    random_seed_entropy = (
-        218530072159092100005306709809425040261  # 75092699954400878964964014863999053929  # int
-    )
+    random_seed_entropy = 218530072159092100005306709809425040261  # 75092699954400878964964014863999053929  # int
     sorts_from_each_path_to_load = [
         ## simulated20221116:
+        # {
         # "20231011_185107"  # 1 std, 4 jitter
         # "20231011_195053"  # 2 std, 4 jitter
         # "20231011_201450"  # 4 std, 4 jitter
         # "20231011_202716"  # 8 std, 4 jitter
+        # } All in braces did not have channel delays reintroduced for continuous.dat
         ## simulated20221117:
+        # {
         # "20231027_183121"  # 1 std, 4 jitter, all MUsort options ON
         # "20231031_141254"  # 1 std, 4 jitter, all MUsort options ON, slightly better
-        "20231101_165306036638"  # 1 std, 4 jitter, optimal template selection routines OFF, Th=[1,0.5], spkTh=[-6]
+        # "20231103_160031096827"  # 1 std, 4 jitter, all MUsort options ON, ?
+        # "20231103_175840215876"  # 2 std, 8 jitter, all MUsort options ON, ?
+        # "20231103_164647242198"  # 2 std, 4 jitter, all MUsort options ON, custom_merge
+        # "20231105_192242190872"  # 2 std, 8 jitter, all MUsort options ON, except multi-threshold
+        # "20231101_165306036638"  # 1 std, 4 jitter, optimal template selection routines OFF, Th=[1,0.5], spkTh=[-6]
         # "20231101_164409249821"  # 1 std, 4 jitter, optimal template selection routines OFF, Th=[1,0.5], spkTh=[-2]
         # "20231101_164937098773"  # 1 std, 4 jitter, optimal template selection routines OFF, Th=[5,2], spkTh=[-6]
         # "20231101_164129797219"  # 1 std, 4 jitter, optimal template selection routines OFF, Th=[5,2], spkTh=[-2]
         # "20231101_165135058289"  # 1 std, 4 jitter, optimal template selection routines OFF, Th=[2,1], spkTh=[-6]
-    ]  # , ["20230923_125645"], ["20230923_125645"]]
+        # "20231102_175449741223"  # 1 std, 4 jitter, vanilla Kilosort, Th=[1,0.5], spkTh=[-6]
+        "20231103_184523634126"  # 2 std, 8 jitter, vanilla Kilosort, Th=[1,0.5], spkTh=[-6]
+        # "20231103_184518491799"  # 2 std, 8 jitter, vanilla Kilosort, Th=[2,1], spkTh=[-6]
+        # } All in braces did not have channel delays reintroduced for continuous.dat
+    ]
     clusters_to_take_from = {
+        # {
         "20231027_183121": [24, 2, 3, 1, 23, 26, 0, 4, 32, 27],
         "20231031_141254": [26, 4, 3, 1, 24, 28, 0, 2, 34, 29],
+        "20231103_160031096827": [21, 4, 3, 1, 14, 17, 0, 2, 20, 19],
+        "20231103_175840215876": [13, 5, 2, 1, 11, 14, 0, 4, 20, 17],
+        # [12, 4, 3, 1, 8, 10, 0, 2, 11, 9], # <- custom_merge
+        "20231103_164647242198": [20, 4, 3, 1, 15, 17, 0, 2, 22, 21],
         "20231101_165306036638": [35, 13, 11, 1, 29, 39, 0, 10, 37, 36],
         "20231101_164409249821": [26, 9, 7, 11, 23, 29, 0, 8, 30, 25],
         "20231101_164937098773": [22, 11, 5, 2, 21, 28, 1, 7, 25, 27],
         "20231101_164129797219": [25, 9, 7, 1, 24, 27, 0, 8, 29, 28],
         "20231101_165135058289": [21, 9, 3, 2, 19, 23, 0, 4, 28, 24],
+        "20231102_175449741223": [9, 48, 23, 24, 3, 4, 22, 0, 10, 13],
+        "20231103_184523634126": [17, 31, 14, 16, 18, 5, 13, 19, 6, 10],
+        "20231103_184518491799": [5, 35, 12, 15, 3, 6, 13, 0, 8, 28],
+        # ^ 28 is filler unit because it was not found          ^^^^
+        "20231105_192242190872": [26, 5, 2, 1, 18, 19, 0, 3, 22, 21],
+        # } All in braces did not have channel delays reintroduced for continuous.dat
     }
     # [ # godzilla 11-16-2022
     # [8, 5, 7, 1, 3, 2, 0, 6]  # 1 std, 4 jitter
@@ -619,6 +723,9 @@ if __name__ == "__main__":
     save_png_plot1 = False
     save_png_plot2 = False
     save_png_plot3 = False
+    save_svg_plot1 = True
+    save_svg_plot2 = True
+    save_svg_plot3 = True
     save_html_plot1 = False
     save_html_plot2 = False
     save_html_plot3 = False
@@ -640,7 +747,9 @@ if __name__ == "__main__":
     paths_to_each_myo_folder = []
     for iDir in paths_to_KS_session_folders:
         myo = [f for f in iDir.iterdir() if (f.is_dir() and f.name.endswith("_myo"))]
-        assert len(myo) == 1, "There should only be one _myo folder in each session folder"
+        assert (
+            len(myo) == 1
+        ), "There should only be one _myo folder in each session folder"
         paths_to_each_myo_folder.append(myo[0])
     # inside each _myo folder, find the folder name which constains sort_from_each_path_to_load string
     list_of_paths_to_sorted_folders = []
@@ -650,7 +759,14 @@ if __name__ == "__main__":
             for f in iPath.iterdir()
             if f.is_dir() and any(s in f.name for s in sorts_from_each_path_to_load)
         ]
-        assert len(matches) == 1, "There should only be one sort folder match in each _myo folder"
+        assert (
+            len(matches) == 1
+        ), "There should only be one sort folder match in each _myo folder"
+        if use_custom_merge_clusters:
+            # append the path to the custom_merge_clusters folder
+            list_of_paths_to_sorted_folders.append(
+                matches[0].joinpath("custom_merges/final_merge")
+            )
         list_of_paths_to_sorted_folders.append(matches[0])
 
     if parallel:
@@ -755,6 +871,7 @@ if __name__ == "__main__":
             accuracies[iShow],
             bin_widths_for_comparison[iShow],
             clusters_to_take_from[sorts_from_each_path_to_load[0]],
+            sorts_from_each_path_to_load[0],
             plot_template,
             show_plot1,
             save_png_plot1,
@@ -792,7 +909,9 @@ if __name__ == "__main__":
     print("\n")  # add a newline for readability
     print("Sort: ", sorts_from_each_path_to_load[0])
     unit_df = df()
-    unit_df["Unit"] = np.array(clusters_to_take_from[sorts_from_each_path_to_load[0]]).astype(int)
+    unit_df["Unit"] = np.array(
+        clusters_to_take_from[sorts_from_each_path_to_load[0]]
+    ).astype(int)
     unit_df["True Count"] = num_ground_truth_spikes[iShow]
     unit_df["KS Count"] = num_kilosort_spikes[iShow]
     unit_df["Precision"] = precisions[iShow]
@@ -802,13 +921,29 @@ if __name__ == "__main__":
     unit_df.set_index("Unit", inplace=True)
     print(unit_df)
     print("\n")  # add a newline for readability
-    # print lowest accuracy, limit to 3 decimal places
-    print(f"Lowest accuracy: {unit_df['Accuracy'].min():.3f}, Unit {unit_df['Accuracy'].idxmin()}")
+    # print lowest and highest accuracies, limit to 3 decimal places
+    print(
+        f"Lowest accuracy: {unit_df['Accuracy'].min():.3f}, Unit {unit_df['Accuracy'].idxmin()}"
+    )
+    print(
+        f"Highest accuracy: {unit_df['Accuracy'].max():.3f}, Unit {unit_df['Accuracy'].idxmax()}"
+    )
+
     # print average accuracy plus or minus standard deviation
-    print(f"Average accuracy: {unit_df['Accuracy'].mean():.3f} +/- {unit_df['Accuracy'].std():.3f}")
+    print(
+        f"Average accuracy: {unit_df['Accuracy'].mean():.3f} +/- {unit_df['Accuracy'].std():.3f}"
+    )
     # print average accuracy weighted by number of spikes in each unit
     print(
         f"Weighted average accuracy: {np.average(unit_df['Accuracy'], weights=unit_df['True Count']):.3f}"
+    )
+    # print average precision plus or minus standard deviation
+    print(
+        f"Average precision: {unit_df['Precision'].mean():.3f} +/- {unit_df['Precision'].std():.3f}"
+    )
+    # print average recall plus or minus standard deviation
+    print(
+        f"Average recall: {unit_df['Recall'].mean():.3f} +/- {unit_df['Recall'].std():.3f}"
     )
 
     if show_plot2 or save_png_plot2 or save_html_plot2:
@@ -824,6 +959,7 @@ if __name__ == "__main__":
             true_positive_spikes[iShow],
             bin_widths_for_comparison[iShow],
             clusters_to_take_from[sorts_from_each_path_to_load[0]],
+            sorts_from_each_path_to_load[0],
             plot_template,
             show_plot2,
             save_png_plot2,
@@ -843,6 +979,7 @@ if __name__ == "__main__":
             accuracies,
             num_motor_units,
             clusters_to_take_from[sorts_from_each_path_to_load[0]],
+            sorts_from_each_path_to_load[0],
             plot_template,
             show_plot3,
             save_png_plot3,

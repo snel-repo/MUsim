@@ -77,17 +77,17 @@ class MUsim:
         self.threshmax = 10
         if random_seed:
             if type(random_seed) == int:
-                print("random_seed is an integer.")
+                # print("random_seed is an integer.")
                 self.MUseed = random_seed
                 self.RNG = np.random.default_rng(self.MUseed)
                 self.MUseed_sqn = self.RNG.bit_generator._seed_seq
             elif type(random_seed) == np.random.SeedSequence:
-                print("random_seed is a SeedSequence object.")
+                # print("random_seed is a SeedSequence object.")
                 self.MUseed_sqn = random_seed
                 self.MUseed = self.MUseed_sqn.entropy
                 self.RNG = np.random.default_rng(self.MUseed_sqn.generate_state(1))
             elif type(random_seed) == np.random.Generator:
-                print("random_seed is a Generator object.")
+                # print("random_seed is a Generator object.")
                 self.RNG = random_seed
                 self.MUseed_sqn = self.RNG.bit_generator._seed_seq
                 self.MUseed = self.MUseed_sqn.entropy
@@ -100,7 +100,7 @@ class MUsim:
             self.MUseed = self.MUseed_sqn.entropy
             self.RNG = np.random.default_rng(self.MUseed_sqn.generate_state(1))
 
-        print(f"New MUsim object random seed entropy is: {self.MUseed}")
+        # print(f"New MUsim object random seed entropy is: {self.MUseed}")
         # generate random state with generate_state() method
 
     def __repr__(self):

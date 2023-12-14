@@ -86,22 +86,31 @@ def blend_arrays(array_list, Nsamp):
     if len(array_list) < 2:  # if only one array, return the unaltered array
         return array_list[0]
     blender_array = sigmoid(np.linspace(-12, 12, Nsamp))
-    blended_array = np.zeros(len(np.concatenate(array_list)) - Nsamp * (len(array_list) - 1))
+    blended_array = np.zeros(
+        len(np.concatenate(array_list)) - Nsamp * (len(array_list) - 1)
+    )
     len_prev_arrays = 0
     for ii, iArray in enumerate(array_list):
         len_this_array = len(iArray)
         if iArray is array_list[0]:
-            iArray[-Nsamp:] *= 1 - blender_array  # only blend the first array at the end
+            iArray[-Nsamp:] *= (
+                1 - blender_array
+            )  # only blend the first array at the end
             backward_shift = 0
         elif iArray is array_list[-1]:
-            iArray[:Nsamp] *= blender_array  # only blend the last array at the beginning
+            iArray[
+                :Nsamp
+            ] *= blender_array  # only blend the last array at the beginning
             backward_shift = Nsamp * ii
         else:  # blend both ends of the array for all other arrays
             iArray[:Nsamp] *= blender_array
             iArray[-Nsamp:] *= 1 - blender_array
             backward_shift = Nsamp * ii
         blended_array[
-            len_prev_arrays - backward_shift : len_prev_arrays - backward_shift + len_this_array
+            len_prev_arrays
+            - backward_shift : len_prev_arrays
+            - backward_shift
+            + len_this_array
         ] += iArray
         len_prev_arrays += len_this_array
     return blended_array
@@ -124,7 +133,7 @@ show_plotly_figures = False
 show_matplotlib_figures = False
 show_final_plotly_figure = False
 save_final_plotly_figure = True
-save_simulated_spikes = True
+save_simulated_spikes = False
 multiprocess = True  # set to True to run on multiple processes
 kinematics_fs = 125
 ephys_fs = 30000
@@ -135,23 +144,23 @@ num_chans_in_output = 24  # desired real number of channels in the output data
 # number determines noise power added to channels (e.g. 50), or set None to disable
 SNR_mode = "from_data"  # 'power' to compute desired SNR with power,'from_data' simulates from the real data values
 # target SNR value if "power", or factor to adjust SNR by if "from_data", or set None to disable
-adjust_SNR = 1
+adjust_SNR = 4
 # set 0 for no shape jitter, or a positive number for standard deviations of additive shape jitter
-shape_jitter_amount = 4
+shape_jitter_amount = 8
 # set None for random behavior, or a previous entropy int value to reproduce
-random_seed_entropy = (
-    218530072159092100005306709809425040261  # 75092699954400878964964014863999053929  # None
-)
+random_seed_entropy = 218530072159092100005306709809425040261  # 75092699954400878964964014863999053929  # None
 if random_seed_entropy is None:
     random_seed_entropy = np.random.SeedSequence().entropy
 RNG = np.random.default_rng(random_seed_entropy)  # create a random number generator
 
 # set plotting parameters
-time_frame = [0, 1]  # time frame to plot, fractional bounds of 0 to 1
+time_frame = [0, 0.05]  # time frame to plot, fractional bounds of 0 to 1
 plot_template = "plotly_white"
 
 # check inputs
-assert type(kinematics_fs) is int and kinematics_fs > 0, "kinematics_fs must be a positive integer"
+assert (
+    type(kinematics_fs) is int and kinematics_fs > 0
+), "kinematics_fs must be a positive integer"
 assert type(ephys_fs) is int and ephys_fs > 0, "ephys_fs must be a positive integer"
 assert (
     type(shape_jitter_amount) in [int, float] and shape_jitter_amount >= 0
@@ -160,7 +169,8 @@ assert (type(adjust_SNR) in [int, float] and adjust_SNR >= 0) or (
     adjust_SNR is None
 ), "adjust_SNR must be a positive number or None"
 assert time_frame[0] >= 0 and time_frame[1] <= 1 and time_frame[0] < time_frame[1], (
-    "time_frame must be a list of two numbers between 0 and 1, " "with the first number smaller"
+    "time_frame must be a list of two numbers between 0 and 1, "
+    "with the first number smaller"
 )
 
 
@@ -188,8 +198,12 @@ anipose_folder = Path("/snel/share/data/anipose/analysis20230830_godzilla/")
 
 # load the csv file into a pandas dataframe and get numpy array of chosen bodypart
 kinematic_csv_folder_path = anipose_folder.joinpath("pose-3d")
-files = [f for f in kinematic_csv_folder_path.iterdir() if f.is_file() and f.suffix == ".csv"]
-kinematic_csv_file_paths = [f for f in files if any(s in f.name for s in anipose_sessions_to_load)]
+files = [
+    f for f in kinematic_csv_folder_path.iterdir() if f.is_file() and f.suffix == ".csv"
+]
+kinematic_csv_file_paths = [
+    f for f in files if any(s in f.name for s in anipose_sessions_to_load)
+]
 print(f"Taking kinematic data from: \n{[f.name for f in kinematic_csv_file_paths]}")
 kinematic_dataframes = [pd.read_csv(f) for f in kinematic_csv_file_paths]
 chosen_bodypart_arrays = [
@@ -300,7 +314,9 @@ interp_final_force_array = signal.resample(
 ## load the spike history kernel csv's and plot them with plotly express to compare in 2 subplots
 # load each csv file into a pandas dataframe
 # MU_spike_history_kernel_path = Path(__file__).parent.joinpath("spike_history_kernel_basis_MU.csv")
-orig_spike_history_kernel_path = Path(__file__).parent.joinpath("spike_history_kernel_basis.csv")
+orig_spike_history_kernel_path = Path(__file__).parent.joinpath(
+    "spike_history_kernel_basis.csv"
+)
 
 # MU_spike_history_kernel_df = pd.read_csv(MU_spike_history_kernel_path)
 orig_spike_history_kernel_df = pd.read_csv(orig_spike_history_kernel_path)
@@ -375,7 +391,9 @@ for iPath in paths_to_each_myo_folder:
         for f in iPath.iterdir()
         if f.is_dir() and any(s in f.name for s in sorts_from_each_path_to_load)
     ]
-    assert len(matches) == 1, "There should only be one sort folder match in each _myo folder"
+    assert (
+        len(matches) == 1
+    ), "There should only be one sort folder match in each _myo folder"
     list_of_paths_to_sorted_folders.append(matches[0])
 
 rez_list = [
@@ -420,7 +438,9 @@ mu.sample_rate = ephys_fs  # 30000 Hz
 mu.threshmin = np.percentile(interp_final_force_array, 40)
 # fixed maximum force threshold for the generated units' response curves. Tune this for upper
 # bound of force thresholds sampled in the distribution of MUs during MU_sample()
-mu.threshmax = 2 * np.max(interp_final_force_array)  # np.percentile(interp_final_force_array, 99)
+mu.threshmax = 2 * np.max(
+    interp_final_force_array
+)  # np.percentile(interp_final_force_array, 99)
 mu.sample_MUs()
 
 # now create N copies of the MUsim object
@@ -428,10 +448,17 @@ chunk_size = 7500 / 2  # number of samples to process in each multiprocessing pr
 if multiprocess:
     import multiprocessing
 
-    N_processes = int(np.hstack(chosen_bodypart_arrays).shape[0] / chunk_size)
-    print(f"Using {N_processes} processes to simulate spikes in parallel")
-    mu_list = [mu.copy() for i in range(N_processes)]  # identical copies of the MUsim object
-    interp_final_force_array_segments = np.array_split(interp_final_force_array, N_processes)
+    N_processes = int(np.ceil(np.hstack(chosen_bodypart_arrays).shape[0] / chunk_size))
+    if N_processes > 1:
+        print(f"Using {N_processes} processes to simulate spikes in parallel")
+    else:
+        print(f"Using {N_processes} process to simulate spikes")
+    mu_list = [
+        mu.copy() for i in range(N_processes)
+    ]  # identical copies of the MUsim object
+    interp_final_force_array_segments = np.array_split(
+        interp_final_force_array, N_processes
+    )
     with multiprocessing.Pool(processes=N_processes) as pool:
         # cut interp_final_force_array into N processes segments
         # use starmap to pass multiple arguments to the batch_run_MUsim function
@@ -453,7 +480,9 @@ if multiprocess:
     assert all([np.all(i.units[0] == results[0].units[0]) for i in results])
     mu.units[0] = results[0].units[0]  # then use the first units[0] as the new units[0]
     try:
-        mu.units[1] = np.hstack([i.units[1] for i in results])  # stack the unit response curves
+        mu.units[1] = np.hstack(
+            [i.units[1] for i in results]
+        )  # stack the unit response curves
     except ValueError:
         # concatenate the unit response curves if they are different lengths using minimum length
         min_length = min([len(i.units[1]) for i in results])
@@ -477,7 +506,10 @@ if show_matplotlib_figures:
 
 # save spikes from simulation if user does not ^C
 kinematic_csv_file_name = "_".join(
-    (kinematic_csv_file_paths[0].stem.split("-")[0], kinematic_csv_file_paths[0].stem.split("_")[1])
+    (
+        kinematic_csv_file_paths[0].stem.split("-")[0],
+        kinematic_csv_file_paths[0].stem.split("_")[1],
+    )
 )  # just get the date and rat name
 if save_simulated_spikes:
     mu.save_spikes(
@@ -552,9 +584,13 @@ for iUnit, iCount in enumerate(spike_counts_for_each_unit):
         jitter_mat if shape_jitter_amount else 0
     )  # additive shape jitter
     for iSpike in range(iCount):
-        iSpike_U = iUnit_U[iSpike, :, :]  # get the weights for each channel for this spike
+        iSpike_U = iUnit_U[
+            iSpike, :, :
+        ]  # get the weights for each channel for this spike
         # now project from the templates to create the waveform shape for each spike time
-        spike_snippets_to_place[iUnit, iSpike, :, :] = np.dot(W_good[0][:, iUnit, :], iSpike_U.T)
+        spike_snippets_to_place[iUnit, iSpike, :, :] = np.dot(
+            W_good[0][:, iUnit, :], iSpike_U.T
+        )
 
 # multiply all waveforms by a Tukey window to make the edges go to zero
 tukey_window = signal.windows.tukey(nt0, 0.25)
@@ -582,9 +618,9 @@ for iUnit, iCount in enumerate(spike_counts_for_each_unit):
             # only include the part of the waveform shape that fits in the recording
             if iSpike_time - nt0 // 2 < 0:
                 underflow_amount = nt0 // 2 - iSpike_time
-                continuous_dat[: iSpike_time + nt0 // 2 + 1, :] += spike_snippets_to_place[
-                    iUnit, iSpike, underflow_amount:, :
-                ]
+                continuous_dat[
+                    : iSpike_time + nt0 // 2 + 1, :
+                ] += spike_snippets_to_place[iUnit, iSpike, underflow_amount:, :]
             elif iSpike_time + nt0 // 2 + 1 > continuous_dat.shape[0]:
                 overflow_amount = iSpike_time + nt0 // 2 + 1 - continuous_dat.shape[0]
                 continuous_dat[iSpike_time - nt0 // 2 :, :] += spike_snippets_to_place[
@@ -618,13 +654,15 @@ if adjust_SNR is not None:
             chan_map_adj_list[0]["Gaussian_STDs"][0], device=device
         )
         Gaussian_STDs_of_data = (
-            Gaussian_STDs_of_data[0 : num_chans_with_data + num_dummy_chans] * adjust_SNR
+            Gaussian_STDs_of_data[0 : num_chans_with_data + num_dummy_chans]
+            * adjust_SNR
         )  # multiply by factor of adjust_SNR
         Gaussian_STDs_of_data[num_chans_with_data:] = 0
         # target MAD of data should be to get within 1% of Gaussian_STDs_of_data values
         # initialize it
         MAD_k = torch.median(
-            torch.abs(torch_continuous_dat - torch.mean(torch_continuous_dat, axis=0)), axis=0
+            torch.abs(torch_continuous_dat - torch.mean(torch_continuous_dat, axis=0)),
+            axis=0,
         )
         # get the Gaussian noise standard deviation of the data
         Gaussian_STDs_of_sim = MAD_k.values / 0.6745
@@ -642,7 +680,10 @@ if adjust_SNR is not None:
             )
             # get the median absolute deviation of the data
             MAD_k = torch.median(
-                torch.abs(torch_continuous_dat_out - torch.mean(torch_continuous_dat_out, axis=0)),
+                torch.abs(
+                    torch_continuous_dat_out
+                    - torch.mean(torch_continuous_dat_out, axis=0)
+                ),
                 axis=0,
             )
             # get the Gaussian noise standard deviation of the data
@@ -661,8 +702,10 @@ if adjust_SNR is not None:
         optimizer = torch.optim.Adam([new_noise_STD], lr=0.001)
         loss_BGD = []
 
-        for i in range(400):
-            Gaussian_STDs_of_sim, torch_continuous_dat_out = forward(torch_continuous_dat)
+        for i in range(1000):
+            Gaussian_STDs_of_sim, torch_continuous_dat_out = forward(
+                torch_continuous_dat
+            )
             loss = criterion(Gaussian_STDs_of_sim, Gaussian_STDs_of_data)
             loss_BGD.append(loss.item())
             loss.backward()
@@ -677,7 +720,8 @@ if adjust_SNR is not None:
                 print(f"Gaussian_STDs_of_data: {Gaussian_STDs_of_data}")
             # ignore nan values, but make sure all equal to or less than 1% of Gaussian_STDs_of_data
             if (
-                torch.abs(Gaussian_STDs_of_sim - Gaussian_STDs_of_data) / Gaussian_STDs_of_data
+                torch.abs(Gaussian_STDs_of_sim - Gaussian_STDs_of_data)
+                / Gaussian_STDs_of_data
                 <= 0.01
             )[:num_chans_with_data].all():
                 print("Gaussian_STDs_of_sim is less than 1% of Gaussian_STDs_of_data")
@@ -699,7 +743,9 @@ if adjust_SNR is not None:
         # now add Gaussian noise to the data
         noise_std_with_dummies = np.zeros(num_chans_in_recording)
         noise_std_with_dummies[0:num_chans_with_data] = noise_std
-        continuous_dat += RNG.normal(0, 2 * noise_std_with_dummies, continuous_dat.shape)
+        continuous_dat += RNG.normal(
+            0, 2 * noise_std_with_dummies, continuous_dat.shape
+        )
     # elif SNR_mode == "mean_waveforms":
     #     # mean subtract each channel, take absolute value, then take median for each channel
     #     MAD_k = np.median(np.abs(continuous_dat - np.mean(continuous_dat, axis=0)), axis=0)
@@ -738,10 +784,21 @@ outside_spike_band_power = low_band_power + high_band_power
 computed_SNR = spike_band_power / outside_spike_band_power
 print(f"Computed SNR: {computed_SNR}")
 
+# finally use ops variable channelDelays to reapply the original channel delays to the data
+channel_delays_to_apply = ops_list[0]["channelDelays"][0]
+for iChan in range(num_chans_with_data):
+    continuous_dat[:, iChan] = np.roll(
+        continuous_dat[:, iChan], -channel_delays_to_apply[iChan]
+    )
+
+continuous_dat *= 200  # scale for Kilosort
+
 if show_final_plotly_figure or save_final_plotly_figure:
     # now plot the continuous.dat array with plotly graph objects
     # first, create a time vector for ephys to plot against
-    ephys_time_axis = np.linspace(0, len(continuous_dat) / ephys_fs, len(continuous_dat))
+    ephys_time_axis = np.linspace(
+        0, len(continuous_dat) / ephys_fs, len(continuous_dat)
+    )
     # second, create a time vector for kinematics to plot against
     force_time_axis = np.linspace(
         0, len(blended_chosen_array) / kinematics_fs, len(blended_chosen_array)
@@ -821,13 +878,24 @@ if show_final_plotly_figure or save_final_plotly_figure:
         template=plot_template,
     )
     fig.update_yaxes(title_text="Simulated Force", row=1, col=1)
-    fig.update_yaxes(title_text="Simulated Voltage (μV)", row=num_chans_with_data // 2 + 2, col=1)
-    fig.update_yaxes(title_text="MUsim Object Spike Times", row=num_chans_with_data + 2, col=1)
+    fig.update_yaxes(
+        title_text="Simulated Voltage (μV)", row=num_chans_with_data // 2 + 2, col=1
+    )
+    fig.update_yaxes(
+        title_text="MUsim Object Spike Times", row=num_chans_with_data + 2, col=1
+    )
 
     fig.update_xaxes(title_text="Time (s)", row=num_chans_with_data + 2, col=1)
 
     if save_final_plotly_figure:
-        fig.write_html(f"{kinematic_csv_file_name}_using_{chosen_bodypart_to_load}.html")
+        fig.write_image(
+            f"{kinematic_csv_file_name}_using_{chosen_bodypart_to_load}.svg",
+            width=1920,
+            height=1080,
+        )
+        # fig.write_html(
+        #     f"{kinematic_csv_file_name}_using_{chosen_bodypart_to_load}.html"
+        # )
     if show_final_plotly_figure:
         print("Showing final plotly figure...")
         fig.show()
@@ -837,7 +905,9 @@ if num_chans_in_output > num_chans_in_recording:
     continuous_dat = np.hstack(
         (
             continuous_dat,
-            np.zeros((len(continuous_dat), num_chans_in_output - num_chans_in_recording)),
+            np.zeros(
+                (len(continuous_dat), num_chans_in_output - num_chans_in_recording)
+            ),
         )
     )
 elif num_chans_in_output < num_chans_in_recording:
@@ -845,10 +915,14 @@ elif num_chans_in_output < num_chans_in_recording:
 
 # now save the continuous.dat array as a binary file
 # first, convert to int16
-continuous_dat *= 200  # scale for Kilosort
+# continuous_dat *= 200  # scale for Kilosort
 continuous_dat = continuous_dat.astype(np.int16)
 print(f"Continuous.dat shape: {continuous_dat.shape}")
 print(f"Overall recording length: {len(continuous_dat) / ephys_fs} seconds")
+
+# fig_tmp = px.line(continuous_dat[:30000, :num_chans_with_data])
+# fig_tmp.show()
+
 # now save as binary file in int16 format, where elements are 2 bytes, and samples from each channel
 # are interleaved, such as: [chan1_sample1, chan2_sample1, chan3_sample1, ...]
 # save simulation properties in continuous.dat file name
