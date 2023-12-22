@@ -96,8 +96,8 @@ def compare_spike_trains(
     # use the shift to align the spike trains
     # use the aligned spike trains to compute the metrics
 
-    min_delay_ms = -0.5  # ms
-    max_delay_ms = 0.5  # ms
+    min_delay_ms = -1  # ms
+    max_delay_ms = 1  # ms
     min_delay_samples = int(round(min_delay_ms * ephys_fs / 1000))
     max_delay_samples = int(round(max_delay_ms * ephys_fs / 1000))
 
@@ -384,6 +384,7 @@ def plot2(
     sort_from_each_path_to_load,
     plot_template,
     show_plot2,
+    plot2_xlim,
     save_png_plot2,
     save_svg_plot2,
     save_html_plot2,
@@ -404,6 +405,15 @@ def plot2(
         subplot_titles=subtitles,
         specs=[[{"secondary_y": True}] for i in range(2 * num_motor_units)],
     )
+
+    # cut all arrays short by the factor of plot2_xlim
+    left_bound = int(round(plot2_xlim[0] * len(kilosort_spikes)))
+    right_bound = int(round(plot2_xlim[1] * len(kilosort_spikes)))
+    kilosort_spikes = kilosort_spikes[left_bound:right_bound, :]
+    ground_truth_spikes = ground_truth_spikes[left_bound:right_bound, :]
+    false_positive_spikes = false_positive_spikes[left_bound:right_bound, :]
+    false_negative_spikes = false_negative_spikes[left_bound:right_bound, :]
+    true_positive_spikes = true_positive_spikes[left_bound:right_bound, :]
 
     for iUnit in range(num_motor_units):
         # add event plots of the kilosort and ground truth spikes, color units according to rainbow
@@ -500,12 +510,6 @@ def plot2(
         template=plot_template,
     )
 
-    left_bound = int(
-        round(plot2_xlim[0] * len(kilosort_spikes) * bin_width_for_comparison / 1000)
-    )
-    right_bound = int(
-        round(plot2_xlim[1] * len(kilosort_spikes) * bin_width_for_comparison / 1000)
-    )
     fig.update_xaxes(
         title_text="<b>Time (s)</b>",
         row=2 * num_motor_units,
@@ -652,6 +656,7 @@ if __name__ == "__main__":
     # set parameters
     parallel = True
     use_custom_merge_clusters = False
+    automatically_assign_cluster_mapping = True
     time_frame = [0, 1]  # must be between 0 and 1
     ephys_fs = 30000  # Hz
     # range from 0.125 ms to 8 ms in log2 increments
@@ -660,8 +665,44 @@ if __name__ == "__main__":
     # index of which bin width of bin_widths_for_comparison to show in plots
     iShow = 6
 
-    nt0 = 61  # 2.033 ms
+    nt0 = 121  # number of time bins in the template, in ms it is 3.367
     random_seed_entropy = 218530072159092100005306709809425040261  # 75092699954400878964964014863999053929  # int
+    plot_template = "plotly_white"
+    plot2_xlim = [0, 0.1]
+    show_plot1 = False
+    show_plot2 = False
+    show_plot3 = False
+    save_png_plot1 = True
+    save_png_plot2 = True
+    save_png_plot3 = False
+    save_svg_plot1 = False
+    save_svg_plot2 = False
+    save_svg_plot3 = False
+    save_html_plot1 = False
+    save_html_plot2 = True
+    save_html_plot3 = False
+
+    ## paths with simulated data
+    path_to_sim_dat = Path(
+        "continuous_20221117_godzilla_SNR-400-constant_jitter-0std_files-11.dat"
+    )  # continuous_20221117_godzilla_SNR-None-constant_jitter-0std_files-11.dat
+
+    ## load ground truth data
+    ground_truth_path = Path(
+        "spikes_20221117_godzilla_SNR-400-constant_jitter-0std_files-11.npy"
+        # "spikes_20221117_godzilla_SNR-1-from_data_jitter-4std_files-11.npy"
+        # "spikes_20221117_godzilla_SNR-1-from_data_jitter-1std_files-5.npy"
+        # "spikes_20221116_godzilla_SNR-8-from_data_jitter-4std_files-1.npy"
+    )  # spikes_20221116_godzilla_SNR-None_jitter-0std_files-1.npy
+    ## load Kilosort data
+    # paths to the folders containing the Kilosort data
+    paths_to_KS_session_folders = [
+        Path(
+            # "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/godzilla/simulated20221116/"
+            # "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/godzilla/simulated20221117/"
+            "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/triple/simulated20231219/"
+        ),
+    ]
     sorts_from_each_path_to_load = [
         ## simulated20221116:
         # {
@@ -684,9 +725,13 @@ if __name__ == "__main__":
         # "20231101_164129797219"  # 1 std, 4 jitter, optimal template selection routines OFF, Th=[5,2], spkTh=[-2]
         # "20231101_165135058289"  # 1 std, 4 jitter, optimal template selection routines OFF, Th=[2,1], spkTh=[-6]
         # "20231102_175449741223"  # 1 std, 4 jitter, vanilla Kilosort, Th=[1,0.5], spkTh=[-6]
-        "20231103_184523634126"  # 2 std, 8 jitter, vanilla Kilosort, Th=[1,0.5], spkTh=[-6] $$$ BEST Kilosort3 $$$
+        # "20231103_184523634126"  # 2 std, 8 jitter, vanilla Kilosort, Th=[1,0.5], spkTh=[-6] $$$ BEST Kilosort3 $$$
         # "20231103_184518491799"  # 2 std, 8 jitter, vanilla Kilosort, Th=[2,1], spkTh=[-6]
         # } All in braces did not have channel delays reintroduced for continuous.dat
+        #### Below are with new 16 channel, triple rat dataset.
+        # simulated20231219:
+        "20231220_180513756759"  # SNR-400-constant_jitter-0std_files-11, vanilla Kilosort, Th=[10,4], spkTh=[-6]
+        # "20231220_172352030313"  # SNR-400-constant_jitter-0std_files-11, EMUsort, Th=[5,2], spkTh=[-3,-6]
     ]
     clusters_to_take_from = {
         # {
@@ -707,6 +752,61 @@ if __name__ == "__main__":
         # ^ 28 is filler unit because it was not found          ^^^^
         "20231105_192242190872": [26, 5, 2, 1, 18, 19, 0, 3, 22, 21],
         # } All in braces did not have channel delays reintroduced for continuous.dat
+        #### Below are with new 16 channel, triple rat dataset.
+        "20231220_180513756759": [
+            39,
+            99,
+            103,
+            89,
+            0,
+            30,
+            2,
+            29,
+            110,
+            79,
+            6,
+            69,
+            119,
+            112,
+            3,
+            88,
+            130,
+            56,
+            28,
+            129,
+            117,
+            58,
+            13,
+            96,
+            15,
+        ],  # 39 and also below 129 are filler units because they were not found
+        "20231220_172352030313": [
+            5,
+            53,
+            82,
+            83,
+            7,
+            51,
+            21,
+            2,
+            24,
+            55,
+            54,
+            20,
+            22,
+            40,
+            52,
+            56,
+            59,
+            71,
+            58,
+            48,
+            66,
+            37,
+            44,
+            19,
+            33,
+        ],  # 33 is filler unit because it was not found
     }
     # [ # godzilla 11-16-2022
     # [8, 5, 7, 1, 3, 2, 0, 6]  # 1 std, 4 jitter
@@ -714,42 +814,18 @@ if __name__ == "__main__":
     # [8, 5, 7, 1, 3, 4, 0, 6]  # 4 std, 4 jitter
     # [9, 3, 7, 1, 2, 8, 0, 6]  # 8 std, 4 jitter
     # ]  # [[18, 2, 11, 0, 4, 10, 1, 9]]  # list of lists
-    num_motor_units = len(clusters_to_take_from[sorts_from_each_path_to_load[0]])
-    plot_template = "plotly_white"
-    plot2_xlim = [0, 0.1]
-    show_plot1 = False
-    show_plot2 = False
-    show_plot3 = False
-    save_png_plot1 = False
-    save_png_plot2 = False
-    save_png_plot3 = False
-    save_svg_plot1 = True
-    save_svg_plot2 = True
-    save_svg_plot3 = True
-    save_html_plot1 = False
-    save_html_plot2 = False
-    save_html_plot3 = False
-    ## load ground truth data
-    ground_truth_path = Path(
-        "spikes_20221117_godzilla_SNR-1-from_data_jitter-4std_files-11.npy"
-        # "spikes_20221117_godzilla_SNR-1-from_data_jitter-1std_files-5.npy"
-        # "spikes_20221116_godzilla_SNR-8-from_data_jitter-4std_files-1.npy"
-    )  # spikes_20221116_godzilla_SNR-None_jitter-0std_files-1.npy
-    ## load Kilosort data
-    # paths to the folders containing the Kilosort data
-    paths_to_KS_session_folders = [
-        Path(
-            # "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/godzilla/simulated20221116/"
-            "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/godzilla/simulated20221117/"
-        ),
-    ]
+
+    clusters_in_sort_to_use = clusters_to_take_from[sorts_from_each_path_to_load[0]]
+    num_motor_units = len(clusters_in_sort_to_use)
+    true_spike_counts_for_each_cluster = np.load(str(ground_truth_path)).sum(axis=0)
+
     # find the folder name which ends in _myo and append to the paths_to_session_folders
     paths_to_each_myo_folder = []
     for iDir in paths_to_KS_session_folders:
         myo = [f for f in iDir.iterdir() if (f.is_dir() and f.name.endswith("_myo"))]
         assert (
             len(myo) == 1
-        ), "There should only be one _myo folder in each session folder"
+        ), f"There should only be one _myo folder in each session folder, but there were {len(myo)} in {iDir}"
         paths_to_each_myo_folder.append(myo[0])
     # inside each _myo folder, find the folder name which constains sort_from_each_path_to_load string
     list_of_paths_to_sorted_folders = []
@@ -761,7 +837,7 @@ if __name__ == "__main__":
         ]
         assert (
             len(matches) == 1
-        ), "There should only be one sort folder match in each _myo folder"
+        ), f"There should only be one sort folder match in each _myo folder, but there were {len(matches)} in {iPath}"
         if use_custom_merge_clusters:
             # append the path to the custom_merge_clusters folder
             list_of_paths_to_sorted_folders.append(
@@ -769,6 +845,239 @@ if __name__ == "__main__":
             )
         list_of_paths_to_sorted_folders.append(matches[0])
 
+    if automatically_assign_cluster_mapping:
+        # automatically assign cluster mapping by extracting the waves at the spike times for all
+        # clusters, getting the median waveform for each cluster using both groundtruth and the sort
+        # by using the respective spike times, then computing the correlation between each cluster's
+        # median wave and the median waves of the ground truth clusters, pairing the clusters with
+        # the highest correlation match, and then using those pairs to reorder the clusters
+        # in 'clusters_to_take_from' to match the ground truth clusters
+        # also need to be sure to check all lags between the ground truth and the sort median waves
+        # to make sure that the correlation is not being computed between two waves that are
+        # misaligned in time, which would result in an errantly and artificially low correlation
+        spike_times_list = [
+            np.load(str(path_to_sorted_folder.joinpath("spike_times.npy"))).flatten()
+            for path_to_sorted_folder in list_of_paths_to_sorted_folders
+        ]
+
+        spike_clusters_list = [
+            np.load(str(path_to_sorted_folder.joinpath("spike_clusters.npy"))).flatten()
+            for path_to_sorted_folder in list_of_paths_to_sorted_folders
+        ]
+
+        # clusters_in_sort_to_use = np.unique(
+        #     spike_clusters_list[0]
+        # )  # take all clusters in the first sort
+
+        # get the spike times for each cluster
+        spike_times = spike_times_list[0]
+        spike_clusters = spike_clusters_list[0]
+
+        # drop any clusters with <300 spikes
+        # clusters_in_sort_to_use = clusters_in_sort_to_use[
+        #     np.array(
+        #         [
+        #             np.sum(spike_clusters == iCluster) >= 300
+        #             for iCluster in clusters_in_sort_to_use
+        #         ]
+        #     ).astype(int)
+        # ]
+
+        # get the spike times for each cluster
+        spike_times_for_each_cluster = [
+            spike_times[spike_clusters == iCluster]
+            for iCluster in clusters_in_sort_to_use
+        ]
+
+        # load and reshape into numchans x whatever (2d array) the data.bin file
+        sim_ephys_data = np.memmap(
+            str(path_to_sim_dat), dtype="int16", mode="r"
+        ).reshape(
+            -1, 24
+        )  ### WARNING HARDCODED 24 CHANNELS ### !!!
+
+        # only take the first 16 channels, last 8 are dummy channels
+        sim_ephys_data = sim_ephys_data[:, :16]
+
+        # get the spike snippets for each cluster
+        spike_snippets_for_each_cluster = [
+            np.array(
+                [
+                    sim_ephys_data[
+                        int(iSpike_time - nt0 // 2) : int(iSpike_time + nt0 // 2 + 1),
+                        :,
+                    ]
+                    for iSpike_time in iCluster_spike_times
+                ]
+            )
+            for iCluster_spike_times in spike_times_for_each_cluster
+        ]  # dimensions are (num_spikes, nt0, num_chans_in_recording)
+        # get the median waveform shape for each cluster, but standardize the waveforms
+        # before computing the median
+        standardized_spike_snippets_for_each_cluster = [
+            (iCluster_snippets - np.mean(iCluster_snippets)) / np.std(iCluster_snippets)
+            for iCluster_snippets in spike_snippets_for_each_cluster
+        ]
+        median_spike_snippets_for_each_cluster = [
+            np.median(iCluster_snippets, axis=0)
+            for iCluster_snippets in standardized_spike_snippets_for_each_cluster
+        ]
+
+        # now do the same for the ground truth spikes. Load the ground truth spike times
+        # which are 1's and 0's, where 1's indicate a spike and 0's indicate no spike
+        # each column is a different unit, and row is a different time point in the recording
+        # now extract the waves at the spike times for all clusters, get the GT median waveform
+        # get the spike times for each cluster with np.where, but make
+        ground_truth_spike_times = np.load(str(ground_truth_path))
+        GT_spike_times_for_each_cluster = [
+            np.where(ground_truth_spike_times[:, iCluster] == 1)[0]
+            for iCluster in range(ground_truth_spike_times.shape[1])
+        ]
+        # get the spike snippets for each cluster in the ground truth
+        spike_snippets_for_each_cluster_ground_truth = []
+        median_spike_snippets_for_each_cluster_ground_truth = []
+        for iCluster in range(len(GT_spike_times_for_each_cluster)):
+            spike_snippets_for_each_cluster_ground_truth.append([])
+            # get the spike snippets for each cluster
+            for iSpike_time in GT_spike_times_for_each_cluster[iCluster]:
+                if iSpike_time - nt0 // 2 >= 0 and iSpike_time + nt0 // 2 + 1 <= len(
+                    sim_ephys_data
+                ):
+                    spike_snippets_for_each_cluster_ground_truth[iCluster].append(
+                        sim_ephys_data[
+                            int(iSpike_time - nt0 // 2) : int(
+                                iSpike_time + nt0 // 2 + 1
+                            ),
+                            :,
+                        ]
+                    )
+            spike_snippets_for_each_cluster_ground_truth[iCluster] = np.array(
+                spike_snippets_for_each_cluster_ground_truth[iCluster]
+            )
+
+            # get the median waveform shape for each cluster, but standardize the waveforms
+            # before computing the median
+            standardized_spike_snippets_for_each_cluster_ground_truth = (
+                spike_snippets_for_each_cluster_ground_truth[iCluster]
+                - np.mean(spike_snippets_for_each_cluster_ground_truth[iCluster])
+            ) / np.std(spike_snippets_for_each_cluster_ground_truth[iCluster])
+
+            median_spike_snippets_for_each_cluster_ground_truth.append(
+                np.median(
+                    standardized_spike_snippets_for_each_cluster_ground_truth, axis=0
+                )
+            )
+        # now compute the correlation between each cluster's median wave
+        # and the median waves of the ground truth clusters, pairing the clusters with the highest
+        # correlation match and then using those pairs to reorder the clusters in
+        # 'clusters_to_take_from' to match the ground truth clusters
+        # once a high correlation is found, remove that cluster from the future correlation calculations
+        # so that it cannot be paired with another cluster
+        # need to compute correlation for all lags and take highest correlation to ensure success
+        # even if the ground truth and the sort are misaligned in time
+        # use scipy.signal.correlate
+        GT_clusters_iter = list(
+            range(len(median_spike_snippets_for_each_cluster_ground_truth))
+        )
+        cluster_mapping = dict()
+        new_cluster_ordering = np.nan * np.ones(
+            len(median_spike_snippets_for_each_cluster_ground_truth)
+        )
+        sort_clust_IDs_weighted_corr_score_dict = dict()
+        for iCluster in range(len(median_spike_snippets_for_each_cluster)):
+            if len(GT_clusters_iter) == 0:
+                break
+            # initialize a list of correlations for each cluster
+            correlations = []
+            for iCluster_ground_truth in GT_clusters_iter:
+                # initialize a list of correlations for each lag
+                correlations_for_each_lag = []
+                for iLag in range(-nt0 // 2, nt0 // 2 + 1):
+                    # compute the correlation between the two median waves
+                    correlations_for_each_lag.append(
+                        np.corrcoef(
+                            np.roll(
+                                median_spike_snippets_for_each_cluster[
+                                    iCluster
+                                ].T.flatten(),
+                                iLag,
+                                axis=0,
+                            ),
+                            median_spike_snippets_for_each_cluster_ground_truth[
+                                iCluster_ground_truth
+                            ].T.flatten(),
+                        )[0, 1]
+                    )
+                # append the highest correlation for this cluster
+                correlations.append(np.max(correlations_for_each_lag))
+                # scale correlations by the accuracy of the spike count compared to the true spike count
+                # this is to prevent a cluster with a very low spike count from being matched to a cluster
+                # with a very high spike count, which might have a high correlation but is not a good match
+                # because the spike counts are so different
+                # equation is: exp( abs( true spike count - sort spike count ) / (2 * true spike count^2) )
+                # which will be 1 if the spike counts are the same, and will be 0 if the spike counts are
+                # very different, with a sigma equal to the true spike count to prevent a cluster with a
+                # dramatically different spike count from being matched
+                spike_count_match_score = np.exp(
+                    -(
+                        (
+                            np.abs(
+                                true_spike_counts_for_each_cluster[
+                                    iCluster_ground_truth
+                                ]
+                                - spike_times_for_each_cluster[iCluster].shape[0]
+                            )
+                        )
+                        ** 2
+                    )
+                    / (
+                        2
+                        * (true_spike_counts_for_each_cluster[iCluster_ground_truth])
+                        ** 2
+                    )
+                )
+                # # if len(GT_clusters_iter) == len(
+                # #     median_spike_snippets_for_each_cluster_ground_truth
+                # # ):  # print only for the first sort cluster
+                # #     print(
+                # #         f"With a true count of {true_spike_counts_for_each_cluster[iCluster_ground_truth]} and a sort count of {spike_times_for_each_cluster[iCluster].shape[0]}, the spike count match score is {spike_count_match_score}"
+                # #     )
+                # #     print(
+                # #         f"Correlations for cluster {clusters_in_sort_to_use[iCluster]} are {correlations}"
+                # #     )
+
+                # now scale the correlation by the spike count match index
+                correlations[-1] = correlations[-1] * spike_count_match_score
+
+            # now find the cluster with the highest correlation
+            GT_cluster_match_idx = np.argmax(correlations)
+            # track the highest correlation for each sort cluster in a dictionary
+            sort_clust_IDs_weighted_corr_score_dict[
+                clusters_in_sort_to_use[iCluster]
+            ] = correlations[GT_cluster_match_idx]
+            # now assign the cluster mapping, where the key is the sort cluster
+            # and the value is the matching ground truth cluster
+            cluster_mapping[clusters_in_sort_to_use[iCluster]] = GT_clusters_iter[
+                GT_cluster_match_idx
+            ]
+            # now remove the ground truth cluster from the list of clusters to match
+            GT_clusters_iter.pop(GT_cluster_match_idx)
+        # now loop through the clusters in 'clusters_to_take_from' and use as key to cluster_mapping
+        # to get the ground truth cluster that it maps to, and then place the sort cluster ID into
+        # the new_cluster_ordering array at the index of the ground truth cluster ID
+        for iCluster in range(len(clusters_in_sort_to_use)):
+            try:
+                new_cluster_ordering[
+                    cluster_mapping[clusters_in_sort_to_use[iCluster]]
+                ] = clusters_in_sort_to_use[iCluster]
+            except KeyError:
+                continue
+
+        # now replace the clusters_to_take_from with the new_cluster_ordering
+        clusters_in_sort_to_use = new_cluster_ordering.astype(int)
+        num_motor_units = len(clusters_in_sort_to_use)
+
+    # set_trace()
     if parallel:
         import multiprocessing as mp
 
@@ -780,8 +1089,7 @@ if __name__ == "__main__":
                 [ephys_fs] * len(bin_widths_for_comparison),
                 [time_frame] * len(bin_widths_for_comparison),
                 [list_of_paths_to_sorted_folders] * len(bin_widths_for_comparison),
-                [clusters_to_take_from[sorts_from_each_path_to_load[0]]]
-                * len(bin_widths_for_comparison),
+                [clusters_in_sort_to_use] * len(bin_widths_for_comparison),
             )
             results = pool.starmap(
                 compare_spike_trains,
@@ -838,7 +1146,7 @@ if __name__ == "__main__":
                 ephys_fs,
                 time_frame,
                 list_of_paths_to_sorted_folders,
-                clusters_to_take_from[sorts_from_each_path_to_load[0]],
+                clusters_in_sort_to_use,
             )
 
             # convert all to numpy arrays before appending
@@ -859,7 +1167,7 @@ if __name__ == "__main__":
         precisions = np.vstack(precisions)
         recalls = np.vstack(recalls)
 
-    if show_plot1 or save_png_plot1 or save_html_plot1:
+    if show_plot1 or save_png_plot1 or save_html_plot1 or save_svg_plot1:
         ### plot 1: bar plot of spike counts
         # now create an overlay plot of the two plots above. Do not use subplots, but use two y axes
         # make bar plot of total spike counts use left y axis
@@ -870,11 +1178,12 @@ if __name__ == "__main__":
             recalls[iShow],
             accuracies[iShow],
             bin_widths_for_comparison[iShow],
-            clusters_to_take_from[sorts_from_each_path_to_load[0]],
+            clusters_in_sort_to_use,
             sorts_from_each_path_to_load[0],
             plot_template,
             show_plot1,
             save_png_plot1,
+            save_svg_plot1,
             save_html_plot1,
             # make figsize 1080p
             figsize=(1920, 1080),
@@ -894,24 +1203,22 @@ if __name__ == "__main__":
     # )
     # for iUnit in range(num_motor_units):
     #     print(
-    #         f"Total number of Kilosort spikes in unit {clusters_to_take_from[sorts_from_each_path_to_load[0]][iUnit]}: {np.sum(kilosort_spikes[iShow][:,iUnit])} ({np.sum(kilosort_spikes[iShow][:,iUnit])/np.sum(ground_truth_spikes[iShow][:,iUnit])*100:.2f}%)"
+    #         f"Total number of Kilosort spikes in unit {clusters_in_sort_to_use[iUnit]}: {np.sum(kilosort_spikes[iShow][:,iUnit])} ({np.sum(kilosort_spikes[iShow][:,iUnit])/np.sum(ground_truth_spikes[iShow][:,iUnit])*100:.2f}%)"
     #     )
     #     print(
-    #         f"\tTotal number of true positive spikes in unit {clusters_to_take_from[sorts_from_each_path_to_load[0]][iUnit]}: {np.sum(true_positive_spikes[iShow][:,iUnit])} ({np.sum(true_positive_spikes[iShow][:,iUnit])/np.sum(ground_truth_spikes[iShow][:,iUnit])*100:.2f}%)"
+    #         f"\tTotal number of true positive spikes in unit {clusters_in_sort_to_use[iUnit]}: {np.sum(true_positive_spikes[iShow][:,iUnit])} ({np.sum(true_positive_spikes[iShow][:,iUnit])/np.sum(ground_truth_spikes[iShow][:,iUnit])*100:.2f}%)"
     #     )
     #     print(
-    #         f"\tTotal number of false positive spikes in unit {clusters_to_take_from[sorts_from_each_path_to_load[0]][iUnit]}: {np.sum(false_positive_spikes[iShow][:,iUnit])} ({np.sum(false_positive_spikes[iShow][:,iUnit])/np.sum(kilosort_spikes[iShow][:,iUnit])*100:.2f}%)"
+    #         f"\tTotal number of false positive spikes in unit {clusters_in_sort_to_use[iUnit]}: {np.sum(false_positive_spikes[iShow][:,iUnit])} ({np.sum(false_positive_spikes[iShow][:,iUnit])/np.sum(kilosort_spikes[iShow][:,iUnit])*100:.2f}%)"
     #     )
     #     print(
-    #         f"\tTotal number of false negative spikes in unit {clusters_to_take_from[sorts_from_each_path_to_load[0]][iUnit]}: {np.sum(false_negative_spikes[iShow][:,iUnit])} ({np.sum(false_negative_spikes[iShow][:,iUnit])/np.sum(ground_truth_spikes[iShow][:,iUnit])*100:.2f}%)"
+    #         f"\tTotal number of false negative spikes in unit {clusters_in_sort_to_use[iUnit]}: {np.sum(false_negative_spikes[iShow][:,iUnit])} ({np.sum(false_negative_spikes[iShow][:,iUnit])/np.sum(ground_truth_spikes[iShow][:,iUnit])*100:.2f}%)"
     #     )
     # print metrics for each unit
     print("\n")  # add a newline for readability
     print("Sort: ", sorts_from_each_path_to_load[0])
     unit_df = df()
-    unit_df["Unit"] = np.array(
-        clusters_to_take_from[sorts_from_each_path_to_load[0]]
-    ).astype(int)
+    unit_df["Unit"] = np.array(clusters_in_sort_to_use).astype(int)
     unit_df["True Count"] = num_ground_truth_spikes[iShow]
     unit_df["KS Count"] = num_kilosort_spikes[iShow]
     unit_df["Precision"] = precisions[iShow]
@@ -946,7 +1253,7 @@ if __name__ == "__main__":
         f"Average recall: {unit_df['Recall'].mean():.3f} +/- {unit_df['Recall'].std():.3f}"
     )
 
-    if show_plot2 or save_png_plot2 or save_html_plot2:
+    if show_plot2 or save_png_plot2 or save_html_plot2 or save_svg_plot2:
         ### plot 2: spike trains
 
         # now plot the spike trains, emphasizing each type of error with a different color
@@ -958,17 +1265,19 @@ if __name__ == "__main__":
             false_negative_spikes[iShow],
             true_positive_spikes[iShow],
             bin_widths_for_comparison[iShow],
-            clusters_to_take_from[sorts_from_each_path_to_load[0]],
+            clusters_in_sort_to_use,
             sorts_from_each_path_to_load[0],
             plot_template,
             show_plot2,
+            plot2_xlim,
             save_png_plot2,
+            save_svg_plot2,
             save_html_plot2,
             # make figsize 1080p
             figsize=(1920, 1080),
         )
 
-    if show_plot3 or save_png_plot3 or save_html_plot3:
+    if show_plot3 or save_png_plot3 or save_html_plot3 or save_svg_plot3:
         ### plot 3: comparison across bin widths, ground truth metrics
         # the bin width for comparison is varied from 0.25 ms to 8 ms, doubling each time
         # the metrics are computed for each bin width
@@ -978,11 +1287,12 @@ if __name__ == "__main__":
             recalls,
             accuracies,
             num_motor_units,
-            clusters_to_take_from[sorts_from_each_path_to_load[0]],
+            clusters_in_sort_to_use,
             sorts_from_each_path_to_load[0],
             plot_template,
             show_plot3,
             save_png_plot3,
+            save_svg_plot3,
             save_html_plot3,
             # make figsize 1080p
             figsize=(1920, 1080),

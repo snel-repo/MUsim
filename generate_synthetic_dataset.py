@@ -133,7 +133,7 @@ show_plotly_figures = False
 show_matplotlib_figures = False
 show_final_plotly_figure = False
 save_final_plotly_figure = False
-save_simulated_spikes = False
+save_simulated_spikes = True
 multiprocess = True  # set to True to run on multiple processes
 use_KS_templates = False  # set to True to use Kilosort templates to create waveform shapes, else load open ephys data, and use spike times to extract median waveform shapes for each unit
 kinematics_fs = 125
@@ -145,7 +145,7 @@ num_chans_in_output = 24  # desired real number of channels in the output data
 # number determines noise power added to channels (e.g. 50), or set None to disable
 SNR_mode = "constant"  # 'power' to compute desired SNR with power,'from_data' simulates from the real data values, or 'constant' to add a constant amount of noise to all channels
 # target SNR value if "power", or factor to adjust SNR by if "from_data", or set None to disable
-adjust_SNR = 400
+adjust_SNR = None  # 400
 # set 0 for no shape jitter, or a positive number for standard deviations of additive shape jitter
 shape_jitter_amount = 0
 # set None for random behavior, or a previous entropy int value to reproduce
@@ -639,7 +639,8 @@ if use_KS_templates:
             spike_snippets_to_place[iUnit, iSpike, :, :] = np.dot(
                 W_good[0][:, iUnit, :], iSpike_U.T
             )
-else:  # this chunk uses the real data from proc.dat to create waveform shapes for each spike time, use spike times for each cluster to extract median waveform shape, with -nt0//2 and +nt0//2 + 1
+else:  # this chunk uses the real data from proc.dat to create waveform shapes for each spike time,
+    # use spike times for each cluster to extract median waveform shape, with -nt0//2 and +nt0//2 + 1
     ## first, extract all spikes at each corresponding spike time from each proc.dat file, and place them in a combined array
     unit_counter = 0
     unit_start_offset = 0

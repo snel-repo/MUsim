@@ -2,6 +2,7 @@
 *.html
 *.npy
 *.png
+*.svg
 /mu
 !requirements.txt
 .vscode/
