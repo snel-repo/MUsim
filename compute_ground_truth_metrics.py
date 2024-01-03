@@ -1046,9 +1046,9 @@ if __name__ == "__main__":
                 )
 
                 # now scale the correlation by the spike count match index
-                correlations[jCluster_GT, iCluster_KS] = (
-                    correlations[jCluster_GT, iCluster_KS] * spike_count_match_score
-                )
+                # correlations[jCluster_GT, iCluster_KS] = (
+                #     correlations[jCluster_GT, iCluster_KS] * spike_count_match_score
+                # )
 
         # now find the cluster with the highest correlation
         sorted_cluster_pair_corr_idx = np.unravel_index(
