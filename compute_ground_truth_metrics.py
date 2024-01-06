@@ -45,7 +45,61 @@ def compare_spike_trains(
     time_frame,
     list_of_paths_to_sorted_folders,
     clusters_to_take_from,
+    spike_isolation_radius_ms=None,
 ):
+    def remove_isolated_spikes(MUsim_obj, radius):
+        """Function removes isolated spikes from a MUsim object (from the most recent
+           MUsim_obj.spikes entry)
+
+        Args:
+            MUsim_obj (MUsim): Object created from MUsim class, containing at least one MUsim_obj.spikes entry
+            radius (int, float): Numeric value specifying the number of points to check on either side of the
+                                 spike time
+
+        Returns:
+            MUsim: MUsim class object without isolated spikes
+        """
+        isolated_spike_times = np.asarray(
+            MUsim_obj.spikes[-1].sum(axis=1) == 1
+        ).nonzero()[0]
+        for iTime in isolated_spike_times:
+            try:
+                # if a spike is isolated within the radius, then delete that spike from consideration
+                # make sure to account for when the radius goes past the beginning and end of array
+                if (
+                    MUsim_obj.spikes[-1][
+                        iTime - radius : iTime + radius,
+                        :,
+                    ].sum()
+                    == 1
+                ):  # if the sum of this slice is 1, there's an isolated spike here
+                    MUsim_obj.spikes[-1][
+                        iTime - radius : iTime + radius,
+                        :,
+                    ] = 0
+                    # print(f"1st block: zeroed at {iTime}")
+            except IndexError:
+                if iTime - radius < 0:
+                    if (
+                        MUsim_obj.spikes[-1][0 : iTime + radius, :].sum() == 1
+                    ):  # if the sum of this slice is 1, there's an isolated spike here
+                        MUsim_obj.spikes[-1][0 : iTime + radius, :] = 0
+                        print(
+                            f"Handled IndexError encountered at beginning: zeroed isolated spikes at {iTime}"
+                        )
+                elif iTime + radius > MUsim_obj.spikes[-1].shape[0]:
+                    if (
+                        MUsim_obj.spikes[-1][iTime - radius : -1, :].sum() == 1
+                    ):  # if the sum of this slice is 1, there's an isolated spike here
+                        MUsim_obj.spikes[-1][iTime - radius : -1, :] = 0
+                        print(
+                            f"Handled IndexError encountered at end: zeroed isolated spikes at {iTime}"
+                        )
+                else:
+                    print("WARNING: Uncaught case, stopping for debugging")
+                    set_trace()
+        return MUsim_obj
+
     # use MUsim object to load and rebin ground truth data
     mu_GT = MUsim(random_seed_entropy)
     mu_GT.sample_rate = 1 / ephys_fs
@@ -136,17 +190,34 @@ def compare_spike_trains(
                 f"WARNING: Shifted Kilosort spikes for unit {clusters_to_take_from[iUnit]} by {shift} samples"
             )
 
+    if spike_isolation_radius_ms is not None:
+        assert type(spike_isolation_radius_ms) in [
+            int,
+            float,
+        ], "Type of spike_isolation_radius_ms must be int or float"
+        assert spike_isolation_radius_ms > 0, "spike_isolation_radius_ms must be >0"
+        # delete any spikes from mu_KS and mu_GT which are not within spike_isolation_radius_ms of
+        # spikes from neighboring MUs
+        spike_isolation_radius_pts = int(spike_isolation_radius_ms / 1000 * ephys_fs)
+        print(
+            f"removing isolated spikes with a radius of {spike_isolation_radius_pts} points"
+        )
+        mu_GT = remove_isolated_spikes(mu_GT, spike_isolation_radius_pts)
+        mu_KS = remove_isolated_spikes(mu_KS, spike_isolation_radius_pts)
+
     # rebin the spike trains to the bin width for comparison
     mu_GT.rebin_trials(
         bin_width_for_comparison / 1000
     )  # rebin to bin_width_for_comparison ms bins
-    mu_GT.save_spikes("./GT_spikes.npy")
-    ground_truth_spikes = mu_GT.spikes[-1]  # shape is (num_bins, num_units)
 
     mu_KS.rebin_trials(
         bin_width_for_comparison / 1000
     )  # rebin to bin_width_for_comparison ms bins
+
+    mu_GT.save_spikes("./GT_spikes.npy")
     mu_KS.save_spikes("./KS_spikes.npy")
+
+    ground_truth_spikes = mu_GT.spikes[-1]  # shape is (num_bins, num_units)
     kilosort_spikes = mu_KS.spikes[-1]  # shape is (num_bins, num_units)
 
     # compute false positive, false negative, and true positive spikes
@@ -338,7 +409,7 @@ def plot1(
     )
     fig.update_layout(
         title=f"<b>Comparison of {sort_type} Performance to Ground Truth, {bin_width_for_comparison} ms Bins</b><br><sup>Sort: {sort_from_each_path_to_load}</sup>",
-        xaxis_title="<b>KS Cluster ID</b>",
+        xaxis_title="<b>GT Cluster ID</b>",
         legend_title="Ground Truth Metrics",
         template=plot_template,
         yaxis=dict(title="<b>Spike Count</b>"),
@@ -349,7 +420,7 @@ def plot1(
     # update the x tick label of the bar graph to match the cluster ID
     fig.update_xaxes(
         ticktext=[
-            f"Unit {clusters_to_take_from[iUnit]}" for iUnit in range(num_motor_units)
+            f"Unit {GT_clusters_to_use[iUnit]}" for iUnit in range(num_motor_units)
         ],
         tickvals=np.arange(0, num_motor_units),
     )
@@ -394,9 +465,12 @@ def plot2(
     save_html_plot2,
     figsize=(1920, 1080),
 ):
+    # get suffix after the KS folder name, which is the repo branch name for that sort
+    PPP_branch_name = list_of_paths_to_sorted_folders[0].name.split("_")[-1]
+    sort_type = "Kilosort" if PPP_branch_name == "KS" else "MUsort"
     # make a subplot for each unit
     subtitles = [
-        f"Unit {clusters_to_take_from[iUnit]}" for iUnit in range(num_motor_units)
+        f"Unit {GT_clusters_to_use[iUnit]}" for iUnit in range(num_motor_units)
     ]
     # insert a "" between each list element
     for i in range(len(subtitles)):
@@ -433,7 +507,7 @@ def plot2(
                 y=kilosort_spikes[np.where(kilosort_spikes[:, iUnit] >= 1)[0], iUnit]
                 + 0.5,
                 mode="markers",
-                name="Sorted, Unit {iUnit}",
+                name=f"Sorted, Unit {clusters_to_take_from[iUnit]}",
                 marker_symbol="line-ns",
                 marker=dict(
                     color=color_KS,
@@ -455,7 +529,7 @@ def plot2(
                     np.where(ground_truth_spikes[:, iUnit] >= 1)[0], iUnit
                 ],
                 mode="markers",
-                name=f"Ground Truth, Unit {iUnit}",
+                name=f"Ground Truth, Unit {GT_clusters_to_use[iUnit]}",
                 marker_symbol="line-ns",
                 marker=dict(
                     color=color_GT,
@@ -510,7 +584,7 @@ def plot2(
         )
 
     fig.update_layout(
-        title=f"<b>Comparison of Kilosort and Ground Truth Spike Trains, {bin_width_for_comparison} ms Bins</b>",
+        title=f"<b>Comparison of {sort_type} and Ground Truth Spike Trains, {bin_width_for_comparison} ms Bins</b>",
         template=plot_template,
     )
 
@@ -520,7 +594,9 @@ def plot2(
         col=1,
         range=[left_bound / 1000, right_bound / 1000] * int(bin_width_for_comparison),
     )
-
+    # print(
+    #     f"set xaxis range to {[left_bound / 1000, right_bound / 1000] * int(bin_width_for_comparison)}"
+    # )
     # remove y axes numbers from all plots
     fig.update_yaxes(showticklabels=False)
     # get suffix after the KS folder name, which is the repo branch name for that sort
@@ -563,6 +639,9 @@ def plot3(
     save_html_plot3,
     figsize=(1920, 1080),
 ):
+    # get suffix after the KS folder name, which is the repo branch name for that sort
+    PPP_branch_name = list_of_paths_to_sorted_folders[0].name.split("_")[-1]
+    sort_type = "Kilosort" if PPP_branch_name == "KS" else "MUsort"
     # this plot shows the performance of MUsort across different bin widths, with 1 trace per motor unit
     # put a subplot for each metric, but give a different color range for each metric. Make it flexible
     # to the number of motor units, then interpolate the color for each motor unit
@@ -608,7 +687,7 @@ def plot3(
             )
 
     fig.update_layout(
-        title="<b>Comparison of MUsort Performance to Ground Truth, Across Bin Widths</b>",
+        title=f"<b>Comparison of {sort_type} Performance to Ground Truth, Across Bin Widths</b>",
         legend_title="Ground Truth Metrics",
         template=plot_template,
         # yaxis=dict(title="<b>Metric Score</b>", range=[0.85, 1.05]),
@@ -620,7 +699,7 @@ def plot3(
             title_text="<b>Metric Score</b>",
             row=iRow + 1,
             col=1,
-            range=[0.5, 1.01],
+            range=[0, 1.01],
         )
 
     fig.update_yaxes(matches="y")
@@ -659,7 +738,7 @@ def plot3(
 
 if __name__ == "__main__":
     # set parameters
-    parallel = False
+    parallel = True
     use_custom_merge_clusters = False
     automatically_assign_cluster_mapping = True
     time_frame = [0, 1]  # must be between 0 and 1
@@ -667,18 +746,19 @@ if __name__ == "__main__":
     # choose bin widths as a range from 0.125 ms to 8 ms in log2 increments
     xstart = np.log2(0.125)
     bin_widths_for_comparison = np.logspace(xstart, -xstart, num=13, base=2)
-    bin_widths_for_comparison = [1]
+    # bin_widths_for_comparison = [1]
+    spike_isolation_radius_ms = 1  # radius of isolation of a spike for it to be removed from consideration. set to positive float, integer, or set None to disable
     # index of which bin width of bin_widths_for_comparison to show in plots
-    iShow = 0
+    iShow = 6
 
     nt0 = 121  # number of time bins in the template, in ms it is 3.367
     random_seed_entropy = 218530072159092100005306709809425040261  # 75092699954400878964964014863999053929  # int
     plot_template = "plotly_white"
     plot2_xlim = [0, 1]
-    show_plot1 = False
+    show_plot1 = True
     show_plot2 = False
     show_plot3 = False
-    save_png_plot1 = True
+    save_png_plot1 = False
     save_png_plot2 = False
     save_png_plot3 = False
     save_svg_plot1 = False
@@ -691,8 +771,9 @@ if __name__ == "__main__":
     ## paths with simulated data
     path_to_sim_dat = Path(
         "continuous_20221117_godzilla_SNR-400-constant_jitter-0std_files-11.dat"
-    )  # continuous_20221117_godzilla_SNR-None-constant_jitter-0std_files-11.dat
-
+        # "continuous_20221117_godzilla_SNR-None-constant_jitter-0std_files-11.dat"
+        # "continuous_20221117_godzilla_SNR-1-from_data_jitter-4std_files-11.dat"
+    )
     ## load ground truth data
     ground_truth_path = Path(
         "spikes_20221117_godzilla_SNR-400-constant_jitter-0std_files-11.npy"
@@ -700,6 +781,11 @@ if __name__ == "__main__":
         # "spikes_20221117_godzilla_SNR-1-from_data_jitter-1std_files-5.npy"
         # "spikes_20221116_godzilla_SNR-8-from_data_jitter-4std_files-1.npy"
     )  # spikes_20221116_godzilla_SNR-None_jitter-0std_files-1.npy
+
+    # set which ground truth clusters to compare with (a range from 0 to num_motor_units)
+    GT_clusters_to_use = list(range(0, 10))
+    num_motor_units = len(GT_clusters_to_use)
+
     ## load Kilosort data
     # paths to the folders containing the Kilosort data
     paths_to_KS_session_folders = [
@@ -724,7 +810,7 @@ if __name__ == "__main__":
         # "20231103_160031096827"  # 1 std, 4 jitter, all MUsort options ON, ?
         # "20231103_175840215876"  # 2 std, 8 jitter, all MUsort options ON, ?
         # "20231103_164647242198"  # 2 std, 4 jitter, all MUsort options ON, custom_merge
-        # "20231105_192242190872"  # 2 std, 8 jitter, all MUsort options ON, except multi-threshold $$$ BEST EMUsort $$$
+        "20231105_192242190872"  # 2 std, 8 jitter, all MUsort options ON, except multi-threshold $$$ BEST EMUsort $$$
         # "20231101_165306036638"  # 1 std, 4 jitter, optimal template selection routines OFF, Th=[1,0.5], spkTh=[-6]
         # "20231101_164409249821"  # 1 std, 4 jitter, optimal template selection routines OFF, Th=[1,0.5], spkTh=[-2]
         # "20231101_164937098773"  # 1 std, 4 jitter, optimal template selection routines OFF, Th=[5,2], spkTh=[-6]
@@ -737,7 +823,7 @@ if __name__ == "__main__":
         #### Below are with new 16 channel, triple rat dataset.
         # simulated20231219:
         # "20231220_180513756759"  # SNR-400-constant_jitter-0std_files-11, vanilla Kilosort, Th=[10,4], spkTh=[-6]
-        "20231220_172352030313"  # SNR-400-constant_jitter-0std_files-11, EMUsort, Th=[5,2], spkTh=[-3,-6]
+        # "20231220_172352030313"  # SNR-400-constant_jitter-0std_files-11, EMUsort, Th=[5,2], spkTh=[-3,-6]
     ]
     clusters_to_take_from = {
         # {
@@ -823,18 +909,13 @@ if __name__ == "__main__":
 
     clusters_in_sort_to_use = clusters_to_take_from[sorts_from_each_path_to_load[0]]
     true_spike_counts_for_each_cluster = np.load(str(ground_truth_path)).sum(axis=0)
-
-    # set which ground truth clusters to compare with (a range from 0 to num_motor_units)
-    GT_clusters_to_use = list(range(25))
-    num_motor_units = len(GT_clusters_to_use)
-
     # find the folder name which ends in _myo and append to the paths_to_session_folders
     paths_to_each_myo_folder = []
     for iDir in paths_to_KS_session_folders:
         myo = [f for f in iDir.iterdir() if (f.is_dir() and f.name.endswith("_myo"))]
         assert (
             len(myo) == 1
-        ), f"There should only be one _myo folder in each session folder, but there were {len(myo)} in {iDir}"
+        ), f"There should be one _myo folder in each session folder, but there were {len(myo)} in {iDir}"
         paths_to_each_myo_folder.append(myo[0])
     # inside each _myo folder, find the folder name which constains sort_from_each_path_to_load string
     list_of_paths_to_sorted_folders = []
@@ -846,7 +927,7 @@ if __name__ == "__main__":
         ]
         assert (
             len(matches) == 1
-        ), f"There should only be one sort folder match in each _myo folder, but there were {len(matches)} in {iPath}"
+        ), f"There should be one sort folder match in each _myo folder, but there were {len(matches)} in {iPath}"
         if use_custom_merge_clusters:
             # append the path to the custom_merge_clusters folder
             list_of_paths_to_sorted_folders.append(
@@ -1146,7 +1227,7 @@ if __name__ == "__main__":
         num_motor_units = len(clusters_in_sort_to_use)
 
         corr_df = df(
-            GT_mapped_idxs[:, 0],
+            GT_clusters_to_use,  # GT_mapped_idxs[:, 0],
             columns=["GT Unit"],
             index=clusters_in_sort_to_use,
         )
@@ -1168,6 +1249,7 @@ if __name__ == "__main__":
                 [time_frame] * len(bin_widths_for_comparison),
                 [list_of_paths_to_sorted_folders] * len(bin_widths_for_comparison),
                 [clusters_in_sort_to_use] * len(bin_widths_for_comparison),
+                [spike_isolation_radius_ms] * len(bin_widths_for_comparison),
             )
             results = pool.starmap(
                 compare_spike_trains,
@@ -1226,6 +1308,7 @@ if __name__ == "__main__":
                 time_frame,
                 list_of_paths_to_sorted_folders,
                 clusters_in_sort_to_use,
+                spike_isolation_radius_ms,
             )
 
             # convert all to numpy arrays before appending
