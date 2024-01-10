@@ -1,5 +1,4 @@
 # IMPORT packages
-import subprocess
 from datetime import datetime
 from pathlib import Path
 from pdb import set_trace
@@ -44,7 +43,7 @@ def compare_spike_trains(
     ephys_fs,
     time_frame,
     list_of_paths_to_sorted_folders,
-    clusters_to_take_from,
+    clusters_in_sort_to_use,
     spike_isolation_radius_ms=None,
 ):
     def remove_isolated_spikes(MUsim_obj, radius):
@@ -125,8 +124,8 @@ def compare_spike_trains(
         load_type="kilosort",
     )
 
-    # subselect clusters in mu_KS using clusters_to_take_from, now in that specified order
-    mu_KS.spikes[-1] = mu_KS.spikes[-1][:, clusters_to_take_from]
+    # subselect clusters in mu_KS using clusters_in_sort_to_use, now in that specified order
+    mu_KS.spikes[-1] = mu_KS.spikes[-1][:, clusters_in_sort_to_use]
 
     # ensure kilosort_spikes and ground_truth_spikes have the same shape
     # add more kilosort bins to match ground truth
@@ -187,7 +186,7 @@ def compare_spike_trains(
         # make sure shift hasn't gone near the edge of the min or max delay
         if shift <= min_delay_samples + 1 or shift >= max_delay_samples - 1:
             print(
-                f"WARNING: Shifted Kilosort spikes for unit {clusters_to_take_from[iUnit]} by {shift} samples"
+                f"WARNING: Shifted Kilosort spikes for unit {clusters_in_sort_to_use[iUnit]} by {shift} samples"
             )
 
     if spike_isolation_radius_ms is not None:
@@ -344,11 +343,13 @@ def plot1(
     recall,
     accuracy,
     bin_width_for_comparison,
-    clusters_to_take_from,
+    clusters_in_sort_to_use,
     GT_clusters_to_use,
     sort_from_each_path_to_load,
     plot_template,
+    bar_type,
     show_plot1,
+    plot1_ylim,
     save_png_plot1,
     save_svg_plot1,
     save_html_plot1,
@@ -356,34 +357,49 @@ def plot1(
 ):
     # get suffix after the KS folder name, which is the repo branch name for that sort
     PPP_branch_name = list_of_paths_to_sorted_folders[0].name.split("_")[-1]
-    sort_type = "Kilosort" if PPP_branch_name == "KS" else "MUsort"
+    sort_type = "Kilosort" if PPP_branch_name == "KS" else "EMUsort"
 
     fig = go.Figure()
-    fig.add_trace(
-        go.Bar(
-            x=np.arange(0, num_motor_units),
-            y=num_ground_truth_spikes,
-            name="Ground Truth",
-            marker_color="rgb(55, 83, 109)",
-            opacity=0.5,
+    fig.add_hline(y=100, line_width=3, line_dash="dash", line_color="black")
+    if bar_type == "totals":
+        fig.add_trace(
+            go.Bar(
+                x=np.arange(0, num_motor_units),
+                y=num_ground_truth_spikes,
+                name="Ground Truth",
+                marker_color="rgb(55, 83, 109)",
+                opacity=0.5,
+            )
         )
-    )
-    fig.add_trace(
-        go.Bar(
-            x=np.arange(0, num_motor_units),
-            y=num_kilosort_spikes,
-            name=sort_type,
-            marker_color="rgb(26, 118, 255)",
-            opacity=0.5,
+        fig.add_trace(
+            go.Bar(
+                x=np.arange(0, num_motor_units),
+                y=num_kilosort_spikes,
+                name=sort_type,
+                marker_color="rgb(26, 118, 255)",
+                opacity=0.5,
+            )
         )
-    )
+        bar_yaxis_title = "<b>Spike Count</b>"
+    elif bar_type == "percent":
+        fig.add_trace(
+            go.Bar(
+                x=np.arange(0, num_motor_units),
+                y=100 * num_kilosort_spikes / num_ground_truth_spikes,
+                name="% True Spike Count",
+                marker_color="cornflowerblue",
+                opacity=1,
+            )
+        )
+        bar_yaxis_title = "<b>% True Spike Count</b>"
+
     fig.add_trace(
         go.Scatter(
             x=np.arange(0, num_motor_units),
             y=precision,
             mode="lines+markers",
             name="Precision",
-            line=dict(width=4),
+            line=dict(width=4, color="green"),
             yaxis="y2",
         )
     )
@@ -393,7 +409,7 @@ def plot1(
             y=recall,
             mode="lines+markers",
             name="Recall",
-            line=dict(width=4),
+            line=dict(width=4, color="crimson"),
             yaxis="y2",
         )
     )
@@ -403,7 +419,7 @@ def plot1(
             y=accuracy,
             mode="lines+markers",
             name="Accuracy",
-            line=dict(width=4),
+            line=dict(width=4, color="orange"),
             yaxis="y2",
         )
     )
@@ -412,7 +428,7 @@ def plot1(
         xaxis_title="<b>GT Cluster ID</b>",
         legend_title="Ground Truth Metrics",
         template=plot_template,
-        yaxis=dict(title="<b>Spike Count</b>"),
+        yaxis=dict(title=bar_yaxis_title),
         yaxis2=dict(
             title="<b>Metric Score</b>", range=[0, 1], overlaying="y", side="right"
         ),
@@ -420,10 +436,12 @@ def plot1(
     # update the x tick label of the bar graph to match the cluster ID
     fig.update_xaxes(
         ticktext=[
-            f"Unit {GT_clusters_to_use[iUnit]}" for iUnit in range(num_motor_units)
+            f"Unit {GT_clusters_to_use[iUnit]},<br>{str(round(num_ground_truth_spikes[iUnit]/1000,1))}k"
+            for iUnit in range(num_motor_units)
         ],
         tickvals=np.arange(0, num_motor_units),
     )
+    fig.update_layout(yaxis_range=plot1_ylim)  # WARNING: hardcode
 
     if save_png_plot1:
         fig.write_image(
@@ -454,7 +472,7 @@ def plot2(
     false_negative_spikes,
     true_positive_spikes,
     bin_width_for_comparison,
-    clusters_to_take_from,
+    clusters_in_sort_to_use,
     GT_clusters_to_use,
     sort_from_each_path_to_load,
     plot_template,
@@ -467,7 +485,7 @@ def plot2(
 ):
     # get suffix after the KS folder name, which is the repo branch name for that sort
     PPP_branch_name = list_of_paths_to_sorted_folders[0].name.split("_")[-1]
-    sort_type = "Kilosort" if PPP_branch_name == "KS" else "MUsort"
+    sort_type = "Kilosort" if PPP_branch_name == "KS" else "EMUsort"
     # make a subplot for each unit
     subtitles = [
         f"Unit {GT_clusters_to_use[iUnit]}" for iUnit in range(num_motor_units)
@@ -487,11 +505,11 @@ def plot2(
     # cut all arrays short by the factor of plot2_xlim, all arrays are zeros and ones
     left_bound = int(round(plot2_xlim[0] * len(kilosort_spikes)))
     right_bound = int(round(plot2_xlim[1] * len(kilosort_spikes)))
-    kilosort_spikes = kilosort_spikes[left_bound:right_bound, :]
-    ground_truth_spikes = ground_truth_spikes[left_bound:right_bound, :]
-    false_positive_spikes = false_positive_spikes[left_bound:right_bound, :]
-    false_negative_spikes = false_negative_spikes[left_bound:right_bound, :]
-    true_positive_spikes = true_positive_spikes[left_bound:right_bound, :]
+    kilosort_spikes_cut = kilosort_spikes[left_bound:right_bound, :]
+    ground_truth_spikes_cut = ground_truth_spikes[left_bound:right_bound, :]
+    false_positive_spikes_cut = false_positive_spikes[left_bound:right_bound, :]
+    false_negative_spikes_cut = false_negative_spikes[left_bound:right_bound, :]
+    true_positive_spikes_cut = true_positive_spikes[left_bound:right_bound, :]
 
     for iUnit in range(num_motor_units):
         # add event plots of the kilosort and ground truth spikes, color units according to rainbow
@@ -501,13 +519,15 @@ def plot2(
         color_GT = "hsl(" + str(iUnit / float(num_motor_units) * 360) + ",100%,25%)"
         fig.add_trace(
             go.Scatter(
-                x=np.where(kilosort_spikes[:, iUnit] >= 1)[0]
+                x=np.where(kilosort_spikes_cut[:, iUnit] >= 1)[0]
                 * bin_width_for_comparison
                 / 1000,
-                y=kilosort_spikes[np.where(kilosort_spikes[:, iUnit] >= 1)[0], iUnit]
+                y=kilosort_spikes_cut[
+                    np.where(kilosort_spikes_cut[:, iUnit] >= 1)[0], iUnit
+                ]
                 + 0.5,
                 mode="markers",
-                name=f"Sorted, Unit {clusters_to_take_from[iUnit]}",
+                name=f"Sorted, Unit {clusters_in_sort_to_use[iUnit]}",
                 marker_symbol="line-ns",
                 marker=dict(
                     color=color_KS,
@@ -522,11 +542,11 @@ def plot2(
         )
         fig.add_trace(
             go.Scatter(
-                x=np.where(ground_truth_spikes[:, iUnit] >= 1)[0]
+                x=np.where(ground_truth_spikes_cut[:, iUnit] >= 1)[0]
                 * bin_width_for_comparison
                 / 1000,
-                y=ground_truth_spikes[
-                    np.where(ground_truth_spikes[:, iUnit] >= 1)[0], iUnit
+                y=ground_truth_spikes_cut[
+                    np.where(ground_truth_spikes_cut[:, iUnit] >= 1)[0], iUnit
                 ],
                 mode="markers",
                 name=f"Ground Truth, Unit {GT_clusters_to_use[iUnit]}",
@@ -545,10 +565,10 @@ def plot2(
         # add a vertical offset to each error type to separate them from each other
         fig.add_trace(
             go.Scatter(
-                x=np.where(false_positive_spikes[:, iUnit] >= 1)[0]
+                x=np.where(false_positive_spikes_cut[:, iUnit] >= 1)[0]
                 * bin_width_for_comparison
                 / 1000,
-                y=np.ones(np.sum(false_positive_spikes[:, iUnit] >= 1)),
+                y=np.ones(np.sum(false_positive_spikes_cut[:, iUnit] >= 1)),
                 mode="markers",
                 name="False Positive",
                 marker=dict(color="red", size=5, symbol="x"),
@@ -558,10 +578,10 @@ def plot2(
         )
         fig.add_trace(
             go.Scatter(
-                x=np.where(false_negative_spikes[:, iUnit] >= 1)[0]
+                x=np.where(false_negative_spikes_cut[:, iUnit] >= 1)[0]
                 * bin_width_for_comparison
                 / 1000,
-                y=np.ones(np.sum(false_negative_spikes[:, iUnit] >= 1)) + 1,
+                y=np.ones(np.sum(false_negative_spikes_cut[:, iUnit] >= 1)) + 1,
                 mode="markers",
                 name="False Negative",
                 marker=dict(color="orange", size=5, symbol="x"),
@@ -571,10 +591,10 @@ def plot2(
         )
         fig.add_trace(
             go.Scatter(
-                x=np.where(true_positive_spikes[:, iUnit] >= 1)[0]
+                x=np.where(true_positive_spikes_cut[:, iUnit] >= 1)[0]
                 * bin_width_for_comparison
                 / 1000,
-                y=np.ones(np.sum(true_positive_spikes[:, iUnit] >= 1)) + 2,
+                y=np.ones(np.sum(true_positive_spikes_cut[:, iUnit] >= 1)) + 2,
                 mode="markers",
                 name="True Positive",
                 marker=dict(color="green", size=5, symbol="diamond-tall"),
@@ -629,7 +649,7 @@ def plot3(
     recall,
     accuracy,
     num_motor_units,
-    clusters_to_take_from,
+    clusters_in_sort_to_use,
     GT_clusters_to_use,
     sort_from_each_path_to_load,
     plot_template,
@@ -641,7 +661,7 @@ def plot3(
 ):
     # get suffix after the KS folder name, which is the repo branch name for that sort
     PPP_branch_name = list_of_paths_to_sorted_folders[0].name.split("_")[-1]
-    sort_type = "Kilosort" if PPP_branch_name == "KS" else "MUsort"
+    sort_type = "Kilosort" if PPP_branch_name == "KS" else "EMUsort"
     # this plot shows the performance of MUsort across different bin widths, with 1 trace per motor unit
     # put a subplot for each metric, but give a different color range for each metric. Make it flexible
     # to the number of motor units, then interpolate the color for each motor unit
@@ -675,7 +695,7 @@ def plot3(
                     x=bin_width,
                     y=metric_values[iMetric][:, iUnit],
                     mode="lines+markers",
-                    name=f"Unit {clusters_to_take_from[iUnit]}",
+                    name=f"Unit {clusters_in_sort_to_use[iUnit]}",
                     line=dict(width=4),
                     marker=dict(
                         color=metric_color_maps[iMetric][iUnit],
@@ -736,6 +756,195 @@ def plot3(
         fig.show()
 
 
+def plot4(
+    bin_width,
+    precision,
+    recall,
+    accuracy,
+    num_motor_units,
+    clusters_in_sort_to_use,
+    GT_clusters_to_use,
+    sort_from_each_path_to_load,
+    plot_template,
+    show_plot3,
+    save_png_plot3,
+    save_svg_plot3,
+    save_html_plot3,
+    figsize=(1920, 1080),
+):
+    # now add a fourth plot using the same structure as the above
+    # this plot will show multiple multi-channel voltage examples of when overlaps occured
+    # coloring the location of each individual spike with the median wave for that unit
+    # each row in the plot will be a channel, and each column is an example overlap
+    # spike_isolation_radius_ms cannot be None or 0
+
+    chans_to_use = range(10)
+    n_rows = len(chans_to_use)  # number of channels
+    n_cols = 10  # number of spike examples
+    sub_title_list = [str(iStr) for iStr in GT_clusters_to_use]
+    fig = subplots.make_subplots(
+        rows=n_rows,
+        cols=n_cols,
+        shared_xaxes=True,
+        shared_yaxes=True,
+        vertical_spacing=0.0,
+        horizontal_spacing=0.01,
+        subplot_titles=sub_title_list,
+    )
+
+    # be sure to use presentation mode to see the full grid
+    fig.layout.template = "plotly_dark"
+
+    named_colors = [
+        "royalblue",
+        "firebrick",
+        "forestgreen",
+        "darkorange",
+        "darkorchid",
+        "darkgreen",
+        "lightcoral",
+        "rgb(116, 77, 37)",
+        "cyan",
+        "mediumpurple",
+        "lightslategray",
+        "seinna",
+    ]
+
+    # plot the raw waveform at 10 randomly chosen GT spike times, then plot the sorted units
+    # multi-channel snippets with a slight y-axis offset above and ground truth with a slight
+    # y-axis offset below the raw voltage
+    # for the raw voltage time, plot 121 points, and for each template, plot 61 points
+
+    # get the spike snippets for each cluster in the ground truth
+    spike_snippets_for_each_cluster_ground_truth = []
+    median_spike_snippets_for_each_cluster_ground_truth = []
+    for iCluster in GT_clusters_to_use:
+        ground_truth_spike_times = np.where(ground_truth_spikes[:, iCluster] > 0)[0]
+        ground_truth_spike_time = np.random.choice(ground_truth_spike_times)
+        spike_snippets_for_each_cluster_ground_truth.append([])
+        # get the spike snippets for each cluster
+        for iSpike_time in GT_spike_times_for_each_cluster[iCluster]:
+            if iSpike_time - nt0 // 2 >= 0 and iSpike_time + nt0 // 2 + 1 <= len(
+                sim_ephys_data
+            ):
+                spike_snippets_for_each_cluster_ground_truth[iCluster].append(
+                    sim_ephys_data[
+                        int(iSpike_time - nt0 // 2) : int(iSpike_time + nt0 // 2 + 1),
+                        :,
+                    ]
+                )
+        spike_snippets_for_each_cluster_ground_truth[iCluster] = np.array(
+            spike_snippets_for_each_cluster_ground_truth[iCluster]
+        )
+
+    # get spike sorter example snippets
+    spike_examples_for_each_cluster = [
+        np.array(
+            [
+                sim_ephys_data[
+                    int(iSpike_time - nt0 // 2) : int(iSpike_time + nt0 // 2 + 1),
+                    :,
+                ]
+                for iSpike_time in iCluster_spike_times
+            ]
+        )
+        for iCluster_spike_times in spike_times_for_each_cluster
+    ]  # dimensions are (num_spikes, nt0, num_chans_in_recording)
+
+    for i, uid in enumerate(clusters_in_sort_to_use):
+        for j, chan in enumerate(chans_to_use):
+            # get the mean waveform for this unit on this channel
+            raw_GT_waveform = median_spike_snippets_for_each_cluster_ground_truth
+            # add the trace of the raw GT waveform
+            fig.add_trace(
+                go.Scatter(
+                    x=np.arange(len(raw_GT_waveform)) * 1000 / 30000,
+                    y=raw_GT_waveform,
+                    line=dict(color="black"),
+                    line_width=2.5,
+                    showlegend=False,
+                ),
+                row=len(chans_to_use[uid]) - j,
+                col=i + 1,
+            )
+
+    for i, uid in enumerate(clusters_in_sort_to_use):
+        for j, chan in enumerate(chans_to_use):
+            fig.add_trace(
+                go.Scatter(
+                    x=np.arange(len(raw_GT_waveform)) * 1000 / 30000,
+                    y=raw_GT_waveform + 100,
+                    line=dict(color="black"),
+                    line_width=2.5,
+                    showlegend=False,
+                ),
+                row=len(chans_to_use[uid]) - j,
+                col=i + 1,
+            )
+
+    for i, uid in enumerate(clusters_in_sort_to_use):
+        for j, chan in enumerate(chans_to_use):
+            fig.add_trace(
+                go.Scatter(
+                    x=np.arange(len(raw_GT_waveform)) * 1000 / 30000,
+                    y=raw_GT_waveform - 100,
+                    line=dict(color="black"),
+                    line_width=2.5,
+                    showlegend=False,
+                ),
+                row=len(chans_to_use[uid]) - j,
+                col=i + 1,
+            )
+
+    fig.update_xaxes(visible=False)
+    # fig.update_yaxes(visible=False)
+    # make the grid look nice, disable tick labels and y-axis line
+    # make all the x and y axes the same
+    fig.update_xaxes(showticklabels=False, matches="x", showline=False, showgrid=False)
+    fig.update_yaxes(
+        showticklabels=False,
+        matches="y",
+        showline=False,
+        showgrid=False,
+        zerolinecolor="grey",
+    )
+
+    # enable tick label only for column 1 and row 5
+    fig.update_xaxes(showticklabels=True, col=1, row=1)
+    fig.update_yaxes(showticklabels=True, col=1, row=1)
+
+    # make font size of tick labels smaller and bold
+    fig.update_yaxes(
+        tickfont=dict(size=14, family="Arial", color="white"),
+        title="Voltage (uV)",
+        col=1,
+        row=1,
+    )
+
+    # make y axis title smaller
+    fig.update_yaxes(
+        title_font=dict(size=14, family="Arial", color="white"), col=1, row=1
+    )
+
+    # move the y axis title closer to the y axis
+    fig.update_yaxes(title_standoff=0, col=1, row=1)
+
+    # make subplot titles bigger
+    fig.update_annotations(font=dict(size=18))
+
+    # make background black
+    fig.update_layout(paper_bgcolor="black", plot_bgcolor="black")
+
+    # make the grid big enough to see
+    fig.update_layout(
+        height=500,
+        width=800,
+        title_text="<b>Cortical Mean Waveforms</b>",
+        font=dict(size=20, family="Arial", color="white"),
+    )
+    fig.show()
+
+
 if __name__ == "__main__":
     # set parameters
     parallel = True
@@ -746,38 +955,44 @@ if __name__ == "__main__":
     # choose bin widths as a range from 0.125 ms to 8 ms in log2 increments
     xstart = np.log2(0.125)
     bin_widths_for_comparison = np.logspace(xstart, -xstart, num=13, base=2)
-    # bin_widths_for_comparison = [1]
-    spike_isolation_radius_ms = 1  # radius of isolation of a spike for it to be removed from consideration. set to positive float, integer, or set None to disable
+    bin_widths_for_comparison = [1]
+    spike_isolation_radius_ms = None  # radius of isolation of a spike for it to be removed from consideration. set to positive float, integer, or set None to disable
     # index of which bin width of bin_widths_for_comparison to show in plots
-    iShow = 6
+    iShow = 0
 
     nt0 = 121  # number of time bins in the template, in ms it is 3.367
     random_seed_entropy = 218530072159092100005306709809425040261  # 75092699954400878964964014863999053929  # int
-    plot_template = "plotly_white"
+    plot_template = "plotly_white"  # ['ggplot2', 'seaborn', 'simple_white', 'plotly', 'plotly_white', 'plotly_dark', 'presentation', 'xgridoff', 'ygridoff', 'gridon', 'none']
+    bar_type = "percent"  # totals / percent
+    plot1_ylim = [0, 125]
     plot2_xlim = [0, 1]
     show_plot1 = True
     show_plot2 = False
     show_plot3 = False
+    show_plot4 = False
     save_png_plot1 = False
     save_png_plot2 = False
     save_png_plot3 = False
+    save_png_plot4 = False
     save_svg_plot1 = False
     save_svg_plot2 = False
     save_svg_plot3 = False
+    save_svg_plot4 = False
     save_html_plot1 = False
     save_html_plot2 = False
     save_html_plot3 = False
+    save_html_plot4 = False
 
     ## paths with simulated data
     path_to_sim_dat = Path(
-        "continuous_20221117_godzilla_SNR-400-constant_jitter-0std_files-11.dat"
-        # "continuous_20221117_godzilla_SNR-None-constant_jitter-0std_files-11.dat"
+        # "continuous_20221117_godzilla_SNR-400-constant_jitter-0std_files-11.dat" # triple rat
+        "continuous_20221117_godzilla_SNR-None-constant_jitter-0std_files-11.dat"  # godzilla only
         # "continuous_20221117_godzilla_SNR-1-from_data_jitter-4std_files-11.dat"
     )
     ## load ground truth data
     ground_truth_path = Path(
-        "spikes_20221117_godzilla_SNR-400-constant_jitter-0std_files-11.npy"
-        # "spikes_20221117_godzilla_SNR-1-from_data_jitter-4std_files-11.npy"
+        # "spikes_20221117_godzilla_SNR-400-constant_jitter-0std_files-11.npy" # triple rat
+        "spikes_20221117_godzilla_SNR-1-from_data_jitter-4std_files-11.npy"  # godzilla only
         # "spikes_20221117_godzilla_SNR-1-from_data_jitter-1std_files-5.npy"
         # "spikes_20221116_godzilla_SNR-8-from_data_jitter-4std_files-1.npy"
     )  # spikes_20221116_godzilla_SNR-None_jitter-0std_files-1.npy
@@ -791,8 +1006,8 @@ if __name__ == "__main__":
     paths_to_KS_session_folders = [
         Path(
             # "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/godzilla/simulated20221116/"
-            # "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/godzilla/simulated20221117/"
-            "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/triple/simulated20231219/"
+            "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/godzilla/simulated20221117/"
+            # "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/triple/simulated20231219/"
         ),
     ]
     sorts_from_each_path_to_load = [
@@ -1079,7 +1294,7 @@ if __name__ == "__main__":
         # initialize a np.array of correlations for each cluster combination
         correlations = np.zeros((len(GT_clusters_iter), len(KS_clusters_iter)))
         for jCluster_GT in GT_clusters_iter:
-            # this will only break if KS clusters are less than GT clusters
+            # this will only break out of the loop if KS clusters are fewer than GT clusters
             if len(KS_clusters_iter) == 0:
                 break
             for iCluster_KS in KS_clusters_iter:
@@ -1344,7 +1559,9 @@ if __name__ == "__main__":
             GT_clusters_to_use,
             sorts_from_each_path_to_load[0],
             plot_template,
+            bar_type,
             show_plot1,
+            plot1_ylim,
             save_png_plot1,
             save_svg_plot1,
             save_html_plot1,
@@ -1434,6 +1651,26 @@ if __name__ == "__main__":
             save_png_plot3,
             save_svg_plot3,
             save_html_plot3,
+            # make figsize 1080p
+            figsize=(1920, 1080),
+        )
+
+    if show_plot4 or save_png_plot4 or save_html_plot4 or save_svg_plot4:
+        ### plot 4: examples of overlaps throughout sort to validate results
+        plot4(
+            bin_widths_for_comparison,
+            precisions,
+            recalls,
+            accuracies,
+            num_motor_units,
+            clusters_in_sort_to_use,
+            GT_clusters_to_use,
+            sorts_from_each_path_to_load[0],
+            plot_template,
+            show_plot4,
+            save_png_plot4,
+            save_svg_plot4,
+            save_html_plot4,
             # make figsize 1080p
             figsize=(1920, 1080),
         )
