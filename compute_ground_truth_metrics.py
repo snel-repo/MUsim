@@ -105,7 +105,7 @@ def compare_spike_trains(
     mu_GT.load_MUs(
         # npy_file_path
         ground_truth_path,
-        1 / 30000,
+        1 / ephys_fs,
         load_as="trial",
         slice=time_frame,
         load_type="MUsim",
@@ -118,7 +118,7 @@ def compare_spike_trains(
     mu_KS.load_MUs(
         # npy_file_path
         list_of_paths_to_sorted_folders[0],
-        1 / 30000,
+        1 / ephys_fs,
         load_as="trial",
         slice=time_frame,
         load_type="kilosort",
@@ -347,7 +347,7 @@ def plot1(
     GT_clusters_to_use,
     sort_from_each_path_to_load,
     plot_template,
-    bar_type,
+    plot1_bar_type,
     show_plot1,
     plot1_ylim,
     save_png_plot1,
@@ -360,39 +360,6 @@ def plot1(
     sort_type = "Kilosort" if PPP_branch_name == "KS" else "EMUsort"
 
     fig = go.Figure()
-    fig.add_hline(y=100, line_width=3, line_dash="dash", line_color="black")
-    if bar_type == "totals":
-        fig.add_trace(
-            go.Bar(
-                x=np.arange(0, num_motor_units),
-                y=num_ground_truth_spikes,
-                name="Ground Truth",
-                marker_color="rgb(55, 83, 109)",
-                opacity=0.5,
-            )
-        )
-        fig.add_trace(
-            go.Bar(
-                x=np.arange(0, num_motor_units),
-                y=num_kilosort_spikes,
-                name=sort_type,
-                marker_color="rgb(26, 118, 255)",
-                opacity=0.5,
-            )
-        )
-        bar_yaxis_title = "<b>Spike Count</b>"
-    elif bar_type == "percent":
-        fig.add_trace(
-            go.Bar(
-                x=np.arange(0, num_motor_units),
-                y=100 * num_kilosort_spikes / num_ground_truth_spikes,
-                name="% True Spike Count",
-                marker_color="cornflowerblue",
-                opacity=1,
-            )
-        )
-        bar_yaxis_title = "<b>% True Spike Count</b>"
-
     fig.add_trace(
         go.Scatter(
             x=np.arange(0, num_motor_units),
@@ -400,7 +367,7 @@ def plot1(
             mode="lines+markers",
             name="Precision",
             line=dict(width=4, color="green"),
-            yaxis="y2",
+            # yaxis="y2",
         )
     )
     fig.add_trace(
@@ -410,7 +377,7 @@ def plot1(
             mode="lines+markers",
             name="Recall",
             line=dict(width=4, color="crimson"),
-            yaxis="y2",
+            # yaxis="y2",
         )
     )
     fig.add_trace(
@@ -420,17 +387,76 @@ def plot1(
             mode="lines+markers",
             name="Accuracy",
             line=dict(width=4, color="orange"),
-            yaxis="y2",
+            # yaxis="y2",
         )
     )
+    if plot1_bar_type == "totals":
+        fig.add_trace(
+            go.Bar(
+                x=np.arange(0, num_motor_units),
+                y=num_ground_truth_spikes,
+                name="Ground Truth",
+                marker_color="rgb(55, 83, 109)",
+                opacity=0.5,
+                yaxis="y2",
+            )
+        )
+        fig.add_trace(
+            go.Bar(
+                x=np.arange(0, num_motor_units),
+                y=num_kilosort_spikes,
+                name=sort_type,
+                marker_color="rgb(26, 118, 255)",
+                opacity=0.5,
+                yaxis="y2",
+            )
+        )
+        bar_yaxis_title = "<b>Spike Count</b>"
+    elif plot1_bar_type == "percent":
+        fig.add_trace(
+            go.Bar(
+                x=np.arange(0, num_motor_units),
+                y=100 * num_kilosort_spikes / num_ground_truth_spikes,
+                name="% True Spike Count",
+                # showlegend=False,
+                marker_color="cornflowerblue",
+                opacity=1,
+                yaxis="y2",
+            )
+        )
+        bar_yaxis_title = "<b>% True Spike Count</b>"
+    fig.add_hline(
+        y=100,
+        line_width=3,
+        line_dash="dash",
+        line_color="black",
+        yref="y2",
+        name="100% Spike Count",
+    )
+
+    # make the title shifted higher up
     fig.update_layout(
-        title=f"<b>Comparison of {sort_type} Performance to Ground Truth, {bin_width_for_comparison} ms Bins</b><br><sup>Sort: {sort_from_each_path_to_load}</sup>",
-        xaxis_title="<b>GT Cluster ID</b>",
-        legend_title="Ground Truth Metrics",
+        title={
+            "text": f"<b>Comparison of {sort_type} Performance to Ground Truth, {bin_width_for_comparison} ms Bins</b><br><sup>Sort: {sort_from_each_path_to_load}</sup>",
+            "y": 0.95,
+        },
+        xaxis_title="<b>GT Cluster ID,<br>True Count</b>",
+        # legend_title="Ground Truth Metrics",
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
         template=plot_template,
-        yaxis=dict(title=bar_yaxis_title),
+        yaxis=dict(
+            title="<b>Metric Score</b>",
+            title_standoff=1,
+            range=[0, 1],
+            overlaying="y2",
+        ),
         yaxis2=dict(
-            title="<b>Metric Score</b>", range=[0, 1], overlaying="y", side="right"
+            title=bar_yaxis_title,
+            title_standoff=1,
+            # anchor="free",
+            # autoshift=True,
+            # shift=-30,
+            side="right",
         ),
     )
     # update the x tick label of the bar graph to match the cluster ID
@@ -441,7 +467,7 @@ def plot1(
         ],
         tickvals=np.arange(0, num_motor_units),
     )
-    fig.update_layout(yaxis_range=plot1_ylim)  # WARNING: hardcode
+    fig.update_layout(yaxis2_range=plot1_ylim)
 
     if save_png_plot1:
         fig.write_image(
@@ -761,6 +787,7 @@ def plot4(
     precision,
     recall,
     accuracy,
+    nt0,
     num_motor_units,
     clusters_in_sort_to_use,
     GT_clusters_to_use,
@@ -778,13 +805,15 @@ def plot4(
     # each row in the plot will be a channel, and each column is an example overlap
     # spike_isolation_radius_ms cannot be None or 0
 
-    chans_to_use = range(10)
-    n_rows = len(chans_to_use)  # number of channels
-    n_cols = 10  # number of spike examples
+    num_examples = 10  # number of spike examples
+    chans_to_use = list(range(6))
+    num_chans = len(chans_to_use)  # number of channels
+    num_motor_units = num_motor_units
+    time_points_of_waveform = 2 * nt0 + 1
     sub_title_list = [str(iStr) for iStr in GT_clusters_to_use]
     fig = subplots.make_subplots(
-        rows=n_rows,
-        cols=n_cols,
+        rows=num_chans,
+        cols=num_examples,
         shared_xaxes=True,
         shared_yaxes=True,
         vertical_spacing=0.0,
@@ -793,9 +822,23 @@ def plot4(
     )
 
     # be sure to use presentation mode to see the full grid
-    fig.layout.template = "plotly_dark"
+    fig.layout.template = "plotly_white"
 
-    named_colors = [
+    light_colors = [
+        "rgb(95,135,255)",
+        "rgb(208, 64, 64)",
+        "rgb(64, 169, 64)",
+        "rgb(255, 170, 30)",
+        "rgb(183, 80, 234)",
+        "rgb(30, 130, 30)",
+        "rgb(255, 158, 158)",
+        "rgb(146, 107, 67)",
+        "rgb(30,255,255)",
+        "rgb(177, 142, 249)",
+        "rgb(149, 166, 183)",
+        "rgb(190, 112, 75)",
+    ]
+    dark_colors = [
         "royalblue",
         "firebrick",
         "forestgreen",
@@ -810,90 +853,225 @@ def plot4(
         "seinna",
     ]
 
-    # plot the raw waveform at 10 randomly chosen GT spike times, then plot the sorted units
-    # multi-channel snippets with a slight y-axis offset above and ground truth with a slight
-    # y-axis offset below the raw voltage
-    # for the raw voltage time, plot 121 points, and for each template, plot 61 points
+    #     light_colors = [
+    #     "lightblue",
+    #     "lightcoral",
+    #     "lawngreen",
+    #     "cyan",
+    #     "mediumpurple",
+    #     "orange",
+    #     "magenta",
+    #     "sandybrown"
 
-    # get the spike snippets for each cluster in the ground truth
-    spike_snippets_for_each_cluster_ground_truth = []
-    median_spike_snippets_for_each_cluster_ground_truth = []
-    for iCluster in GT_clusters_to_use:
-        ground_truth_spike_times = np.where(ground_truth_spikes[:, iCluster] > 0)[0]
-        ground_truth_spike_time = np.random.choice(ground_truth_spike_times)
-        spike_snippets_for_each_cluster_ground_truth.append([])
-        # get the spike snippets for each cluster
-        for iSpike_time in GT_spike_times_for_each_cluster[iCluster]:
-            if iSpike_time - nt0 // 2 >= 0 and iSpike_time + nt0 // 2 + 1 <= len(
-                sim_ephys_data
-            ):
-                spike_snippets_for_each_cluster_ground_truth[iCluster].append(
-                    sim_ephys_data[
-                        int(iSpike_time - nt0 // 2) : int(iSpike_time + nt0 // 2 + 1),
-                        :,
-                    ]
+    # ]
+    # dark_colors = [
+    #     "darkblue",
+    #     "firebrick",
+    #     "forestgreen",
+    #     "darkcyan",
+    #     "purple",
+    #     "darkorange",
+    #     "darkmagenta",
+    #     "seinna",
+    #     "darkorchid",
+    #     "darkgreen",
+    # plot the raw data at 10 randomly chosen GT spike times across 10 channels, then plot any
+    # nearby GT or sorted unit median multi-channel waveform with a slight y-axis offset above and
+    # ground truth with a y-axis offset below the raw voltage. For each GT spike time chosen, find
+    # any spike times within +/- 2 ms (+/- 60 pts), and those will also be plotted. For each
+    # cluster and spike time identified, plot the median multi-channel waveform for that cluster
+    # at the identified time. Therefore, start by choosing 10 GT spike times, and create a 4D
+    # numpy array of np.nans with shape of:
+    #   (num_examples, num_motor_units, num_chans, time_points_of_waveform)
+    # when these are plotted over/under the raw voltage time (121 points long), all the 61 point
+    # waveforms will need to be offset in the x-axis of the subplot by the difference in spike
+    # times from the first randomly chosen GT spike time, which will be used as the reference
+    # and placed at point 61, make sure to get 1 reference from each of the real GT clusters
+    # tricky part will be to loop through all clusters to get the spike times within the time range
+    # of the reference and track which other units happened nearby the reference spike
+    # once all 10 reference examples are collected, and all other corresponding spike times
+    # plot each example as a column, and different rows are the different channels of data
+
+    # initialize snippet container arrays
+    raw_data_at_each_ground_truth_time = np.nan * np.ones(
+        (num_examples, num_chans, time_points_of_waveform)
+    )
+    wave_placements_for_each_cluster_ground_truth = np.nan * np.ones(
+        (num_examples, num_motor_units, num_chans, time_points_of_waveform)
+    )
+    wave_placements_for_each_cluster_from_sorter = np.nan * np.ones(
+        (num_examples, num_motor_units, num_chans, time_points_of_waveform)
+    )
+    # get one random spike time from each GT cluster, ensuring the time has a margin of time_points_of_waveform
+    reference_time_for_each_GT_cluster = [
+        np.random.choice(
+            iTimes[
+                np.bitwise_and(
+                    iTimes > time_points_of_waveform + 1,
+                    iTimes < len(sim_ephys_data) - time_points_of_waveform - 1,
                 )
-        spike_snippets_for_each_cluster_ground_truth[iCluster] = np.array(
-            spike_snippets_for_each_cluster_ground_truth[iCluster]
-        )
-
-    # get spike sorter example snippets
-    spike_examples_for_each_cluster = [
-        np.array(
-            [
-                sim_ephys_data[
-                    int(iSpike_time - nt0 // 2) : int(iSpike_time + nt0 // 2 + 1),
-                    :,
-                ]
-                for iSpike_time in iCluster_spike_times
             ]
-        )
-        for iCluster_spike_times in spike_times_for_each_cluster
-    ]  # dimensions are (num_spikes, nt0, num_chans_in_recording)
+        ).astype(int)
+        for iTimes in GT_spike_times_for_each_cluster
+    ]
 
-    for i, uid in enumerate(clusters_in_sort_to_use):
-        for j, chan in enumerate(chans_to_use):
+    # extract the time_points_of_waveform-wide spike snippets for each cluster using ground truth spike times
+    for iExample, this_spike_time in enumerate(reference_time_for_each_GT_cluster):
+        raw_data_at_each_ground_truth_time[iExample, :, :] = sim_ephys_data[
+            int(this_spike_time - time_points_of_waveform // 2) : int(
+                this_spike_time + time_points_of_waveform // 2 + 1
+            ),
+            chans_to_use,
+        ].T
+
+    # now loop through the GT times and fill the spike_placements arrays with any nearby spikes
+    # slice down to only nt0//2, then shift indexing by difference between spike time and GT reference time
+    for iExample, this_spike_time in enumerate(reference_time_for_each_GT_cluster):
+        for iCluster in GT_clusters_to_use:
+            try:
+                closest_spike_time_idx_for_this_cluster_sorted = np.asarray(
+                    np.abs(
+                        spike_times_for_each_cluster[iCluster].astype(float)
+                        - this_spike_time
+                    )
+                    < ephys_fs / 1000
+                ).nonzero()[0][0]
+                closest_spike_time_idx_for_this_cluster_GT = np.asarray(
+                    np.abs(
+                        GT_spike_times_for_each_cluster[iCluster].astype(float)
+                        - this_spike_time
+                    )
+                    < ephys_fs / 1000  # 1 ms
+                ).nonzero()[0][0]
+            except IndexError:
+                continue
+
+            # WARNING: check this indexing
+            closest_spike_time_for_this_cluster_sorted = spike_times_for_each_cluster[
+                iCluster
+            ][closest_spike_time_idx_for_this_cluster_sorted]
+            closest_spike_time_for_this_cluster_GT = GT_spike_times_for_each_cluster[
+                iCluster
+            ][closest_spike_time_idx_for_this_cluster_GT]
+
+            spike_time_difference_sorted = (
+                closest_spike_time_for_this_cluster_sorted - this_spike_time
+            ).astype(int)
+            spike_time_difference_GT = (
+                closest_spike_time_for_this_cluster_GT - this_spike_time
+            ).astype(int)
+
+            assert (
+                non_standard_median_spike_snippets_for_each_cluster_GT[0].shape[0]
+                == non_standard_median_spike_snippets_for_each_cluster[0].shape[0]
+            )
+
+            center_idx_of_wave_matches = (
+                non_standard_median_spike_snippets_for_each_cluster[0].shape[0] // 2
+            )
+
+            wave_placements_for_each_cluster_from_sorter[
+                iExample,
+                iCluster,
+                :,
+                time_points_of_waveform // 4
+                + spike_time_difference_sorted : 3 * (time_points_of_waveform // 4)
+                + spike_time_difference_sorted,
+            ] = non_standard_median_spike_snippets_for_each_cluster[iCluster][
+                center_idx_of_wave_matches
+                - (time_points_of_waveform // 4) : center_idx_of_wave_matches
+                + (time_points_of_waveform // 4),
+                chans_to_use,
+            ].T  # make (chans, time)
+
+            wave_placements_for_each_cluster_ground_truth[
+                iExample,
+                iCluster,
+                :,
+                time_points_of_waveform // 4
+                + spike_time_difference_GT : 3 * (time_points_of_waveform // 4)
+                + spike_time_difference_GT,
+            ] = non_standard_median_spike_snippets_for_each_cluster_GT[iCluster][
+                center_idx_of_wave_matches
+                - (time_points_of_waveform // 4) : center_idx_of_wave_matches
+                + (time_points_of_waveform // 4),
+                chans_to_use,
+            ].T  # make (chans, time)
+
+    for iCluster in GT_clusters_to_use:
+        for iChan, chan in enumerate(chans_to_use):
             # get the mean waveform for this unit on this channel
-            raw_GT_waveform = median_spike_snippets_for_each_cluster_ground_truth
+            raw_GT_waveform = raw_data_at_each_ground_truth_time[iCluster, iChan, :]
             # add the trace of the raw GT waveform
             fig.add_trace(
                 go.Scatter(
-                    x=np.arange(len(raw_GT_waveform)) * 1000 / 30000,
+                    x=np.arange(len(raw_GT_waveform))
+                    * 1000
+                    / ephys_fs,  # get time in ms
                     y=raw_GT_waveform,
                     line=dict(color="black"),
-                    line_width=2.5,
-                    showlegend=False,
+                    line_width=1,
+                    showlegend=True,
                 ),
-                row=len(chans_to_use[uid]) - j,
-                col=i + 1,
+                row=iChan + 1,
+                col=iCluster + 1,
             )
 
-    for i, uid in enumerate(clusters_in_sort_to_use):
-        for j, chan in enumerate(chans_to_use):
+    # plot the sorter result with slight vertical offset
+    for iCluster in GT_clusters_to_use:
+        for iChan, chan in enumerate(chans_to_use):
             fig.add_trace(
                 go.Scatter(
-                    x=np.arange(len(raw_GT_waveform)) * 1000 / 30000,
-                    y=raw_GT_waveform + 100,
-                    line=dict(color="black"),
-                    line_width=2.5,
-                    showlegend=False,
+                    x=np.arange(
+                        len(
+                            wave_placements_for_each_cluster_from_sorter[
+                                iExample, iCluster, iChan, :
+                            ]
+                        )
+                    )
+                    * 1000
+                    / ephys_fs,
+                    y=(
+                        wave_placements_for_each_cluster_from_sorter[
+                            iExample, iCluster, iChan, :
+                        ]
+                        + 500  # vertical offset of 500 uV
+                    ),
+                    line=dict(color=light_colors[iCluster]),
+                    line_width=0.5,
+                    showlegend=True,
+                    name=f"Sorted Unit {iCluster}, Chan {chan}",
                 ),
-                row=len(chans_to_use[uid]) - j,
-                col=i + 1,
+                row=iChan + 1,
+                col=iCluster + 1,
             )
 
-    for i, uid in enumerate(clusters_in_sort_to_use):
-        for j, chan in enumerate(chans_to_use):
+    # plot the ground truth on the same level as raw data
+    for iCluster in GT_clusters_to_use:
+        for iChan, chan in enumerate(chans_to_use):
             fig.add_trace(
                 go.Scatter(
-                    x=np.arange(len(raw_GT_waveform)) * 1000 / 30000,
-                    y=raw_GT_waveform - 100,
-                    line=dict(color="black"),
-                    line_width=2.5,
-                    showlegend=False,
+                    x=np.arange(
+                        len(
+                            wave_placements_for_each_cluster_ground_truth[
+                                iExample, iCluster, iChan, :
+                            ]
+                        )
+                    )
+                    * 1000
+                    / ephys_fs,
+                    y=(
+                        wave_placements_for_each_cluster_ground_truth[
+                            iExample, iCluster, iChan, :
+                        ]
+                    ),
+                    line=dict(color=dark_colors[iCluster]),
+                    line_width=0.5,
+                    showlegend=True,
+                    name=f"GT Unit {iCluster}, Chan {chan}",
                 ),
-                row=len(chans_to_use[uid]) - j,
-                col=i + 1,
+                row=iChan + 1,
+                col=iCluster + 1,
             )
 
     fig.update_xaxes(visible=False)
@@ -915,32 +1093,32 @@ def plot4(
 
     # make font size of tick labels smaller and bold
     fig.update_yaxes(
-        tickfont=dict(size=14, family="Arial", color="white"),
+        # tickfont=dict(size=14, family="Arial", color="white"),
         title="Voltage (uV)",
         col=1,
         row=1,
     )
 
     # make y axis title smaller
-    fig.update_yaxes(
-        title_font=dict(size=14, family="Arial", color="white"), col=1, row=1
-    )
+    # fig.update_yaxes(
+    #     title_font=dict(size=14, family="Arial", color="white"), col=1, row=1
+    # )
 
     # move the y axis title closer to the y axis
     fig.update_yaxes(title_standoff=0, col=1, row=1)
 
     # make subplot titles bigger
-    fig.update_annotations(font=dict(size=18))
+    # fig.update_annotations(font=dict(size=18))
 
     # make background black
-    fig.update_layout(paper_bgcolor="black", plot_bgcolor="black")
+    # fig.update_layout(paper_bgcolor="black", plot_bgcolor="black")
 
     # make the grid big enough to see
     fig.update_layout(
-        height=500,
-        width=800,
-        title_text="<b>Cortical Mean Waveforms</b>",
-        font=dict(size=20, family="Arial", color="white"),
+        # height=500,
+        # width=800,
+        title_text="<b>Comparison of Ground Truth to Sorter Results</b>",
+        # font=dict(size=20, family="Arial", color="white"),
     )
     fig.show()
 
@@ -950,21 +1128,22 @@ if __name__ == "__main__":
     parallel = True
     use_custom_merge_clusters = False
     automatically_assign_cluster_mapping = True
+    method_for_automatic_cluster_mapping = "times"  # can be "times" or "waves" what the correlation is computed on to map clusters
     time_frame = [0, 1]  # must be between 0 and 1
     ephys_fs = 30000  # Hz
-    # choose bin widths as a range from 0.125 ms to 8 ms in log2 increments
-    xstart = np.log2(0.125)
+    xstart = np.log2(
+        0.125
+    )  # choose bin widths as a range from 0.125 ms to 8 ms in log2 increments
     bin_widths_for_comparison = np.logspace(xstart, -xstart, num=13, base=2)
     bin_widths_for_comparison = [1]
     spike_isolation_radius_ms = None  # radius of isolation of a spike for it to be removed from consideration. set to positive float, integer, or set None to disable
-    # index of which bin width of bin_widths_for_comparison to show in plots
-    iShow = 0
+    iShow = 0  # index of which bin width of bin_widths_for_comparison to show in plots
 
     nt0 = 121  # number of time bins in the template, in ms it is 3.367
     random_seed_entropy = 218530072159092100005306709809425040261  # 75092699954400878964964014863999053929  # int
     plot_template = "plotly_white"  # ['ggplot2', 'seaborn', 'simple_white', 'plotly', 'plotly_white', 'plotly_dark', 'presentation', 'xgridoff', 'ygridoff', 'gridon', 'none']
-    bar_type = "percent"  # totals / percent
-    plot1_ylim = [0, 125]
+    plot1_bar_type = "percent"  # totals / percent
+    plot1_ylim = [0, 135]
     plot2_xlim = [0, 1]
     show_plot1 = True
     show_plot2 = False
@@ -1025,14 +1204,14 @@ if __name__ == "__main__":
         # "20231103_160031096827"  # 1 std, 4 jitter, all MUsort options ON, ?
         # "20231103_175840215876"  # 2 std, 8 jitter, all MUsort options ON, ?
         # "20231103_164647242198"  # 2 std, 4 jitter, all MUsort options ON, custom_merge
-        "20231105_192242190872"  # 2 std, 8 jitter, all MUsort options ON, except multi-threshold $$$ BEST EMUsort $$$
+        # "20231105_192242190872"  # 2 std, 8 jitter, all MUsort options ON, except multi-threshold $$$ BEST EMUsort $$$
         # "20231101_165306036638"  # 1 std, 4 jitter, optimal template selection routines OFF, Th=[1,0.5], spkTh=[-6]
         # "20231101_164409249821"  # 1 std, 4 jitter, optimal template selection routines OFF, Th=[1,0.5], spkTh=[-2]
         # "20231101_164937098773"  # 1 std, 4 jitter, optimal template selection routines OFF, Th=[5,2], spkTh=[-6]
         # "20231101_164129797219"  # 1 std, 4 jitter, optimal template selection routines OFF, Th=[5,2], spkTh=[-2]
         # "20231101_165135058289"  # 1 std, 4 jitter, optimal template selection routines OFF, Th=[2,1], spkTh=[-6]
         # "20231102_175449741223"  # 1 std, 4 jitter, vanilla Kilosort, Th=[1,0.5], spkTh=[-6]
-        # "20231103_184523634126"  # 2 std, 8 jitter, vanilla Kilosort, Th=[1,0.5], spkTh=[-6] $$$ BEST Kilosort3 $$$
+        "20231103_184523634126"  # 2 std, 8 jitter, vanilla Kilosort, Th=[1,0.5], spkTh=[-6] $$$ BEST Kilosort3 $$$
         # "20231103_184518491799"  # 2 std, 8 jitter, vanilla Kilosort, Th=[2,1], spkTh=[-6]
         # } All in braces did not have channel delays reintroduced for continuous.dat
         #### Below are with new 16 channel, triple rat dataset.
@@ -1195,157 +1374,301 @@ if __name__ == "__main__":
             for iCluster in clusters_in_sort_to_use
         ]
 
-        # load and reshape into numchans x whatever (2d array) the data.bin file
-        sim_ephys_data = np.memmap(
-            str(path_to_sim_dat), dtype="int16", mode="r"
-        ).reshape(
-            -1, 24
-        )  ### WARNING HARDCODED 24 CHANNELS ### !!!
-
-        # only take the first 16 channels, last 8 are dummy channels
-        sim_ephys_data = sim_ephys_data[:, :16]
-
-        # get the spike snippets for each cluster
-        spike_snippets_for_each_cluster = [
-            np.array(
-                [
-                    sim_ephys_data[
-                        int(iSpike_time - nt0 // 2) : int(iSpike_time + nt0 // 2 + 1),
-                        :,
-                    ]
-                    for iSpike_time in iCluster_spike_times
-                ]
-            )
-            for iCluster_spike_times in spike_times_for_each_cluster
-        ]  # dimensions are (num_spikes, nt0, num_chans_in_recording)
-        # get the median waveform shape for each cluster, but standardize the waveforms
-        # before computing the median
-        standardized_spike_snippets_for_each_cluster = [
-            (iCluster_snippets - np.mean(iCluster_snippets)) / np.std(iCluster_snippets)
-            for iCluster_snippets in spike_snippets_for_each_cluster
-        ]
-        median_spike_snippets_for_each_cluster = [
-            np.median(iCluster_snippets, axis=0)
-            for iCluster_snippets in standardized_spike_snippets_for_each_cluster
-        ]
-
         # now do the same for the ground truth spikes. Load the ground truth spike times
         # which are 1's and 0's, where 1's indicate a spike and 0's indicate no spike
         # each column is a different unit, and row is a different time point in the recording
-        # now extract the waves at the spike times for all clusters, get the GT median waveform
-        # get the spike times for each cluster with np.where, but make
+        # use np.where to get the spike times for each cluster
         ground_truth_spike_times = np.load(str(ground_truth_path))
         GT_spike_times_for_each_cluster = [
             np.where(ground_truth_spike_times[:, iCluster] == 1)[0]
             for iCluster in GT_clusters_to_use
         ]
-        # get the spike snippets for each cluster in the ground truth
-        spike_snippets_for_each_cluster_ground_truth = []
-        median_spike_snippets_for_each_cluster_ground_truth = []
-        for iCluster in range(len(GT_spike_times_for_each_cluster)):
-            spike_snippets_for_each_cluster_ground_truth.append([])
+
+        # now use either the spike times or the waveforms to map the clusters according to best
+        # correlation score across all pairs of clusters and time lags
+        if method_for_automatic_cluster_mapping == "waves":
+            # load and reshape into numchans x whatever (2d array) the data.bin file
+            sim_ephys_data = np.memmap(
+                str(path_to_sim_dat), dtype="int16", mode="r"
+            ).reshape(
+                -1, 24
+            )  ### WARNING HARDCODED 24 CHANNELS ### !!!
+
+            # only take the first 16 channels, last 8 are dummy channels
+            sim_ephys_data = sim_ephys_data[:, :16]
+
             # get the spike snippets for each cluster
-            for iSpike_time in GT_spike_times_for_each_cluster[iCluster]:
-                if iSpike_time - nt0 // 2 >= 0 and iSpike_time + nt0 // 2 + 1 <= len(
-                    sim_ephys_data
-                ):
-                    spike_snippets_for_each_cluster_ground_truth[iCluster].append(
+            spike_snippets_for_each_cluster = [
+                np.array(
+                    [
                         sim_ephys_data[
                             int(iSpike_time - nt0 // 2) : int(
                                 iSpike_time + nt0 // 2 + 1
                             ),
                             :,
                         ]
-                    )
-            spike_snippets_for_each_cluster_ground_truth[iCluster] = np.array(
-                spike_snippets_for_each_cluster_ground_truth[iCluster]
-            )
+                        for iSpike_time in iCluster_spike_times
+                    ]
+                )
+                for iCluster_spike_times in spike_times_for_each_cluster
+            ]  # dimensions are (num_spikes, nt0, num_chans_in_recording)
+
+            # store non-standardized waveforms
+            non_standard_median_spike_snippets_for_each_cluster = [
+                np.median(iCluster_snippets, axis=0)
+                for iCluster_snippets in spike_snippets_for_each_cluster
+            ]
 
             # get the median waveform shape for each cluster, but standardize the waveforms
             # before computing the median
-            standardized_spike_snippets_for_each_cluster_ground_truth = (
-                spike_snippets_for_each_cluster_ground_truth[iCluster]
-                - np.mean(spike_snippets_for_each_cluster_ground_truth[iCluster])
-            ) / np.std(spike_snippets_for_each_cluster_ground_truth[iCluster])
+            standardized_spike_snippets_for_each_cluster = [
+                (iCluster_snippets - np.mean(iCluster_snippets))
+                / np.std(iCluster_snippets)
+                for iCluster_snippets in spike_snippets_for_each_cluster
+            ]
+            median_spike_snippets_for_each_cluster = [
+                np.median(iCluster_snippets, axis=0)
+                for iCluster_snippets in standardized_spike_snippets_for_each_cluster
+            ]
+            # now extract the waves at the spike times for all clusters, get the GT median waveform
 
-            median_spike_snippets_for_each_cluster_ground_truth.append(
-                np.median(
-                    standardized_spike_snippets_for_each_cluster_ground_truth, axis=0
-                )
-            )
-        # now compute the correlation between each cluster's median wave
-        # and the median waves of the ground truth clusters, pairing the clusters with the highest
-        # correlation match and then using those pairs to reorder the clusters in
-        # 'clusters_to_take_from' to match the ground truth clusters
-        # once a high correlation is found, remove that cluster from the future correlation calculations
-        # so that it cannot be paired with another cluster
-        # need to compute correlation for all lags and take highest correlation to ensure success
-        # even if the ground truth and the sort are misaligned in time
-        # use scipy.signal.correlate
-        GT_clusters_iter = list(
-            range(len(median_spike_snippets_for_each_cluster_ground_truth))
-        )
-        KS_clusters_iter = list(range(len(median_spike_snippets_for_each_cluster)))
-        cluster_mapping = dict()
-        new_cluster_ordering = np.nan * np.ones(
-            len(median_spike_snippets_for_each_cluster_ground_truth)
-        )
-        # sort_clust_IDs_weighted_corr_score_dict = dict()
-        # initialize a np.array of correlations for each cluster combination
-        correlations = np.zeros((len(GT_clusters_iter), len(KS_clusters_iter)))
-        for jCluster_GT in GT_clusters_iter:
-            # this will only break out of the loop if KS clusters are fewer than GT clusters
-            if len(KS_clusters_iter) == 0:
-                break
-            for iCluster_KS in KS_clusters_iter:
-                # initialize a list of correlations for each lag
-                correlations_for_each_lag = []
-                for iLag in range(-nt0 // 2, nt0 // 2 + 1):
-                    # compute the correlation between the two median waves
-                    correlations_for_each_lag.append(
-                        np.corrcoef(
-                            np.roll(
-                                median_spike_snippets_for_each_cluster[
-                                    iCluster_KS
-                                ].T.flatten(),
-                                iLag,
-                                axis=0,
-                            ),
-                            median_spike_snippets_for_each_cluster_ground_truth[
-                                jCluster_GT
-                            ].T.flatten(),
-                        )[0, 1]
-                    )
-                # scale correlations by the accuracy of the spike count compared to the true spike count
-                # this is to prevent a cluster with a very low spike count from being matched to a cluster
-                # with a very high spike count, which might have a high correlation but is not a good match
-                # because the spike counts are so different
-                # equation is: exp( abs( true spike count - sort spike count ) / (2 * true spike count^2) )
-                # which will be 1 if the spike counts are the same, and will be 0 if the spike counts are
-                # very different, with a sigma equal to the true spike count to prevent a cluster with a
-                # dramatically different spike count from being matched
-                spike_count_match_score = np.exp(
-                    -(
-                        (
-                            np.abs(
-                                true_spike_counts_for_each_cluster[jCluster_GT]
-                                - spike_times_for_each_cluster[iCluster_KS].shape[0]
-                            )
+            # get the spike snippets for each cluster in the ground truth
+            spike_snippets_for_each_cluster_ground_truth = []
+            GT_median_spike_snippets_for_each_cluster = []
+            non_standard_median_spike_snippets_for_each_cluster_GT = []
+            for iCluster in range(len(GT_spike_times_for_each_cluster)):
+                spike_snippets_for_each_cluster_ground_truth.append([])
+                # get the spike snippets for each cluster
+                for iSpike_time in GT_spike_times_for_each_cluster[iCluster]:
+                    if (
+                        iSpike_time - nt0 // 2 >= 0
+                        and iSpike_time + nt0 // 2 + 1 <= len(sim_ephys_data)
+                    ):
+                        spike_snippets_for_each_cluster_ground_truth[iCluster].append(
+                            sim_ephys_data[
+                                int(iSpike_time - nt0 // 2) : int(
+                                    iSpike_time + nt0 // 2 + 1
+                                ),
+                                :,
+                            ]
                         )
-                        ** 2
+                spike_snippets_for_each_cluster_ground_truth[iCluster] = np.array(
+                    spike_snippets_for_each_cluster_ground_truth[iCluster]
+                )
+
+                # store non-standardized waveforms
+                non_standard_median_spike_snippets_for_each_cluster_GT.append(
+                    np.median(
+                        spike_snippets_for_each_cluster_ground_truth[iCluster], axis=0
                     )
-                    / (2 * (true_spike_counts_for_each_cluster[jCluster_GT]) ** 2)
-                )
-                # append the highest correlation for these cluster combinations and lags
-                correlations[jCluster_GT, iCluster_KS] = np.max(
-                    correlations_for_each_lag
                 )
 
-                # now scale the correlation by the spike count match index
-                # correlations[jCluster_GT, iCluster_KS] = (
-                #     correlations[jCluster_GT, iCluster_KS] * spike_count_match_score
-                # )
+                # get the median waveform shape for each cluster, but standardize the waveforms
+                # before computing the median
+                standardized_spike_snippets_for_each_cluster_ground_truth = (
+                    spike_snippets_for_each_cluster_ground_truth[iCluster]
+                    - np.mean(spike_snippets_for_each_cluster_ground_truth[iCluster])
+                ) / np.std(spike_snippets_for_each_cluster_ground_truth[iCluster])
 
+                GT_median_spike_snippets_for_each_cluster.append(
+                    np.median(
+                        standardized_spike_snippets_for_each_cluster_ground_truth,
+                        axis=0,
+                    )
+                )
+            # now compute the correlation between each cluster's median wave
+            # and the median waves of the ground truth clusters, pairing the clusters with the highest
+            # correlation match and then using those pairs to reorder the clusters in
+            # 'clusters_to_take_from' to match the ground truth clusters
+            # once a high correlation is found, remove that cluster from the future correlation calculations
+            # so that it cannot be paired with another cluster
+            # need to compute correlation for all lags and take highest correlation to ensure success
+            # even if the ground truth and the sort are misaligned in time
+            # use scipy.signal.correlate
+            GT_clusters_iter = list(
+                range(len(GT_median_spike_snippets_for_each_cluster))
+            )
+            KS_clusters_iter = list(range(len(median_spike_snippets_for_each_cluster)))
+            # cluster_mapping = dict()
+            # new_cluster_ordering = np.nan * np.ones(
+            #     len(GT_median_spike_snippets_for_each_cluster)
+            # )
+            # sort_clust_IDs_weighted_corr_score_dict = dict()
+            # initialize a np.array of correlations for each cluster combination
+            correlations = np.zeros((len(GT_clusters_iter), len(KS_clusters_iter)))
+            for jCluster_GT in GT_clusters_iter:
+                # this will only break out of the loop if KS clusters are fewer than GT clusters
+                if len(KS_clusters_iter) == 0:
+                    break
+                for iCluster_KS in KS_clusters_iter:
+                    # initialize a list of correlations for each lag
+                    correlations_for_each_lag = []
+                    for iLag in range(-nt0 // 2, nt0 // 2 + 1):
+                        # compute the correlation between the two median waves
+                        correlations_for_each_lag.append(
+                            np.corrcoef(
+                                np.roll(
+                                    median_spike_snippets_for_each_cluster[
+                                        iCluster_KS
+                                    ].T.flatten(),
+                                    iLag,
+                                    axis=0,
+                                ),
+                                GT_median_spike_snippets_for_each_cluster[
+                                    jCluster_GT
+                                ].T.flatten(),
+                            )[0, 1]
+                        )
+                    # scale correlations by the accuracy of the spike count compared to the true spike count
+                    # this is to prevent a cluster with a very low spike count from being matched to a cluster
+                    # with a very high spike count, which might have a high correlation but is not a good match
+                    # because the spike counts are so different
+                    # equation is: exp( abs( true spike count - sort spike count ) / (2 * true spike count^2) )
+                    # which will be 1 if the spike counts are the same, and will be 0 if the spike counts are
+                    # very different, with a sigma equal to the true spike count to prevent a cluster with a
+                    # dramatically different spike count from being matched
+                    spike_count_match_score = np.exp(
+                        -(
+                            (
+                                np.abs(
+                                    true_spike_counts_for_each_cluster[jCluster_GT]
+                                    - spike_times_for_each_cluster[iCluster_KS].shape[0]
+                                )
+                            )
+                            ** 2
+                        )
+                        / (2 * (true_spike_counts_for_each_cluster[jCluster_GT]) ** 2)
+                    )
+                    # append the highest correlation for these cluster combinations and lags
+                    correlations[jCluster_GT, iCluster_KS] = np.max(
+                        correlations_for_each_lag
+                    )
+
+                    # now scale the correlation by the spike count match index
+                    # correlations[jCluster_GT, iCluster_KS] = (
+                    #     correlations[jCluster_GT, iCluster_KS] * spike_count_match_score
+                    # )
+                print(
+                    f"Done computing waveform shape correlations for GT cluster {jCluster_GT} of {len(GT_clusters_to_use)-1}"
+                )
+        elif method_for_automatic_cluster_mapping == "times":
+            # assign cluster mapping by extracting the spike times for all clusters, and then
+            # computing the pairwise cross-correlation between each cluster's spike times
+            # shift the spike times by all possible lags up to +/- 2 ms, and then take the
+            # highest correlation as the match
+            # it should produce a 'correlations' variable that is the same format as the "waves"
+            # method above, but with correlations computed on the spike times instead of the waves
+            # this approach will not use the median waveforms at all, and will only use the spike times
+            # to compute the correlation
+
+            # initialize a np.array of correlations for each cluster combination
+            correlations = np.zeros(
+                (len(GT_clusters_to_use), len(clusters_in_sort_to_use))
+            )
+
+            # initialize a numpy array of spike events for each KS cluster (times x clusters)
+            KS_spike_events_for_each_cluster = np.zeros(
+                (ground_truth_spike_times.shape[0], len(clusters_in_sort_to_use)),
+                dtype=np.uint8,
+            )
+            for iCluster_KS in range(len(clusters_in_sort_to_use)):
+                KS_spike_events_for_each_cluster[
+                    spike_times_for_each_cluster[iCluster_KS], iCluster_KS
+                ] = 1
+            # initialize a numpy array of spike events for each GT cluster (times x clusters)
+            GT_spike_events_for_each_cluster = np.zeros(
+                (ground_truth_spike_times.shape[0], len(GT_clusters_to_use)),
+                dtype=np.uint8,
+            )
+            for jCluster_GT in range(len(GT_clusters_to_use)):
+                GT_spike_events_for_each_cluster[
+                    GT_spike_times_for_each_cluster[jCluster_GT], jCluster_GT
+                ] = 1
+
+            # subsample the spike events to the time frame of interest
+            KS_spike_events_for_each_cluster = KS_spike_events_for_each_cluster[
+                int(time_frame[0] * ground_truth_spike_times.shape[0]) : int(
+                    time_frame[1] * ground_truth_spike_times.shape[0]
+                ),
+            ]
+            GT_spike_events_for_each_cluster = GT_spike_events_for_each_cluster[
+                int(time_frame[0] * ground_truth_spike_times.shape[0]) : int(
+                    time_frame[1] * ground_truth_spike_times.shape[0]
+                ),
+            ]
+
+            # subsample further by taking blocks of block_size seconds, every block_spacing seconds
+            block_size = 1  # seconds
+            block_spacing = 25  # seconds
+            block_offset = int(block_size * ephys_fs)
+            block_spacing_idx = int(block_spacing * ephys_fs)
+            KS_spike_events_for_each_cluster_sub = np.zeros(
+                (
+                    KS_spike_events_for_each_cluster.shape[0]
+                    // round(block_spacing / block_size)
+                    + 1,
+                    len(clusters_in_sort_to_use),
+                ),
+                dtype=np.uint8,
+            )
+            GT_spike_events_for_each_cluster_sub = np.zeros(
+                (
+                    GT_spike_events_for_each_cluster.shape[0]
+                    // round(block_spacing / block_size)
+                    + 1,
+                    len(GT_clusters_to_use),
+                ),
+                dtype=np.uint8,
+            )
+            for ii, iBlock in enumerate(
+                range(0, KS_spike_events_for_each_cluster.shape[0], block_spacing_idx)
+            ):  # loop through, assigning the blocks from the original spike events into the subsampled spike events
+                # we are not summing, we are just slicing the original spike events into the subsampled spike events
+                # skip last block
+                if (
+                    ii + 1
+                ) * block_offset >= KS_spike_events_for_each_cluster_sub.shape[0]:
+                    break
+                KS_spike_events_for_each_cluster_sub[
+                    ii * block_offset : (1 + ii) * block_offset
+                ] = KS_spike_events_for_each_cluster[iBlock : iBlock + block_offset]
+                GT_spike_events_for_each_cluster_sub[
+                    ii * block_offset : (1 + ii) * block_offset
+                ] = GT_spike_events_for_each_cluster[iBlock : iBlock + block_offset]
+            KS_spike_events_for_each_cluster = KS_spike_events_for_each_cluster_sub
+            GT_spike_events_for_each_cluster = GT_spike_events_for_each_cluster_sub
+
+            # now compute a proxy of correlation by matrix multiplication
+            # use np.roll to roll the entire KS matrix by all possible lags
+            # but do not roll the GT matrix, so that the correlation is computed
+            min_delay_ms = -1  # ms
+            max_delay_ms = 1  # ms
+            min_delay_samples = int(round(min_delay_ms * ephys_fs / 1000))
+            max_delay_samples = int(round(max_delay_ms * ephys_fs / 1000))
+
+            # compute the pairwise correlation between the two median waves
+            for jCluster_GT in range(len(GT_clusters_to_use)):
+                for iCluster_KS in range(len(clusters_in_sort_to_use)):
+                    # initialize a list of correlations for each lag
+                    correlations_for_each_lag = []
+                    for iLag in range(min_delay_samples, max_delay_samples + 1):
+                        correlations_for_each_lag.append(
+                            np.corrcoef(
+                                np.roll(
+                                    KS_spike_events_for_each_cluster[:, iCluster_KS],
+                                    iLag,
+                                    axis=0,
+                                ),
+                                GT_spike_events_for_each_cluster[:, jCluster_GT],
+                            )[0, 1]
+                        )
+                    # append the highest correlation for these cluster combinations and lags
+                    correlations[jCluster_GT, iCluster_KS] = np.max(
+                        correlations_for_each_lag
+                    )
+                print(
+                    f"Done computing spike time correlations for GT cluster {jCluster_GT} of {len(GT_clusters_to_use)-1}"
+                )
         # now find the cluster with the highest correlation
         sorted_cluster_pair_corr_idx = np.unravel_index(
             np.argsort(correlations.ravel()), correlations.shape
@@ -1404,10 +1727,10 @@ if __name__ == "__main__":
         # sorted_by_GT_idxs = np.argsort(GT_mapped_idxs[:, 0])
         # GT_mapped_idxs = GT_mapped_idxs[sorted_by_GT_idxs]
         # GT_cluster_match_idx = best_cluster_pair_corr_idx // len(
-        #     median_spike_snippets_for_each_cluster_ground_truth
+        #     GT_median_spike_snippets_for_each_cluster
         # )
         # KS_cluster_match_idx = best_cluster_pair_corr_idx % len(
-        #     median_spike_snippets_for_each_cluster_ground_truth
+        #     GT_median_spike_snippets_for_each_cluster
         # )
         # track the highest correlation for each sort cluster in a dictionary
         # sort_clust_IDs_weighted_corr_score_dict[
@@ -1559,7 +1882,7 @@ if __name__ == "__main__":
             GT_clusters_to_use,
             sorts_from_each_path_to_load[0],
             plot_template,
-            bar_type,
+            plot1_bar_type,
             show_plot1,
             plot1_ylim,
             save_png_plot1,
@@ -1662,6 +1985,7 @@ if __name__ == "__main__":
             precisions,
             recalls,
             accuracies,
+            nt0,
             num_motor_units,
             clusters_in_sort_to_use,
             GT_clusters_to_use,
