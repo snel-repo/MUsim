@@ -95,7 +95,9 @@ def compare_spike_trains(
                             f"Handled IndexError encountered at end: zeroed isolated spikes at {iTime}"
                         )
                 else:
-                    print("WARNING: Uncaught case, stopping for debugging")
+                    print(
+                        "WARNING: Uncaught case in isolated spike removal, stopping for debugging"
+                    )
                     set_trace()
         return MUsim_obj
 
@@ -348,147 +350,235 @@ def plot1(
     sort_from_each_path_to_load,
     plot_template,
     plot1_bar_type,
-    show_plot1,
     plot1_ylim,
-    save_png_plot1,
-    save_svg_plot1,
-    save_html_plot1,
+    show_plot1a,
+    save_png_plot1a,
+    save_svg_plot1a,
+    save_html_plot1a,
+    show_plot1b,
+    save_png_plot1b,
+    save_svg_plot1b,
+    save_html_plot1b,
     figsize=(1920, 1080),
 ):
     # get suffix after the KS folder name, which is the repo branch name for that sort
     PPP_branch_name = list_of_paths_to_sorted_folders[0].name.split("_")[-1]
     sort_type = "Kilosort" if PPP_branch_name == "KS" else "EMUsort"
 
-    fig = go.Figure()
-    fig.add_trace(
-        go.Scatter(
-            x=np.arange(0, num_motor_units),
-            y=precision,
-            mode="lines+markers",
-            name="Precision",
-            line=dict(width=4, color="green"),
-            # yaxis="y2",
-        )
-    )
-    fig.add_trace(
-        go.Scatter(
-            x=np.arange(0, num_motor_units),
-            y=recall,
-            mode="lines+markers",
-            name="Recall",
-            line=dict(width=4, color="crimson"),
-            # yaxis="y2",
-        )
-    )
-    fig.add_trace(
-        go.Scatter(
-            x=np.arange(0, num_motor_units),
-            y=accuracy,
-            mode="lines+markers",
-            name="Accuracy",
-            line=dict(width=4, color="orange"),
-            # yaxis="y2",
-        )
-    )
-    if plot1_bar_type == "totals":
-        fig.add_trace(
-            go.Bar(
+    if show_plot1a or save_png_plot1a or save_svg_plot1a or save_html_plot1a:
+        fig1a = go.Figure()
+        fig1a.add_trace(
+            go.Scatter(
                 x=np.arange(0, num_motor_units),
-                y=num_ground_truth_spikes,
-                name="Ground Truth",
-                marker_color="rgb(55, 83, 109)",
-                opacity=0.5,
-                yaxis="y2",
+                y=precision,
+                mode="lines+markers",
+                name="Precision",
+                line=dict(width=4, color="green"),
+                # yaxis="y2",
             )
         )
-        fig.add_trace(
-            go.Bar(
+        fig1a.add_trace(
+            go.Scatter(
                 x=np.arange(0, num_motor_units),
-                y=num_kilosort_spikes,
-                name=sort_type,
-                marker_color="rgb(26, 118, 255)",
-                opacity=0.5,
-                yaxis="y2",
+                y=recall,
+                mode="lines+markers",
+                name="Recall",
+                line=dict(width=4, color="crimson"),
+                # yaxis="y2",
             )
         )
-        bar_yaxis_title = "<b>Spike Count</b>"
-    elif plot1_bar_type == "percent":
-        fig.add_trace(
-            go.Bar(
+        fig1a.add_trace(
+            go.Scatter(
                 x=np.arange(0, num_motor_units),
-                y=100 * num_kilosort_spikes / num_ground_truth_spikes,
-                name="% True Spike Count",
-                # showlegend=False,
-                marker_color="cornflowerblue",
-                opacity=1,
-                yaxis="y2",
+                y=accuracy,
+                mode="lines+markers",
+                name="Accuracy",
+                line=dict(width=4, color="orange"),
+                # yaxis="y2",
             )
         )
+
+        # make the title shifted higher up,
+        # make text much larger
+        fig1a.update_layout(
+            title={
+                "text": f"<b>Comparison of {sort_type} Performance to Ground Truth, {bin_width_for_comparison} ms Bins</b><br><sup>Sort: {sort_from_each_path_to_load}</sup>",
+                # "y": 0.95,
+            },
+            xaxis_title="<b>GT Cluster ID,<br>True Count</b>",
+            # legend_title="Ground Truth Metrics",
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
+            template=plot_template,
+            yaxis=dict(
+                title="<b>Metric Score</b>",
+                title_standoff=1,
+                range=[0, 1],
+                # overlaying="y2",
+            ),
+            # yaxis2=dict(
+            #     title=bar_yaxis_title,
+            #     title_standoff=1,
+            #     # anchor="free",
+            #     # autoshift=True,
+            #     # shift=-30,
+            #     # side="right",
+            # ),
+        )
+        # update the x tick label of the bar graph to match the cluster ID
+        fig1a.update_xaxes(
+            ticktext=[
+                f"Unit {GT_clusters_to_use[iUnit]},<br>{str(round(num_ground_truth_spikes[iUnit]/1000,1))}k"
+                for iUnit in range(num_motor_units)
+            ],
+            tickvals=np.arange(0, num_motor_units),
+            # tickfont=dict(size=14, family="Arial"),
+        )
+
+    if show_plot1b or save_png_plot1b or save_svg_plot1b or save_html_plot1b:
+        # make text larger
+        fig1b = go.Figure(
+            layout=go.Layout(
+                yaxis=dict(
+                    # title_font=dict(size=14, family="Arial"),
+                    title_standoff=10,
+                ),
+                # title_font=dict(size=18),
+            )
+        )
+
+        if plot1_bar_type == "totals":
+            fig1b.add_trace(
+                go.Bar(
+                    x=np.arange(0, num_motor_units),
+                    y=num_ground_truth_spikes,
+                    name="Ground Truth",
+                    marker_color="rgb(55, 83, 109)",
+                    opacity=0.5,
+                )
+            )
+            fig1b.add_trace(
+                go.Bar(
+                    x=np.arange(0, num_motor_units),
+                    y=num_kilosort_spikes,
+                    name=sort_type,
+                    marker_color="rgb(26, 118, 255)",
+                    opacity=0.5,
+                )
+            )
+            bar_yaxis_title = "<b>Spike Count</b>"
+        elif plot1_bar_type == "percent":
+            fig1b.add_trace(
+                go.Bar(
+                    x=np.arange(0, num_motor_units),
+                    y=100 * num_kilosort_spikes / num_ground_truth_spikes,
+                    name="% True Spike Count",
+                    # showlegend=False,
+                    marker_color="cornflowerblue",
+                    opacity=1,
+                )
+            )
+        else:
+            raise ValueError(
+                f"plot1_bar_type must be 'totals' or 'percent', not {plot1_bar_type}"
+            )
         bar_yaxis_title = "<b>% True Spike Count</b>"
-    fig.add_hline(
-        y=100,
-        line_width=3,
-        line_dash="dash",
-        line_color="black",
-        yref="y2",
-        name="100% Spike Count",
-    )
+        fig1b.add_hline(
+            y=100,
+            line_width=3,
+            line_dash="dash",
+            line_color="black",
+            # yref="y2",
+            name="100% Spike Count",
+        )
+        # make all the text way larger
+        fig1b.update_layout(
+            title={
+                "text": f"<b>True Spike Count Captured for Each Cluster Using {sort_type}, {bin_width_for_comparison} ms Bins</b><br><sup>Sort: {sort_from_each_path_to_load}</sup>",
+                # "y": 0.95,
+            },
+            xaxis_title="<b>GT Cluster ID,<br>True Count</b>",
+            # legend_title="Ground Truth Metrics",
+            # legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
+            template=plot_template,
+            # yaxis=dict(
+            #     title="<b>Metric Score</b>",
+            #     title_standoff=1,
+            #     range=[0, 1],
+            #     # overlaying="y2",
+            # ),
+            yaxis=dict(
+                title=bar_yaxis_title,
+                # title_standoff=1,
+                # anchor="free",
+                # autoshift=True,
+                # shift=-30,
+                # side="right",
+            ),
+            # make the title text larger
+            # title_font=dict(size=18),
+        )
+        # set_trace()
 
-    # make the title shifted higher up
-    fig.update_layout(
-        title={
-            "text": f"<b>Comparison of {sort_type} Performance to Ground Truth, {bin_width_for_comparison} ms Bins</b><br><sup>Sort: {sort_from_each_path_to_load}</sup>",
-            "y": 0.95,
-        },
-        xaxis_title="<b>GT Cluster ID,<br>True Count</b>",
-        # legend_title="Ground Truth Metrics",
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
-        template=plot_template,
-        yaxis=dict(
-            title="<b>Metric Score</b>",
-            title_standoff=1,
-            range=[0, 1],
-            overlaying="y2",
-        ),
-        yaxis2=dict(
-            title=bar_yaxis_title,
-            title_standoff=1,
-            # anchor="free",
-            # autoshift=True,
-            # shift=-30,
-            side="right",
-        ),
-    )
-    # update the x tick label of the bar graph to match the cluster ID
-    fig.update_xaxes(
-        ticktext=[
-            f"Unit {GT_clusters_to_use[iUnit]},<br>{str(round(num_ground_truth_spikes[iUnit]/1000,1))}k"
-            for iUnit in range(num_motor_units)
-        ],
-        tickvals=np.arange(0, num_motor_units),
-    )
-    fig.update_layout(yaxis2_range=plot1_ylim)
+        # update the x tick label of the bar graph to match the cluster ID
+        fig1b.update_xaxes(
+            ticktext=[
+                f"Unit {GT_clusters_to_use[iUnit]},<br>{str(round(num_ground_truth_spikes[iUnit]/1000,1))}k"
+                for iUnit in range(num_motor_units)
+            ],
+            tickvals=np.arange(0, num_motor_units),
+            # tickfont=dict(size=14, family="Arial"),
+        )
+        fig1b.update_layout(yaxis_range=plot1_ylim)
+        # make y axis title smaller
+        # fig1b.update_yaxes(title_font=dict(size=14, family="Arial"))
 
-    if save_png_plot1:
-        fig.write_image(
-            f"KS_vs_GT_performance_metrics_{bin_width_for_comparison}ms_{sort_from_each_path_to_load}_{PPP_branch_name}.png",
+        # move the y axis title closer to the y axis
+        fig1b.update_yaxes(title_standoff=10)
+
+        # make subplot titles bigger
+        # fig.update_annotations(font=dict(size=18))
+
+    if save_png_plot1a:
+        fig1a.write_image(
+            f"Fig1a_KS_vs_GT_performance_metrics_{bin_width_for_comparison}ms_{sort_from_each_path_to_load}_{PPP_branch_name}.png",
             width=figsize[0],
             height=figsize[1],
         )
-    if save_svg_plot1:
-        fig.write_image(
-            f"KS_vs_GT_performance_metrics_{bin_width_for_comparison}ms_{sort_from_each_path_to_load}_{PPP_branch_name}.svg",
+    if save_svg_plot1a:
+        fig1a.write_image(
+            f"Fig1a_KS_vs_GT_performance_metrics_{bin_width_for_comparison}ms_{sort_from_each_path_to_load}_{PPP_branch_name}.svg",
             width=figsize[0],
             height=figsize[1],
         )
-    if save_html_plot1:
-        fig.write_html(
-            f"KS_vs_GT_performance_metrics_{bin_width_for_comparison}ms_{sort_from_each_path_to_load}_{PPP_branch_name}.html",
+    if save_html_plot1a:
+        fig1a.write_html(
+            f"Fig1a_KS_vs_GT_performance_metrics_{bin_width_for_comparison}ms_{sort_from_each_path_to_load}_{PPP_branch_name}.html",
             include_plotlyjs="cdn",
             full_html=False,
         )
-    if show_plot1:
-        fig.show()
+    if show_plot1a:
+        fig1a.show()
+
+    if save_png_plot1b:
+        fig1b.write_image(
+            f"Fig1b_KS_vs_GT_performance_metrics_{bin_width_for_comparison}ms_{sort_from_each_path_to_load}_{PPP_branch_name}.png",
+            width=figsize[0],
+            height=figsize[1],
+        )
+    if save_svg_plot1b:
+        fig1b.write_image(
+            f"Fig1b_KS_vs_GT_performance_metrics_{bin_width_for_comparison}ms_{sort_from_each_path_to_load}_{PPP_branch_name}.svg",
+            width=figsize[0],
+            height=figsize[1],
+        )
+    if save_html_plot1b:
+        fig1b.write_html(
+            f"Fig1b_KS_vs_GT_performance_metrics_{bin_width_for_comparison}ms_{sort_from_each_path_to_load}_{PPP_branch_name}.html",
+            include_plotlyjs="cdn",
+            full_html=False,
+        )
+    if show_plot1b:
+        fig1b.show()
 
 
 def plot2(
@@ -808,7 +898,6 @@ def plot4(
     num_examples = 10  # number of spike examples
     chans_to_use = list(range(6))
     num_chans = len(chans_to_use)  # number of channels
-    num_motor_units = num_motor_units
     time_points_of_waveform = 2 * nt0 + 1
     sub_title_list = [str(iStr) for iStr in GT_clusters_to_use]
     fig = subplots.make_subplots(
@@ -1128,7 +1217,7 @@ if __name__ == "__main__":
     parallel = True
     use_custom_merge_clusters = False
     automatically_assign_cluster_mapping = True
-    method_for_automatic_cluster_mapping = "times"  # can be "times" or "waves" what the correlation is computed on to map clusters
+    method_for_automatic_cluster_mapping = "waves"  # can be "waves", "times", or "trains"  what the correlation is computed on to map clusters
     time_frame = [0, 1]  # must be between 0 and 1
     ephys_fs = 30000  # Hz
     xstart = np.log2(
@@ -1136,7 +1225,7 @@ if __name__ == "__main__":
     )  # choose bin widths as a range from 0.125 ms to 8 ms in log2 increments
     bin_widths_for_comparison = np.logspace(xstart, -xstart, num=13, base=2)
     bin_widths_for_comparison = [1]
-    spike_isolation_radius_ms = None  # radius of isolation of a spike for it to be removed from consideration. set to positive float, integer, or set None to disable
+    spike_isolation_radius_ms = 1  # radius of isolation of a spike for it to be removed from consideration. set to positive float, integer, or set None to disable
     iShow = 0  # index of which bin width of bin_widths_for_comparison to show in plots
 
     nt0 = 121  # number of time bins in the template, in ms it is 3.367
@@ -1145,32 +1234,37 @@ if __name__ == "__main__":
     plot1_bar_type = "percent"  # totals / percent
     plot1_ylim = [0, 135]
     plot2_xlim = [0, 1]
-    show_plot1 = True
+    show_plot1a = True
+    show_plot1b = True
     show_plot2 = False
     show_plot3 = False
     show_plot4 = False
-    save_png_plot1 = False
+    save_png_plot1a = False
+    save_png_plot1b = False
     save_png_plot2 = False
     save_png_plot3 = False
     save_png_plot4 = False
-    save_svg_plot1 = False
+    save_svg_plot1a = False
+    save_svg_plot1b = False
     save_svg_plot2 = False
     save_svg_plot3 = False
     save_svg_plot4 = False
-    save_html_plot1 = False
+    save_html_plot1a = False
+    save_html_plot1b = False
     save_html_plot2 = False
     save_html_plot3 = False
     save_html_plot4 = False
 
+    ## TBD: NEED TO ADD FLAG FOR DATASET CHOICE, to flip all related variables
     ## paths with simulated data
     path_to_sim_dat = Path(
-        # "continuous_20221117_godzilla_SNR-400-constant_jitter-0std_files-11.dat" # triple rat
+        # "continuous_20221117_godzilla_SNR-400-constant_jitter-0std_files-11.dat"  # triple rat
         "continuous_20221117_godzilla_SNR-None-constant_jitter-0std_files-11.dat"  # godzilla only
         # "continuous_20221117_godzilla_SNR-1-from_data_jitter-4std_files-11.dat"
     )
     ## load ground truth data
     ground_truth_path = Path(
-        # "spikes_20221117_godzilla_SNR-400-constant_jitter-0std_files-11.npy" # triple rat
+        # "spikes_20221117_godzilla_SNR-400-constant_jitter-0std_files-11.npy"  # triple rat
         "spikes_20221117_godzilla_SNR-1-from_data_jitter-4std_files-11.npy"  # godzilla only
         # "spikes_20221117_godzilla_SNR-1-from_data_jitter-1std_files-5.npy"
         # "spikes_20221116_godzilla_SNR-8-from_data_jitter-4std_files-1.npy"
@@ -1300,6 +1394,10 @@ if __name__ == "__main__":
     # [8, 5, 7, 1, 3, 4, 0, 6]  # 4 std, 4 jitter
     # [9, 3, 7, 1, 2, 8, 0, 6]  # 8 std, 4 jitter
     # ]  # [[18, 2, 11, 0, 4, 10, 1, 9]]  # list of lists
+
+    if parallel:
+        import multiprocessing as mp
+        from concurrent.futures import ProcessPoolExecutor, as_completed
 
     clusters_in_sort_to_use = clusters_to_take_from[sorts_from_each_path_to_load[0]]
     true_spike_counts_for_each_cluster = np.load(str(ground_truth_path)).sum(axis=0)
@@ -1551,7 +1649,7 @@ if __name__ == "__main__":
                 print(
                     f"Done computing waveform shape correlations for GT cluster {jCluster_GT} of {len(GT_clusters_to_use)-1}"
                 )
-        elif method_for_automatic_cluster_mapping == "times":
+        elif method_for_automatic_cluster_mapping == "trains":
             # assign cluster mapping by extracting the spike times for all clusters, and then
             # computing the pairwise cross-correlation between each cluster's spike times
             # shift the spike times by all possible lags up to +/- 2 ms, and then take the
@@ -1598,7 +1696,7 @@ if __name__ == "__main__":
             ]
 
             # subsample further by taking blocks of block_size seconds, every block_spacing seconds
-            block_size = 1  # seconds
+            block_size = 5  # seconds
             block_spacing = 25  # seconds
             block_offset = int(block_size * ephys_fs)
             block_spacing_idx = int(block_spacing * ephys_fs)
@@ -1646,8 +1744,32 @@ if __name__ == "__main__":
             min_delay_samples = int(round(min_delay_ms * ephys_fs / 1000))
             max_delay_samples = int(round(max_delay_ms * ephys_fs / 1000))
 
-            # compute the pairwise correlation between the two median waves
-            for jCluster_GT in range(len(GT_clusters_to_use)):
+            # # compute the pairwise correlation between the two median waves
+            # for jCluster_GT in range(len(GT_clusters_to_use)):
+            #     for iCluster_KS in range(len(clusters_in_sort_to_use)):
+            #         # initialize a list of correlations for each lag
+            #         correlations_for_each_lag = []
+            #         for iLag in range(min_delay_samples, max_delay_samples + 1):
+            #             correlations_for_each_lag.append(
+            #                 np.corrcoef(
+            #                     np.roll(
+            #                         KS_spike_events_for_each_cluster[:, iCluster_KS],
+            #                         iLag,
+            #                         axis=0,
+            #                     ),
+            #                     GT_spike_events_for_each_cluster[:, jCluster_GT],
+            #                 )[0, 1]
+            #             )
+            #         # append the highest correlation for these cluster combinations and lags
+            #         correlations[jCluster_GT, iCluster_KS] = np.max(
+            #             correlations_for_each_lag
+            #         )
+            #     print(
+            #         f"Done computing spike time correlations for GT cluster {jCluster_GT} of {len(GT_clusters_to_use)-1}"
+            #     )
+
+            # make the above nested for loop into a parallel for loop
+            def compute_train_correlations_for_each_GT_cluster(jCluster_GT):
                 for iCluster_KS in range(len(clusters_in_sort_to_use)):
                     # initialize a list of correlations for each lag
                     correlations_for_each_lag = []
@@ -1662,13 +1784,150 @@ if __name__ == "__main__":
                                 GT_spike_events_for_each_cluster[:, jCluster_GT],
                             )[0, 1]
                         )
-                    # append the highest correlation for these cluster combinations and lags
-                    correlations[jCluster_GT, iCluster_KS] = np.max(
-                        correlations_for_each_lag
-                    )
                 print(
-                    f"Done computing spike time correlations for GT cluster {jCluster_GT} of {len(GT_clusters_to_use)-1}"
+                    f"Done computing spike train correlations for GT cluster {jCluster_GT} of {len(GT_clusters_to_use)-1}"
                 )
+                return (
+                    np.max(correlations_for_each_lag),
+                    jCluster_GT,
+                )  # return the highest correlation and the GT cluster index
+
+            if parallel:
+                with ProcessPoolExecutor(
+                    max_workers=min(mp.cpu_count() // 2, num_motor_units)
+                ) as executor:
+                    futures = [
+                        executor.submit(
+                            compute_train_correlations_for_each_GT_cluster, jCluster_GT
+                        )
+                        for jCluster_GT in range(len(GT_clusters_to_use))
+                    ]
+                    for future in as_completed(futures):
+                        result = future.result()
+                        correlations[result[1], :] = result[0]
+            else:
+                for jCluster_GT in range(len(GT_clusters_to_use)):
+                    correlations[
+                        jCluster_GT, :
+                    ] = compute_train_correlations_for_each_GT_cluster(jCluster_GT)[0]
+        elif method_for_automatic_cluster_mapping == "times":
+            # this method will work by looping through the spike times (not the arrays of 1's/0's)
+            # it will loop through each GT cluster, and each KS cluster, and for the times of each
+            # GT cluster, it will take the difference between that and all the times of the KS cluster
+            # it will histogram the differences to 1ms bins, and then take the highest bin as the
+            # correlation score for that GT cluster and KS cluster
+            # output will be in the same format as the above other methods, but with correlations
+            # computed on the spike times instead of the waves or entire spike trains
+            # each GT cluster will be computed in parallel
+
+            # initialize a np.array of correlations for each cluster combination
+            correlations = np.zeros(
+                (len(GT_clusters_to_use), len(clusters_in_sort_to_use))
+            )
+
+            def compute_spike_time_correlations_for_each_KS_cluster(
+                jCluster_GT, iCluster_KS
+            ):
+                # initialize a list of correlations for each lag
+                correlations_for_each_lag = []
+                # loop through the spike times for the GT cluster
+                for iSpike_time_GT in GT_spike_times_for_each_cluster[jCluster_GT]:
+                    # take the difference between this spike time and all the spike times for the KS cluster
+                    # and then histogram the differences to +/- 1ms bins, then sum the histogram for
+                    # then take the highest bin as the correlation score for that GT cluster and KS cluster
+                    correlations_for_each_lag.append(
+                        spike_times_for_each_cluster[iCluster_KS].astype(int)
+                        - iSpike_time_GT
+                    )
+
+                hist = np.histogram(
+                    correlations_for_each_lag,
+                    bins=2
+                    * np.arange(
+                        -int(ephys_fs / 1000),
+                        int(ephys_fs / 1000) + 1,
+                        int(ephys_fs / 500),
+                    ),
+                    # for bins, collect all spikes within +/- 2ms,
+                    # but restrict to one or the other, to disallow erroneous correlations due to jitter
+                )
+
+                return (
+                    np.max(hist[0] / len(GT_spike_times_for_each_cluster[jCluster_GT])),
+                    iCluster_KS,
+                )
+
+            # define a function for parallel execution
+            def compute_spike_time_correlations_for_each_GT_cluster(jCluster_GT):
+                results_container = []
+                if parallel:
+                    with ProcessPoolExecutor(
+                        max_workers=min(
+                            mp.cpu_count() // num_motor_units,
+                            len(clusters_in_sort_to_use),
+                        )
+                    ) as executor:
+                        futures = [
+                            executor.submit(
+                                compute_spike_time_correlations_for_each_KS_cluster,
+                                jCluster_GT,
+                                iCluster_KS,
+                            )
+                            for iCluster_KS in range(len(clusters_in_sort_to_use))
+                        ]
+                        for future in as_completed(futures):
+                            result = future.result()
+                            results_container.append(result)
+                            print(
+                                f"Done computing spike time correlations for GT cluster {jCluster_GT}"
+                                f" and KS cluster {result[1]} with correlation score {np.round(result[0],4)}"
+                            )
+                    # get out each result from the container in separate lists
+                else:
+                    for iCluster_KS in range(len(clusters_in_sort_to_use)):
+                        results_container.append(
+                            compute_spike_time_correlations_for_each_KS_cluster(
+                                jCluster_GT, iCluster_KS
+                            )
+                        )
+
+                corr_list = [iResult[0] for iResult in results_container]
+                KS_cluster_list = [iResult[1] for iResult in results_container]
+
+                # sort corr_list by order of KS_cluster_list
+                corr_list = [corr_list[i] for i in np.argsort(KS_cluster_list)]
+
+                return (corr_list, jCluster_GT)
+
+            if parallel:
+                with ProcessPoolExecutor(
+                    max_workers=min(mp.cpu_count() // num_motor_units, num_motor_units)
+                ) as executor:
+                    futures = [
+                        executor.submit(
+                            compute_spike_time_correlations_for_each_GT_cluster,
+                            jCluster_GT,
+                        )
+                        for jCluster_GT in range(len(GT_clusters_to_use))
+                    ]
+                    for future in as_completed(futures):
+                        result = future.result()
+                        correlations[result[1], :] = result[0]
+            else:
+                for jCluster_GT in range(len(GT_clusters_to_use)):
+                    correlations[
+                        jCluster_GT, :
+                    ] = compute_spike_time_correlations_for_each_GT_cluster(
+                        jCluster_GT
+                    )[
+                        0
+                    ]
+
+        else:
+            raise Exception(
+                f"method_for_automatic_cluster_mapping must be either 'waves', 'times', or 'trains', but was {method_for_automatic_cluster_mapping}"
+            )
+
         # now find the cluster with the highest correlation
         sorted_cluster_pair_corr_idx = np.unravel_index(
             np.argsort(correlations.ravel()), correlations.shape
@@ -1762,7 +2021,7 @@ if __name__ == "__main__":
         clusters_in_sort_to_use = [
             clusters_in_sort_to_use[idx] for idx in GT_mapped_idxs[:, 1]
         ]
-        num_motor_units = len(clusters_in_sort_to_use)
+        # num_motor_units = len(clusters_in_sort_to_use)
 
         corr_df = df(
             GT_clusters_to_use,  # GT_mapped_idxs[:, 0],
@@ -1773,10 +2032,7 @@ if __name__ == "__main__":
         corr_df["Corr. Score"] = np.array(GT_mapped_corrs)
         print(corr_df)
 
-    # set_trace()
     if parallel:
-        import multiprocessing as mp
-
         with mp.Pool(processes=len(bin_widths_for_comparison)) as pool:
             zip_obj = zip(
                 [ground_truth_path] * len(bin_widths_for_comparison),
@@ -1867,7 +2123,16 @@ if __name__ == "__main__":
         precisions = np.vstack(precisions)
         recalls = np.vstack(recalls)
 
-    if show_plot1 or save_png_plot1 or save_html_plot1 or save_svg_plot1:
+    if (
+        show_plot1a
+        or save_png_plot1a
+        or save_html_plot1a
+        or save_svg_plot1a
+        or show_plot1b
+        or save_png_plot1b
+        or save_html_plot1b
+        or save_svg_plot1b
+    ):
         ### plot 1: bar plot of spike counts
         # now create an overlay plot of the two plots above. Do not use subplots, but use two y axes
         # make bar plot of total spike counts use left y axis
@@ -1883,13 +2148,17 @@ if __name__ == "__main__":
             sorts_from_each_path_to_load[0],
             plot_template,
             plot1_bar_type,
-            show_plot1,
             plot1_ylim,
-            save_png_plot1,
-            save_svg_plot1,
-            save_html_plot1,
+            show_plot1a,
+            save_png_plot1a,
+            save_svg_plot1a,
+            save_html_plot1a,
+            show_plot1b,
+            save_png_plot1b,
+            save_svg_plot1b,
+            save_html_plot1b,
             # make figsize 1080p
-            figsize=(1920, 1080),
+            figsize=(1280, 1440),
         )
 
     # print metrics for each unit

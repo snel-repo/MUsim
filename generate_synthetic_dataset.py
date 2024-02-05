@@ -134,25 +134,72 @@ show_matplotlib_figures = False
 show_final_plotly_figure = False
 save_final_plotly_figure = False
 save_simulated_spikes = True
+save_continuous_dat = True
 multiprocess = True  # set to True to run on multiple processes
 use_KS_templates = False  # set to True to use Kilosort templates to create waveform shapes, else load open ephys data, and use spike times to extract median waveform shapes for each unit
+shift_MU_templates_along_channels = True
 kinematics_fs = 125
 ephys_fs = 30000
 nt0 = 61  # 2.033 ms
 SVD_dim = 9  # number of SVD components than were used in KiloSort
-num_chans_in_recording = 16  # number of channels in the recording
-num_chans_in_output = 24  # desired real number of channels in the output data
+num_chans_in_recording = 9  # number of channels in the recording
+num_chans_in_output = 16  # desired real number of channels in the output data
 # number determines noise power added to channels (e.g. 50), or set None to disable
 SNR_mode = "constant"  # 'power' to compute desired SNR with power,'from_data' simulates from the real data values, or 'constant' to add a constant amount of noise to all channels
 # target SNR value if "power", or factor to adjust SNR by if "from_data", or set None to disable
-adjust_SNR = None  # 400
+adjust_SNR = 100  # None
 # set 0 for no shape jitter, or a positive number for standard deviations of additive shape jitter
 shape_jitter_amount = 0
 # set None for random behavior, or a previous entropy int value to reproduce
-random_seed_entropy = 218530072159092100005306709809425040261  # 75092699954400878964964014863999053929  # None
+random_seed_entropy = 218530072159092100005306709809425040261  # 218530072159092100005306709809425040261  # 75092699954400878964964014863999053929  # None
 if random_seed_entropy is None:
     random_seed_entropy = np.random.SeedSequence().entropy
 RNG = np.random.default_rng(random_seed_entropy)  # create a random number generator
+
+# add eventplot of spike times to the last subplot, vertically spacing times and coloring by unit
+MU_colors = [
+    "royalblue",
+    "firebrick",
+    "forestgreen",
+    "darkorange",
+    "darkorchid",
+    "darkgreen",
+    "lightcoral",
+    "rgb(116, 77, 37)",
+    "cyan",
+    "mediumpurple",
+    "lightslategray",
+    "gold",
+    "lightpink",
+    "darkturquoise",
+    "darkkhaki",
+    "darkviolet",
+    "darkslategray",
+    "darkgoldenrod",
+    "darkmagenta",
+    "darkcyan",
+    "darkred",
+    "darkblue",
+    "darkslateblue",
+    "darkolivegreen",
+    "darkgray",
+    "darkseagreen",
+    "darkslateblue",
+    "darkslategray",
+    "maroon",
+    "mediumblue",
+    "mediumorchid",
+    "mediumseagreen",
+    "mediumslateblue",
+    "mediumturquoise",
+    "magenta",
+    "forestgreen",
+    "mediumvioletred",
+    "midnightblue",
+    "navy",
+    "olive",
+    "olivedrab",
+]
 
 # set plotting parameters
 time_frame = [0, 1]  # time frame to plot, fractional bounds of 0 to 1
@@ -183,13 +230,15 @@ anipose_sessions_to_load = [
     "20221116-7",
     "20221116-8",
     "20221116-9",
-    "20221116-9",
+    # "20221116-9", # duplicate here was actually in the 10MU and 25MU datasets
     "20221117-4",
     "20221117-5",
     "20221117-6",
     "20221117-8",
     "20221117-9",
 ]
+# shuffle the list of sessions to load so different simulations have different kinematics
+RNG.shuffle(anipose_sessions_to_load)
 # format is bodypart_side_axis, with side being L or R, and axis being x, y, or z
 chosen_bodypart_to_load = "palm_L_y"  # "wrist_L_y"
 reference_bodypart_to_load = "tailbase_y"
@@ -365,35 +414,42 @@ orig_spike_history_kernel_df = pd.read_csv(orig_spike_history_kernel_path)
 ## load proc.dat from a sort for each rat including 16 channels (zeroed-out channels replace noisy ones)
 # paths to the folders containing the Kilosort data
 paths_to_proc_dat = [
+    # Path(
+    #     "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/godzilla/session20221117/2022-11-17_17-08-07_myo/sorted0_20231218_200926870049_rec-1,2,4,5,6"
+    # ),
+    # Path(
+    #     "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/inkblot/session20230323/2023-03-23_14-41-46_myo/sorted0_20231218_202453598454_rec-3,5,7,8,9,10_Th,[10,4],spkTh,[-6]"
+    # ),
+    # Path(
+    #     "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/kitkat/session20230420/2023-04-20_14-12-09_myo/sorted0_20231218_203140625455_rec-1,2,3,4,5,7,8,9,11,12,14,15,16,17,19,20,21"
+    # ),
     Path(
-        "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/godzilla/session20221117/2022-11-17_17-08-07_myo/sorted0_20231218_200926870049_rec-1,2,4,5,6"
-    ),
-    Path(
-        "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/inkblot/session20230323/2023-03-23_14-41-46_myo/sorted0_20231218_202453598454_rec-3,5,7,8,9,10_Th,[10,4],spkTh,[-6]"
-    ),
-    Path(
-        "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/kitkat/session20230420/2023-04-20_14-12-09_myo/sorted0_20231218_203140625455_rec-1,2,3,4,5,7,8,9,11,12,14,15,16,17,19,20,21"
+        "/snel/share/data/rodent-ephys/open-ephys/monkey/sean-pipeline/session20231202/2022-12-02_10-14-45_myo/sorted0_20240131_172133542034_rec-1_11-good-of-20-total_Th,[10,4],spkTh,[-6]"
     ),
 ]
 
 ## load Kilosort data
 # paths to the folders containing the Kilosort data
 paths_to_KS_session_folders = [
+    # Path(
+    #     # "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/godzilla/session20221116/"
+    #     "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/godzilla/session20221117/"
+    # ),
+    # Path(
+    #     "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/inkblot/session20230323/"
+    # ),
+    # Path(
+    #     "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/kitkat/session20230420/"
+    # ),
     Path(
-        # "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/godzilla/session20221116/"
-        "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/godzilla/session20221117/"
-    ),
-    Path(
-        "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/inkblot/session20230323/"
-    ),
-    Path(
-        "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/kitkat/session20230420/"
+        "/snel/share/data/rodent-ephys/open-ephys/monkey/sean-pipeline/session20231202/"
     ),
 ]
 sorts_from_each_path_to_load = [
-    "20231027_163931",  # godzilla
-    "20231218_181442825759",  # inkblot
-    "20231214_104534576438",  # kitkat
+    # "20231027_163931",  # godzilla
+    # "20231218_181442825759",  # inkblot
+    # "20231214_104534576438",  # kitkat
+    "20240131_172133542034",
 ]  # ["20230924_151421"]  # , ["20230923_125645"], ["20230923_125645"]]
 
 # find the folder name which ends in _myo and append to the paths_to_session_folders
@@ -440,9 +496,7 @@ ephys_data_list = [
         str(path_to_proc_folder.joinpath("proc.dat")),
         dtype="int16",
         mode="r",
-    ).reshape(
-        -1, 16
-    )  ### WARNING HARDCODED 16 CHANNELS ### !!!
+    ).reshape(-1, num_chans_in_recording)
     for path_to_proc_folder in paths_to_proc_dat
 ]
 
@@ -461,9 +515,10 @@ amplitudes_df_list = amplitudes_df_list[0].set_index("cluster_id")
 # list of lists of good clusters to take from each rez_list
 # place units in order of total spike count, from highest to lowest
 clusters_to_take_from = [
-    [26, 13, 10, 3, 22, 32, 1, 15, 40, 27],  # godzilla, 20231027_163931
-    [12, 8, 14, 1, 13],  # inkblot, 20231218_181442825759
-    [15, 52, 9, 20, 16, 5, 14, 23, 13, 8],  # kitkat, 20231214_104534576438
+    # [26, 13, 10, 3, 22, 32, 1, 15, 40, 27],  # godzilla, 20231027_163931
+    # [9, 7, 8, 13],  # [12, 8, 14, 1, 13],  # inkblot, 20231218_181442825759
+    # [15, 52, 9, 20, 16, 5, 14, 23, 13, 8],  # kitkat, 20231214_104534576438
+    [6, 13, 24, 1, 23, 14],  # monkey
 ]  # [[25, 3, 1, 5, 17, 18, 0, 22, 20, 30]]  # [[18, 2, 11, 0, 4, 10, 1, 9]]
 
 num_motor_units = sum([len(i) for i in clusters_to_take_from])
@@ -557,7 +612,7 @@ kinematic_csv_file_name = "_".join(
 if save_simulated_spikes:
     mu.save_spikes(
         # f"synthetic_spikes_from_{kinematic_csv_file_name}_using_{chosen_bodypart_to_load}.npy"
-        f"spikes_{kinematic_csv_file_name}_SNR-{adjust_SNR}-{SNR_mode}_jitter-{shape_jitter_amount}std_files-{len(anipose_sessions_to_load)}.npy"
+        f"spikes_{kinematic_csv_file_name}_SNR-{adjust_SNR}-{SNR_mode}_jitter-{shape_jitter_amount}std_files-{len(anipose_sessions_to_load)}_{datetime.now().strftime('%Y%m%d-%H%M%S')}.npy"
     )
     # also save a copy with name "most_recent_synthetic_spikes.npy"
     mu.save_spikes("most_recent_synthetic_spikes.npy")
@@ -575,46 +630,46 @@ if use_KS_templates:
 else:
     num_chans_with_data = num_chans_in_recording
 
-# W are the temporal components to be used to reconstruct unique temporal components
-# U are the weights of each temporal component distrubuted across channels
-W = rez_list[0]["W"]  # shape is (nt0, mu.num_units, SVD_dim)
-U = rez_list[0]["U"]  # shape is (SVD_dim, mu.num_units, num_chans)
-
-W_good = []
-U_good = []
-U_mean = []
-U_std = []
-# take the W and U matrixes from each recording in rez_list, and only take the good clusters
-# then get SVD_dim standard deviation values across all
-for ii, iRec in enumerate(rez_list):
-    W_good.append(iRec["W"][:, clusters_to_take_from[ii], :])
-    U_good.append(iRec["U"][:, clusters_to_take_from[ii], :])
-    # take mean and std of all elements in U_good
-    U_mean.append(np.mean(U_good[ii]))
-    U_std.append(np.std(U_good[ii]))
-
-# extrapolate the U_std matrix to have num_chans columns, by taking mean and STD of all rows,
-# and Gaussian sampling with that mean and STD to fill in the rest of the new columns, using the
-# statistics found for each row of the original U_std matrix
-# U_std_mean = np.mean(U_std, axis=1)
-# U_std_std = np.std(U_std, axis=1)
-# U_vals_to_add = RNG3.normal(U_std_mean, U_std_std, (SVD_dim, num_chans - SVD_dim))
-# U_std_extrap = np.hstack((U_std, U_vals_to_add))
-
-# now create a new U matrix with SVD_dim rows and num_chans columns
-# make it a random matrix with values between -1 and 1
-# it will project from SVD space to the number of channels in the data
-# base_sim_U = RNG4.normal(0, U_std_extrap, (SVD_dim, num_chans_in_recording))
-spike_counts_for_each_unit = mu.spikes[-1].sum(axis=0).astype(int)
-
-# now create slightly jittered (by 20% of std) of waveform shapes for each MU, for each spike time in the simulation
-# first, create a new array of zeros to hold the new multichannel waveform shapes
-spike_snippets_to_place = np.zeros(
-    (mu.num_units, np.max(spike_counts_for_each_unit), nt0, num_chans_in_recording)
-)
 
 # this chunk uses KS templates to create waveform shapes for each spike time
+spike_counts_for_each_unit = mu.spikes[-1].sum(axis=0).astype(int)
 if use_KS_templates:
+    # W are the temporal components to be used to reconstruct unique temporal components
+    # U are the weights of each temporal component distrubuted across channels
+    W = rez_list[0]["W"]  # shape is (nt0, mu.num_units, SVD_dim)
+    U = rez_list[0]["U"]  # shape is (SVD_dim, mu.num_units, num_chans)
+
+    W_good = []
+    U_good = []
+    U_mean = []
+    U_std = []
+    # take the W and U matrixes from each recording in rez_list, and only take the good clusters
+    # then get SVD_dim standard deviation values across all
+    for ii, iRec in enumerate(rez_list):
+        W_good.append(iRec["W"][:, clusters_to_take_from[ii], :])
+        U_good.append(iRec["U"][:, clusters_to_take_from[ii], :])
+        # take mean and std of all elements in U_good
+        U_mean.append(np.mean(U_good[ii]))
+        U_std.append(np.std(U_good[ii]))
+
+    # extrapolate the U_std matrix to have num_chans columns, by taking mean and STD of all rows,
+    # and Gaussian sampling with that mean and STD to fill in the rest of the new columns, using the
+    # statistics found for each row of the original U_std matrix
+    # U_std_mean = np.mean(U_std, axis=1)
+    # U_std_std = np.std(U_std, axis=1)
+    # U_vals_to_add = RNG3.normal(U_std_mean, U_std_std, (SVD_dim, num_chans - SVD_dim))
+    # U_std_extrap = np.hstack((U_std, U_vals_to_add))
+
+    # now create a new U matrix with SVD_dim rows and num_chans columns
+    # make it a random matrix with values between -1 and 1
+    # it will project from SVD space to the number of channels in the data
+    # base_sim_U = RNG4.normal(0, U_std_extrap, (SVD_dim, num_chans_in_recording))
+
+    # now create slightly jittered (by 20% of std) of waveform shapes for each MU, for each spike time in the simulation
+    # first, create a new array of zeros to hold the new multichannel waveform shapes
+    spike_snippets_to_place = np.zeros(
+        (mu.num_units, np.max(spike_counts_for_each_unit), nt0, num_chans_in_recording)
+    )
     for iUnit, iCount in enumerate(spike_counts_for_each_unit):
         # add the jitter to each U_good element, and create a new waveform shape for each spike time
         # use jittermat to change the waveform shape slightly for each spike example (at each time)
@@ -642,6 +697,7 @@ if use_KS_templates:
 else:  # this chunk uses the real data from proc.dat to create waveform shapes for each spike time,
     # use spike times for each cluster to extract median waveform shape, with -nt0//2 and +nt0//2 + 1
     ## first, extract all spikes at each corresponding spike time from each proc.dat file, and place them in a combined array
+    median_spikes_list = []
     unit_counter = 0
     unit_start_offset = 0
     for ii, ephys_data in enumerate(ephys_data_list):
@@ -670,7 +726,7 @@ else:  # this chunk uses the real data from proc.dat to create waveform shapes f
             np.median(iCluster_snippets, axis=0)
             for iCluster_snippets in spike_snippets_for_each_cluster
         ]
-
+        median_spikes_list.append(median_spike_snippets_for_each_cluster)
         # use RNG to randomize the channel order of the median waveform shape for each cluster
         # for iCluster in median_spike_snippets_for_each_cluster:
         #     RNG.shuffle(iCluster, axis=1)
@@ -689,17 +745,78 @@ else:  # this chunk uses the real data from proc.dat to create waveform shapes f
         # unit_start_offset += len(np.unique(clusters_to_take_from[ii]))
         # that didn't work, so try placing the median waveform shape from each cluster into the spike_snippets_to_place array
         # make sure not to overwrite any of the previous waveform shapes across ephys_data_list iterations
+        spike_snippets_to_place = np.zeros(
+            (
+                mu.num_units,
+                np.max(spike_counts_for_each_unit),
+                nt0,
+                num_chans_in_recording,
+            )
+        )
         for jj in range(len(np.unique(clusters_to_take_from[ii]))):
-            spike_snippets_to_place[
-                unit_counter, :, :, :
-            ] = median_spike_snippets_for_each_cluster[jj]
+            spike_snippets_to_place[unit_counter, :, :, :] = (
+                median_spike_snippets_for_each_cluster[jj]
+            )
             unit_counter += 1
         unit_start_offset += len(np.unique(clusters_to_take_from[ii]))
 
+median_spikes_array = np.concatenate(
+    median_spikes_list
+)  # new shape is (num_units, nt0, num_chans_in_recording)
+order_by_amplitude = np.max(np.abs(median_spikes_array), axis=(1, 2)).argsort()
+if True:
+    # plot the median waveform shape for each cluster in a different subplot, which is channel x unit
+    # plot the unit by color
+
+    # plot the median waveform shape for each cluster in a different subplot, which is channel x unit
+    # plot the unit by color
+    # concatenate the median waveform shapes for each cluster into a single array
+    # sort the median_spikes_array in order of lowest unit amplitude to highest
+    median_spikes_array = median_spikes_array[order_by_amplitude, :, :]
+
+    fig = subplots.make_subplots(
+        rows=num_chans_in_recording,
+        cols=num_motor_units,
+        subplot_titles=[
+            f"Unit {iUnit} Ch. {iChan}"
+            for iChan in range(num_chans_in_recording)
+            for iUnit in range(num_motor_units)
+        ],
+        shared_xaxes=True,
+        shared_yaxes=True,
+    )
+    for iChan in range(num_chans_in_recording):
+        for iUnit in range(num_motor_units):
+            fig.add_trace(
+                go.Scatter(
+                    x=np.arange(nt0) / ephys_fs * 1000,
+                    y=median_spikes_array[iUnit][:, iChan],
+                    name=f"Unit {iUnit}",
+                    marker_color=MU_colors[iUnit],
+                ),
+                row=iChan + 1,
+                col=iUnit + 1,
+            )
+    # add title and axis labels
+    fig.update_layout(
+        title="<b>Median Waveform Shapes for Each Cluster</b>",
+        template=plot_template,
+    )
+    fig.update_yaxes(title_text="Voltage (uV)", row=1, col=1)
+    fig.update_xaxes(title_text="Time (ms)", row=num_chans_in_recording, col=1)
+    # make y-axis range shared across all voltage subplots
+    fig.update_yaxes(matches="y")
+    fig.show()
+
+# set_trace()
 
 # multiply all waveforms by a Tukey window to make the edges go to zero
 tukey_window = signal.windows.tukey(nt0, 0.25)
 tukey_window = np.tile(tukey_window, (num_chans_in_recording, 1)).T
+# order the spike snippets to place by spike by amplitude
+spike_snippets_to_place = spike_snippets_to_place[
+    order_by_amplitude, :, :, :
+]  # new shape is (num_units, num_spikes, nt0, num_chans_in_recording)
 for iUnit in range(mu.num_units):
     for iSpike in range(spike_counts_for_each_unit[iUnit]):
         spike_snippets_to_place[iUnit, iSpike, :, :] *= tukey_window
@@ -715,7 +832,30 @@ for iUnit in range(mu.num_units):
 # now create a new array (mu.spikes.shape[0], num_chans_in_recording) of zeros,
 # and place the corresponding waveform shape at each 1 in mu.spikes for each unit
 # after each iteration, sum continuous_dat with the previous iteration's result
-continuous_dat = np.zeros((mu.spikes[-1].shape[0], num_chans_in_recording))
+if shift_MU_templates_along_channels:
+    continuous_dat = np.zeros((mu.spikes[-1].shape[0], num_chans_in_output))
+    zeros_to_append_along_channels = np.zeros(
+        (
+            spike_snippets_to_place.shape[0],
+            spike_snippets_to_place.shape[1],
+            spike_snippets_to_place.shape[2],
+            abs(num_chans_in_output - num_chans_in_recording),
+        ),
+    )
+    if zeros_to_append_along_channels.shape[3]:
+        spike_snippets_to_place = np.concatenate(
+            (spike_snippets_to_place, zeros_to_append_along_channels), axis=3
+        )
+    # now create an array of random shifts along channels for each MU template
+    random_shifts_along_channels = RNG.integers(0, num_chans_in_output, mu.num_units)
+    for iUnit in range(spike_snippets_to_place.shape[0]):
+        spike_snippets_to_place[iUnit] = np.roll(
+            spike_snippets_to_place[iUnit], random_shifts_along_channels[iUnit], axis=-1
+        )
+    # set_trace()
+else:
+    continuous_dat = np.zeros((mu.spikes[-1].shape[0], num_chans_in_recording))
+
 for iUnit, iCount in enumerate(spike_counts_for_each_unit):
     iSpike_times = np.where(mu.spikes[-1][:, iUnit] == 1)[0]
     for iSpike in range(iCount):
@@ -853,7 +993,11 @@ if adjust_SNR is not None:
         noise_std = np.sqrt(noise_power)
         print(f"Noise STD: {noise_std}")
         # now add Gaussian noise to the data
-        noise_std_with_dummies = np.zeros(num_chans_in_recording)
+        noise_std_with_dummies = (
+            np.zeros(num_chans_in_recording)
+            if not shift_MU_templates_along_channels
+            else np.zeros(num_chans_in_output)
+        )
         noise_std_with_dummies[0:num_chans_with_data] = noise_std
         continuous_dat += RNG.normal(
             0, 2 * noise_std_with_dummies, continuous_dat.shape
@@ -864,7 +1008,11 @@ if adjust_SNR is not None:
         noise_std = adjust_SNR
         print(f"Noise STD: {noise_std}")
         # now add Gaussian noise to the data
-        noise_std_with_dummies = np.zeros(num_chans_in_recording)
+        noise_std_with_dummies = (
+            np.zeros(num_chans_in_recording)
+            if not shift_MU_templates_along_channels
+            else np.zeros(num_chans_in_output)
+        )
         noise_std_with_dummies[0:num_chans_with_data] = noise_std
         continuous_dat += RNG.normal(0, noise_std_with_dummies, continuous_dat.shape)
     # elif SNR_mode == "mean_waveforms":
@@ -916,6 +1064,12 @@ if use_KS_templates:
     continuous_dat *= 200  # scale for Kilosort
 
 if show_final_plotly_figure or save_final_plotly_figure:
+    import colorlover as cl
+
+    N_colors = num_chans_in_output
+    CH_colors = cl.to_rgb(cl.interp(cl.scales["6"]["seq"]["Greys"], 2 * N_colors))[
+        -1 : -(N_colors + 1) : -1
+    ]
     # now plot the continuous.dat array with plotly graph objects
     # first, create a time vector for ephys to plot against
     ephys_time_axis = np.linspace(
@@ -930,17 +1084,26 @@ if show_final_plotly_figure or save_final_plotly_figure:
     # create a figure with subplots, make x-axis shared,
     # make the layout tight (subplots, close together)
     # alot two rows for the spike eventplot
-    number_of_rows = num_chans_with_data + 3
+    chans_to_plot = list(range(num_chans_in_output))  # [1, 2, 4, 5, 13, 14]
+    num_chans_to_plot = len(chans_to_plot)
+    number_of_rows = num_chans_to_plot + 3  # num_chans_with_data + 3
     row_spec_list = number_of_rows * [[None]]
-    for iRow in range(number_of_rows - 2):
-        row_spec_list[iRow] = [{"rowspan": 1}]
+    for iRow in range(num_chans_to_plot + 1):
+        row_spec_list[iRow] = [{"rowspan": 1, "secondary_y": True}]
     row_spec_list[-2] = [{"rowspan": 2}]
+
+    sub_titles = number_of_rows * [""]
+    sub_titles[0] = f"<b>Simulated Kinematics: {kinematic_csv_file_name}</b>"
+    sub_titles[1] = f"<b>Simulated Motor Unit Activity: {kinematic_csv_file_name}</b>"
+    sub_titles[-2] = f"<b>Simulated Spikes : {kinematic_csv_file_name}</b>"
+
     fig = subplots.make_subplots(
-        rows=num_chans_with_data + 3,
+        rows=num_chans_to_plot + 3,
         cols=1,
         shared_xaxes=True,
-        vertical_spacing=0.005,
+        vertical_spacing=0.02,
         specs=row_spec_list,
+        subplot_titles=sub_titles,
     )
     # add the force profile to the top subplot
     fig.add_trace(
@@ -948,21 +1111,23 @@ if show_final_plotly_figure or save_final_plotly_figure:
             x=force_time_axis,
             y=np.round(blended_chosen_array, decimals=2),
             name="Force Profile",
+            marker=dict(color="cornflowerblue"),
         ),
         row=1,
         col=1,
     )
 
     # add traces, one for each channel
-    for iChan in range(num_chans_with_data):
+    for ii, iChan in enumerate(chans_to_plot):  # range(num_chans_with_data):
         fig.add_trace(
             go.Scatter(
                 x=ephys_time_axis,
                 y=np.round(continuous_dat[:, iChan], decimals=2),
                 name=f"Channel {iChan}",
                 line=dict(width=0.5),
+                marker=dict(color=CH_colors[iChan]),
             ),
-            row=iChan + 2,
+            row=ii + 2,
             col=1,
         )
 
@@ -1028,31 +1193,84 @@ if show_final_plotly_figure or save_final_plotly_figure:
                 name=f"Unit {clusters_to_take_from[iUnit]}",
                 showlegend=False,
             ),
-            row=num_chans_with_data + 2,
+            row=num_chans_to_plot + 2,
             col=1,
         )
 
     # add title and axis labels, make sure x-axis title is only on bottom subplot
     fig.update_layout(
-        title=f"<b>Simulated Data from {kinematic_csv_file_name} using {chosen_bodypart_to_load}</b>",
+        # title=f"<b>Simulated Data from {kinematic_csv_file_name} using {chosen_bodypart_to_load}</b>",
         template=plot_template,
     )
-    fig.update_yaxes(title_text="Simulated Force", row=1, col=1)
     fig.update_yaxes(
-        title_text="Simulated Voltage (μV)", row=num_chans_with_data // 2 + 2, col=1
+        title_text="<b>Channel #</b>",
+        row=num_chans_to_plot // 2 + 2,
+        col=1,
+        side="left",
+        secondary_y=True,
     )
+    max_ylim = 15000 * (np.max(np.std(continuous_dat, axis=0)) // 1000)
     fig.update_yaxes(
-        title_text="MUsim Object Spike Times", row=num_chans_with_data + 2, col=1
+        row=2,
+        col=1,
+        side="right",
+        tickvals=np.arange(-max_ylim, max_ylim + 1, 5000),
+        title_text="<b>Voltage (μV)</b>",
+    )
+    for iRow in range(2, num_chans_to_plot + 2):
+        # add np.nan so the secondary y-axis shows up
+        fig.add_trace(
+            go.Scatter(
+                x=[np.nan],
+                y=[np.nan],
+                name="",
+                showlegend=False,
+            ),
+            row=iRow,
+            col=1,
+            secondary_y=True,
+        )
+        fig.update_yaxes(
+            range=[-max_ylim, max_ylim],
+            row=iRow,
+            col=1,
+        )
+        if iRow > 2:
+            fig.update_yaxes(showticklabels=False, row=iRow, col=1, side="right")
+        fig.update_yaxes(
+            tickvals=[0],
+            ticktext=[f"{chans_to_plot[iRow - 2]}"],
+            secondary_y=True,
+            showticklabels=True,
+            side="left",
+            row=iRow,
+            col=1,
+        )
+    fig.update_yaxes(
+        row=2,
+        col=1,
+        side="left",
+        title_text="",
+        secondary_y=True,
     )
 
-    fig.update_xaxes(title_text="Time (s)", row=num_chans_with_data + 2, col=1)
+    fig.update_yaxes(title_text="<b>Force (a.u.)</b>", row=1, col=1, autorange=True)
+    fig.update_yaxes(
+        title_text="<b>Unit #</b>",
+        row=num_chans_to_plot + 2,
+        col=1,
+        tickvals=list(range(-len(clusters_to_take_from) + 1, 1)),
+        ticktext=list(reversed(clusters_to_take_from)),
+        range=[-len(clusters_to_take_from) + 1, 1],
+    )
+    fig.update_xaxes(title_text="<b>Time (s)</b>", row=num_chans_to_plot + 2, col=1)
 
     if save_final_plotly_figure:
-        fig.write_image(
-            f"{kinematic_csv_file_name}_using_{chosen_bodypart_to_load}.svg",
-            width=1920,
-            height=1080,
-        )
+        # fig.write_image(
+        #     f"{kinematic_csv_file_name}_using_{chosen_bodypart_to_load}.svg",
+        #     width=1920,
+        #     height=1080,
+        # )
         fig.write_html(
             f"{kinematic_csv_file_name}_using_{chosen_bodypart_to_load}.html"
         )
@@ -1060,18 +1278,18 @@ if show_final_plotly_figure or save_final_plotly_figure:
         print("Showing final plotly figure...")
         fig.show()
 
-# add dummy channels to the data to make it num_chans_in_output channels
-if num_chans_in_output > num_chans_in_recording:
-    continuous_dat = np.hstack(
-        (
-            continuous_dat,
-            np.zeros(
-                (len(continuous_dat), num_chans_in_output - num_chans_in_recording)
-            ),
-        )
-    )
-elif num_chans_in_output < num_chans_in_recording:
-    continuous_dat = continuous_dat[:, :num_chans_in_output]
+# # add dummy channels to the data to make it num_chans_in_output channels
+# if num_chans_in_output > num_chans_in_recording:
+#     continuous_dat = np.hstack(
+#         (
+#             continuous_dat,
+#             np.zeros(
+#                 (len(continuous_dat), num_chans_in_output - num_chans_in_recording)
+#             ),
+#         )
+#     )
+# elif num_chans_in_output < num_chans_in_recording:
+#     continuous_dat = continuous_dat[:, :num_chans_in_output]
 
 # now save the continuous.dat array as a binary file
 # first, convert to int16
@@ -1086,11 +1304,12 @@ print(f"Overall recording length: {len(continuous_dat) / ephys_fs} seconds")
 # now save as binary file in int16 format, where elements are 2 bytes, and samples from each channel
 # are interleaved, such as: [chan1_sample1, chan2_sample1, chan3_sample1, ...]
 # save simulation properties in continuous.dat file name
-continuous_dat.tofile(
-    f"continuous_{kinematic_csv_file_name}_SNR-{adjust_SNR}-{SNR_mode}_jitter-{shape_jitter_amount}std_files-{len(anipose_sessions_to_load)}.dat"
-)
-# overwrite a copy of most recent continuous.dat file
-continuous_dat.tofile("most_recent_continuous.dat")
+if save_continuous_dat:
+    continuous_dat.tofile(
+        f"continuous_{kinematic_csv_file_name}_SNR-{adjust_SNR}-{SNR_mode}_jitter-{shape_jitter_amount}std_files-{len(anipose_sessions_to_load)}_{datetime.now().strftime('%Y%m%d-%H%M%S')}.dat"
+    )
+    # overwrite a copy of most recent continuous.dat file
+    continuous_dat.tofile("most_recent_continuous.dat")
 print("Synthetic Data Generated Successfully!")
 
 # ## compare synthetic data to real data
