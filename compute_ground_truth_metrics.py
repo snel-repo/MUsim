@@ -23,6 +23,19 @@ def strfdelta(tdelta, fmt):
     return fmt.format(**d)
 
 
+def get_unique_N(iterable, N):
+    """Yields (in order) the first N unique elements of iterable.
+    Might yield less if data too short."""
+    seen = set()
+    for e in iterable:
+        if e in seen:
+            continue
+        seen.add(e)
+        yield e
+        if len(seen) == N:
+            return
+
+
 def compute_precision(num_matches, num_kilosort_spikes):
     return num_matches / num_kilosort_spikes
 
@@ -1807,9 +1820,9 @@ if __name__ == "__main__":
                         correlations[result[1], :] = result[0]
             else:
                 for jCluster_GT in range(len(GT_clusters_to_use)):
-                    correlations[
-                        jCluster_GT, :
-                    ] = compute_train_correlations_for_each_GT_cluster(jCluster_GT)[0]
+                    correlations[jCluster_GT, :] = (
+                        compute_train_correlations_for_each_GT_cluster(jCluster_GT)[0]
+                    )
         elif method_for_automatic_cluster_mapping == "times":
             # this method will work by looping through the spike times (not the arrays of 1's/0's)
             # it will loop through each GT cluster, and each KS cluster, and for the times of each
@@ -1915,13 +1928,11 @@ if __name__ == "__main__":
                         correlations[result[1], :] = result[0]
             else:
                 for jCluster_GT in range(len(GT_clusters_to_use)):
-                    correlations[
-                        jCluster_GT, :
-                    ] = compute_spike_time_correlations_for_each_GT_cluster(
-                        jCluster_GT
-                    )[
-                        0
-                    ]
+                    correlations[jCluster_GT, :] = (
+                        compute_spike_time_correlations_for_each_GT_cluster(
+                            jCluster_GT
+                        )[0]
+                    )
 
         else:
             raise Exception(
@@ -1950,18 +1961,6 @@ if __name__ == "__main__":
         )
 
         # find the ordering of which GT clusters have the highest score
-        def get_unique_N(iterable, N):
-            """Yields (in order) the first N unique elements of iterable.
-            Might yield less if data too short."""
-            seen = set()
-            for e in iterable:
-                if e in seen:
-                    continue
-                seen.add(e)
-                yield e
-                if len(seen) == N:
-                    return
-
         sorted_by_corr_uniq_GT = get_unique_N(uniq_GT_inv_idx, len(uniq_GT))
 
         best_uniq_pair_idxs = np.nan * np.ones_like(uniq_GT_idx)

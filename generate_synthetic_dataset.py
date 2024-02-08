@@ -137,13 +137,13 @@ save_simulated_spikes = True
 save_continuous_dat = True
 multiprocess = True  # set to True to run on multiple processes
 use_KS_templates = False  # set to True to use Kilosort templates to create waveform shapes, else load open ephys data, and use spike times to extract median waveform shapes for each unit
-shift_MU_templates_along_channels = True
+shift_MU_templates_along_channels = False
 kinematics_fs = 125
 ephys_fs = 30000
 nt0 = 61  # 2.033 ms
 SVD_dim = 9  # number of SVD components than were used in KiloSort
 num_chans_in_recording = 9  # number of channels in the recording
-num_chans_in_output = 16  # desired real number of channels in the output data
+num_chans_in_output = 8  # desired real number of channels in the output data
 # number determines noise power added to channels (e.g. 50), or set None to disable
 SNR_mode = "constant"  # 'power' to compute desired SNR with power,'from_data' simulates from the real data values, or 'constant' to add a constant amount of noise to all channels
 # target SNR value if "power", or factor to adjust SNR by if "from_data", or set None to disable
@@ -230,7 +230,6 @@ anipose_sessions_to_load = [
     "20221116-7",
     "20221116-8",
     "20221116-9",
-    # "20221116-9", # duplicate here was actually in the 10MU and 25MU datasets
     "20221117-4",
     "20221117-5",
     "20221117-6",
@@ -238,7 +237,9 @@ anipose_sessions_to_load = [
     "20221117-9",
 ]
 # shuffle the list of sessions to load so different simulations have different kinematics
-RNG.shuffle(anipose_sessions_to_load)
+RNG.shuffle(
+    anipose_sessions_to_load
+)  # rat was not shuffled, monkey was shuffled once, any other should be shuffled N times
 # format is bodypart_side_axis, with side being L or R, and axis being x, y, or z
 chosen_bodypart_to_load = "palm_L_y"  # "wrist_L_y"
 reference_bodypart_to_load = "tailbase_y"
@@ -449,7 +450,7 @@ sorts_from_each_path_to_load = [
     # "20231027_163931",  # godzilla
     # "20231218_181442825759",  # inkblot
     # "20231214_104534576438",  # kitkat
-    "20240131_172133542034",
+    "20240131_172133542034",  # monkey
 ]  # ["20230924_151421"]  # , ["20230923_125645"], ["20230923_125645"]]
 
 # find the folder name which ends in _myo and append to the paths_to_session_folders
@@ -1209,7 +1210,8 @@ if show_final_plotly_figure or save_final_plotly_figure:
         side="left",
         secondary_y=True,
     )
-    max_ylim = 15000 * (np.max(np.std(continuous_dat, axis=0)) // 1000)
+    # round down to nearest thousand from largest-amplitude channel's 15th standard deviation
+    max_ylim = 15 * 1000 * (np.max(np.std(continuous_dat, axis=0)) // 1000)
     fig.update_yaxes(
         row=2,
         col=1,
@@ -1278,18 +1280,19 @@ if show_final_plotly_figure or save_final_plotly_figure:
         print("Showing final plotly figure...")
         fig.show()
 
-# # add dummy channels to the data to make it num_chans_in_output channels
-# if num_chans_in_output > num_chans_in_recording:
-#     continuous_dat = np.hstack(
-#         (
-#             continuous_dat,
-#             np.zeros(
-#                 (len(continuous_dat), num_chans_in_output - num_chans_in_recording)
-#             ),
-#         )
-#     )
-# elif num_chans_in_output < num_chans_in_recording:
-#     continuous_dat = continuous_dat[:, :num_chans_in_output]
+# add dummy channels to the data to make it num_chans_in_output channels
+# or remove channels if too many
+if num_chans_in_output > num_chans_in_recording:
+    continuous_dat = np.hstack(
+        (
+            continuous_dat,
+            np.zeros(
+                (len(continuous_dat), num_chans_in_output - num_chans_in_recording)
+            ),
+        )
+    )
+elif num_chans_in_output < num_chans_in_recording:
+    continuous_dat = continuous_dat[:, :num_chans_in_output]
 
 # now save the continuous.dat array as a binary file
 # first, convert to int16
