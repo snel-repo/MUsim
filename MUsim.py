@@ -1,4 +1,5 @@
 import pdb
+import copy
 from pathlib import Path, PosixPath
 
 import matplotlib.pyplot as plt
@@ -6,7 +7,7 @@ import numpy as np
 import plotly.graph_objects as go
 from scipy.ndimage import gaussian_filter1d
 from scipy.signal import find_peaks
-from scipy.special import expit, logit
+from scipy.special import expit
 
 
 class MUsim:
@@ -110,7 +111,13 @@ class MUsim:
         """
         Function returns a shallow copy of the MUsim object.
         """
-        return self
+        return copy.copy(self)
+    
+    def deepcopy(self):
+        """
+        Function returns a deep copy of the MUsim object.
+        """
+        return copy.deepcopy(self)
 
     def _get_spike_history_kernel(
         self,
@@ -417,7 +424,7 @@ class MUsim:
             new_bin_edges = np.linspace(0, new_num_bins * new_bin_width, new_num_bins + 1)
             # now snap all edges to nearest integer
             new_bin_indexes = np.round(new_bin_edges * self.sample_rate).astype(int)
-            new_spikes = np.zeros((new_num_bins, spikes.shape[1]), dtype=int)
+            new_spikes = np.zeros((new_num_bins, spikes.shape[1]), dtype=float) # float to allow nan
             for ii in range(new_num_bins):
                 new_spikes[ii, :] = np.sum(
                     spikes[new_bin_indexes[ii] : new_bin_indexes[ii + 1], :], axis=0
@@ -430,7 +437,7 @@ class MUsim:
             # update spikes
             self.spikes[index] = new_spikes
         if target == "session":
-            raise Exception("target=session not implemented yet.")
+            raise Exception("self.rebin for target=session not implemented yet.")
         return
 
     def rebin_trials(self, new_bin_width, trial_indexes=[-1]):

@@ -554,7 +554,7 @@ if multiprocess:
         print(f"Using {N_processes} process to simulate spikes")
     mu_list = [
         mu.copy() for i in range(N_processes)
-    ]  # identical copies of the MUsim object
+    ]  # identical copies of the MUsim object, only shallow copy is needed because each process has separate data
     interp_final_force_array_segments = np.array_split(
         interp_final_force_array, N_processes
     )
