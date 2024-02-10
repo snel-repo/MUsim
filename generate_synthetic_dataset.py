@@ -604,16 +604,19 @@ if show_matplotlib_figures:
     )
 
 # save spikes from simulation if user does not ^C
-kinematic_csv_file_name = "_".join(
-    (
-        kinematic_csv_file_paths[0].stem.split("-")[0],
-        kinematic_csv_file_paths[0].stem.split("_")[1],
-    )
-)  # just get the date and rat name
+# session_name = "_".join(
+#     (
+#         kinematic_csv_file_paths[0].stem.split("-")[0],
+#         kinematic_csv_file_paths[0].stem.split("_")[1],
+#     )
+# )  # just get the date and rat name
+session_name = "_".join(
+    sorts_from_each_path_to_load[0], str(paths_to_KS_session_folders[0]).split("/")[5]
+)
 if save_simulated_spikes:
     mu.save_spikes(
-        # f"synthetic_spikes_from_{kinematic_csv_file_name}_using_{chosen_bodypart_to_load}.npy"
-        f"spikes_{kinematic_csv_file_name}_SNR-{adjust_SNR}-{SNR_mode}_jitter-{shape_jitter_amount}std_files-{len(anipose_sessions_to_load)}_{datetime.now().strftime('%Y%m%d-%H%M%S')}.npy"
+        # f"synthetic_spikes_from_{session_name}_using_{chosen_bodypart_to_load}.npy"
+        f"spikes_{session_name}_SNR-{adjust_SNR}-{SNR_mode}_jitter-{shape_jitter_amount}std_files-{len(anipose_sessions_to_load)}_{datetime.now().strftime('%Y%m%d-%H%M%S')}.npy"
     )
     # also save a copy with name "most_recent_synthetic_spikes.npy"
     mu.save_spikes("most_recent_synthetic_spikes.npy")
@@ -1094,9 +1097,9 @@ if show_final_plotly_figure or save_final_plotly_figure:
     row_spec_list[-2] = [{"rowspan": 2}]
 
     sub_titles = number_of_rows * [""]
-    sub_titles[0] = f"<b>Simulated Kinematics: {kinematic_csv_file_name}</b>"
-    sub_titles[1] = f"<b>Simulated Motor Unit Activity: {kinematic_csv_file_name}</b>"
-    sub_titles[-2] = f"<b>Simulated Spikes : {kinematic_csv_file_name}</b>"
+    sub_titles[0] = f"<b>Simulated Kinematics: {session_name}</b>"
+    sub_titles[1] = f"<b>Simulated Motor Unit Activity: {session_name}</b>"
+    sub_titles[-2] = f"<b>Simulated Spikes : {session_name}</b>"
 
     fig = subplots.make_subplots(
         rows=num_chans_to_plot + 3,
@@ -1200,7 +1203,7 @@ if show_final_plotly_figure or save_final_plotly_figure:
 
     # add title and axis labels, make sure x-axis title is only on bottom subplot
     fig.update_layout(
-        # title=f"<b>Simulated Data from {kinematic_csv_file_name} using {chosen_bodypart_to_load}</b>",
+        # title=f"<b>Simulated Data from {session_name} using {chosen_bodypart_to_load}</b>",
         template=plot_template,
     )
     fig.update_yaxes(
@@ -1269,13 +1272,11 @@ if show_final_plotly_figure or save_final_plotly_figure:
 
     if save_final_plotly_figure:
         # fig.write_image(
-        #     f"{kinematic_csv_file_name}_using_{chosen_bodypart_to_load}.svg",
+        #     f"{session_name}_using_{chosen_bodypart_to_load}.svg",
         #     width=1920,
         #     height=1080,
         # )
-        fig.write_html(
-            f"{kinematic_csv_file_name}_using_{chosen_bodypart_to_load}.html"
-        )
+        fig.write_html(f"{session_name}_using_{chosen_bodypart_to_load}.html")
     if show_final_plotly_figure:
         print("Showing final plotly figure...")
         fig.show()
@@ -1309,7 +1310,7 @@ print(f"Overall recording length: {len(continuous_dat) / ephys_fs} seconds")
 # save simulation properties in continuous.dat file name
 if save_continuous_dat:
     continuous_dat.tofile(
-        f"continuous_{kinematic_csv_file_name}_SNR-{adjust_SNR}-{SNR_mode}_jitter-{shape_jitter_amount}std_files-{len(anipose_sessions_to_load)}_{datetime.now().strftime('%Y%m%d-%H%M%S')}.dat"
+        f"continuous_{session_name}_SNR-{adjust_SNR}-{SNR_mode}_jitter-{shape_jitter_amount}std_files-{len(anipose_sessions_to_load)}_{datetime.now().strftime('%Y%m%d-%H%M%S')}.dat"
     )
     # overwrite a copy of most recent continuous.dat file
     continuous_dat.tofile("most_recent_continuous.dat")

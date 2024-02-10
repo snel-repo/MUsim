@@ -249,17 +249,16 @@ class MUsim:
         z_dot = x * y - b * z
         return x_dot, y_dot, z_dot
 
-    def _create_trial_from_kilsort(self, kilosort_path):
+    def _create_trial_from_kilosort(self, kilosort_path):
         """
         Function loads data from a kilosort output and creates a trial from it. It will load the
         spike times and spike clusters from spike_times.npy and spike_clusters.npy, respectively.
         It will then create a MUsim format trial from this data.
         """
-        spike_times = np.load(kilosort_path.joinpath("spike_times.npy")).ravel()
-        spike_clusters = np.load(kilosort_path.joinpath("spike_clusters.npy")).ravel()
+        spike_times = np.lib.format.open_memmap(kilosort_path.joinpath("spike_times.npy")).ravel()
+        spike_clusters = np.lib.format.open_memmap(kilosort_path.joinpath("spike_clusters.npy")).ravel()
         units_in_sort = np.sort(np.unique(spike_clusters).astype(int))
         largest_cluster_number = units_in_sort[-1]
-        num_units = len(units_in_sort)
         # get number of bins
         num_bins = int(
             np.round(spike_times[-1]) + 1
@@ -328,7 +327,7 @@ class MUsim:
         ], "load_type must be 'MUsim', 'rat-loco' or 'kilosort'."
 
         if load_type in ["MUsim", "rat-loco"]:
-            input_MU_data = np.load(npy_file_path)
+            input_MU_data = np.lib.format.open_memmap(npy_file_path)
             if load_as == "session":
                 if load_type == "MUsim":
                     # if MUsim data, do not transpose
@@ -379,8 +378,8 @@ class MUsim:
             if load_as == "session":
                 raise Exception("load_as=session not implemented for load_type=kilosort.")
             elif load_as == "trial":
-                # use _create_trial_from_kilsort() to create a trial from kilosort output
-                trial_from_KS = self._create_trial_from_kilsort(npy_file_path)
+                # use _create_trial_from_kilosort() to create a trial from kilosort output
+                trial_from_KS = self._create_trial_from_kilosort(npy_file_path)
                 sliced_trial_from_KS = trial_from_KS[
                     int(np.round(trial_from_KS.shape[0] * slice[0])) : int(
                         np.round(trial_from_KS.shape[0] * slice[1])

@@ -905,6 +905,206 @@ def plot4(
     precision,
     recall,
     accuracy,
+    num_motor_units,
+    clusters_in_sort_to_use,
+    GT_clusters_to_use,
+    sorts_from_each_path_to_load,  # list of strings
+    plot_template,
+    show_plot4,
+    save_png_plot4,
+    save_svg_plot4,
+    save_html_plot4,
+    figsize=(1920, 1080),
+):
+    # this function will plot the precision, recall, and accuracy for each sort. The precision, recall,
+    # and accuracy are lists, each from a different sort, and the mean and standard deviation of
+    # each metric will be plotted for each motor unit in each sort. The x axis will be the motor
+    # units, and the y axis will be the metric score. The mean will be plotted as a line, and the
+    # standard deviation will be plotted as a shaded region around the line. The line and shaded region
+    # will be colored according to the sort. There is a subplot for each metric and the different sorts
+    # will overlie eachother in the same subplot. It is like plot3, but with the x-axis being the motor
+    # units, and replacing multiple lines with a single line and shaded region for each metric.
+    # The plot will be optionally be saved as a png, svg, and html file, and optionally shown in a
+    # browser window.
+    # pass
+    # get suffix after the KS folder name, which is the repo branch name for that sort
+    PPP_branch_names = [
+        list_of_paths_to_sorted_folders[0][iSort].name.split("_")[-1]
+        for iSort in range(len(list_of_paths_to_sorted_folders[0]))
+    ]
+    sort_types = [
+        "Kilosort" if PPP_branch_names[iSort] == "KS" else "EMUsort"
+        for iSort in range(len(list_of_paths_to_sorted_folders[0]))
+    ]
+
+    # make a subplot for each metric
+    fig = subplots.make_subplots(
+        rows=3,
+        cols=1,
+        shared_xaxes=True,
+        shared_yaxes=True,
+        vertical_spacing=0.02,
+        subplot_titles=["Precision", "Recall", "Accuracy"],
+    )
+
+    # interpolate within darker half the color map to get as many colors as there are motor units
+    N_colors = 10
+    precision_color_map = cl.interp(cl.scales["9"]["seq"]["Greens"][4:9], N_colors)
+    recall_color_map = cl.interp(cl.scales["9"]["seq"]["Oranges"][4:9], N_colors)
+    accuracy_color_map = cl.interp(cl.scales["9"]["seq"]["Blues"][4:9], N_colors)
+
+    metric_color_maps = [
+        precision_color_map,
+        recall_color_map,
+        accuracy_color_map,
+    ]
+
+    # collapse list of each metric into a 3D numpy array, then take the mean and standard deviation
+    # of each metric across the newly created axis, then plot the mean and standard deviation for each
+    # motor unit in each metric
+    precision = np.array(precision)
+    recall = np.array(recall)
+    accuracy = np.array(accuracy)
+
+    metric_values = [precision, recall, accuracy]
+    # color by what type of sort it is, make it darker if it is Kilosort
+    for iMetric in range(len(metric_values)):
+
+        for sort_type in set(sort_types):
+            if sort_type == "EMUsort":
+                # take averages across the sort axis (axis 0), but only for the elements that match
+                # the sort type
+                metric_means_EMU = np.mean(
+                    metric_values[iMetric][
+                        np.where([int(i == "EMUsort") for i in sort_types])
+                    ],
+                    axis=0,
+                )
+                metric_stds_EMU = np.std(
+                    metric_values[iMetric][
+                        np.where([int(i == "EMUsort") for i in sort_types])
+                    ],
+                    axis=0,
+                )
+                # add the standard deviation as a shaded region around the mean
+                # make opacity of the fill 0.6
+                fig.add_trace(
+                    go.Scatter(
+                        x=list(range(num_motor_units))
+                        + list(range(num_motor_units)[::-1]),
+                        y=np.concatenate(
+                            [
+                                metric_means_EMU + metric_stds_EMU,
+                                metric_means_EMU[::-1] - metric_stds_EMU[::-1],
+                            ]
+                        ),
+                        fill="toself",
+                        mode="lines",
+                        fillcolor=(metric_color_maps[iMetric][0]),
+                        line=dict(width=0),
+                        showlegend=False,
+                        opacity=0.6,
+                    ),
+                    row=iMetric + 1,
+                    col=1,
+                )
+                # add the mean as a line
+                fig.add_trace(
+                    go.Scatter(
+                        x=list(range(num_motor_units)),
+                        y=metric_means_EMU,
+                        mode="lines",
+                        name=sort_type,
+                        line=dict(
+                            width=4,
+                            color=(metric_color_maps[iMetric][1]),
+                        ),
+                    ),
+                    row=iMetric + 1,
+                    col=1,
+                )
+            elif sort_type == "Kilosort":
+                # add the standard deviation as a shaded region around the mean
+                # make opacity of the fill 0.6
+                metric_means_KS = np.mean(
+                    metric_values[iMetric][
+                        np.where([int(i == "Kilosort") for i in sort_types])
+                    ],
+                    axis=0,
+                )
+                metric_stds_KS = np.std(
+                    metric_values[iMetric][
+                        np.where([int(i == "Kilosort") for i in sort_types])
+                    ],
+                    axis=0,
+                )
+                fig.add_trace(
+                    go.Scatter(
+                        x=list(range(num_motor_units))
+                        + list(range(num_motor_units)[::-1]),
+                        y=np.concatenate(
+                            [
+                                metric_means_KS + metric_stds_KS,
+                                metric_means_KS[::-1] - metric_stds_KS[::-1],
+                            ]
+                        ),
+                        fill="toself",
+                        mode="lines",
+                        fillcolor=(metric_color_maps[iMetric][-2]),
+                        line=dict(width=0),
+                        showlegend=False,
+                        opacity=0.6,
+                    ),
+                    row=iMetric + 1,
+                    col=1,
+                )
+                # add the mean as a line
+                fig.add_trace(
+                    go.Scatter(
+                        x=list(range(num_motor_units)),
+                        y=metric_means_KS,
+                        mode="lines",
+                        name=sort_type,
+                        line=dict(
+                            width=4,
+                            color=(metric_color_maps[iMetric][-1]),
+                        ),
+                    ),
+                    row=iMetric + 1,
+                    col=1,
+                )
+    fig.update_layout(
+        title=f"<b>Comparison of {sort_types[0]} and {sort_types[1]} Performance to Ground Truth, Across Bin Widths</b>",
+        legend_title="Ground Truth Metrics",
+        template=plot_template,
+        yaxis=dict(title="<b>Metric Score</b>", range=[0, 1.01]),
+    )
+
+    # make sure each row has the same y axis range
+    for iRow in range(3):
+        fig.update_yaxes(
+            title_text="<b>Metric Score</b>",
+            row=iRow + 1,
+            col=1,
+            range=[0, 1.01],
+        )
+
+    fig.update_yaxes(matches="y")
+
+    fig.update_xaxes(
+        title_text="<b>GT Cluster ID (Sort Unit ID)</b>",
+        row=3,
+        col=1,
+    )
+
+    fig.show()
+
+
+def plot5(
+    bin_width,
+    precision,
+    recall,
+    accuracy,
     nt0,
     num_motor_units,
     clusters_in_sort_to_use,
@@ -1262,71 +1462,78 @@ if __name__ == "__main__":
     plot1_bar_type = "percent"  # totals / percent
     plot1_ylim = [0, 135]
     plot2_xlim = [0, 1]
-    show_plot1a = True
-    show_plot1b = True
+    show_plot1a = False
+    show_plot1b = False
     show_plot2 = False
     show_plot3 = False
-    show_plot4 = False
+    show_plot4 = True
+    show_plot5 = False
     save_png_plot1a = False
     save_png_plot1b = False
     save_png_plot2 = False
     save_png_plot3 = False
     save_png_plot4 = False
+    save_png_plot5 = False
     save_svg_plot1a = False
     save_svg_plot1b = False
     save_svg_plot2 = False
     save_svg_plot3 = False
     save_svg_plot4 = False
+    save_svg_plot5 = False
     save_html_plot1a = False
     save_html_plot1b = False
     save_html_plot2 = False
     save_html_plot3 = False
     save_html_plot4 = False
+    save_html_plot5 = False
 
     ## TBD: NEED TO ADD FLAG FOR DATASET CHOICE, to flip all related variables
     ## paths with simulated data
     path_to_sim_dat = Path(
+        "continuous_20221117_godzilla_SNR-100-constant_jitter-0std_files-14_20240206-160607.dat"  # monkey
         # "continuous_20221117_godzilla_SNR-400-constant_jitter-0std_files-11.dat"  # triple rat
-        "continuous_20221117_godzilla_SNR-None-constant_jitter-0std_files-11.dat"  # godzilla only
+        # "continuous_20221117_godzilla_SNR-None-constant_jitter-0std_files-11.dat"  # godzilla only
         # "continuous_20221117_godzilla_SNR-1-from_data_jitter-4std_files-11.dat"
     )
     ## load ground truth data
     ground_truth_path = Path(
+        "spikes_20221117_godzilla_SNR-100-constant_jitter-0std_files-14_20240206-160539.npy"  # monkey
         # "spikes_20221117_godzilla_SNR-400-constant_jitter-0std_files-11.npy"  # triple rat
-        "spikes_20221117_godzilla_SNR-1-from_data_jitter-4std_files-11.npy"  # godzilla only
+        # "spikes_20221117_godzilla_SNR-1-from_data_jitter-4std_files-11.npy"  # godzilla only
         # "spikes_20221117_godzilla_SNR-1-from_data_jitter-1std_files-5.npy"
         # "spikes_20221116_godzilla_SNR-8-from_data_jitter-4std_files-1.npy"
     )  # spikes_20221116_godzilla_SNR-None_jitter-0std_files-1.npy
 
     # set which ground truth clusters to compare with (a range from 0 to num_motor_units)
-    GT_clusters_to_use = list(range(0, 10))
+    GT_clusters_to_use = list(range(0, 6))
     num_motor_units = len(GT_clusters_to_use)
 
     ## load Kilosort data
     # paths to the folders containing the Kilosort data
     paths_to_KS_session_folders = [
         Path(
-            # "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/godzilla/simulated20221116/"
-            "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/godzilla/simulated20221117/"
+            "/snel/share/data/rodent-ephys/open-ephys/monkey/sean-pipeline/simulated20240206"
             # "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/triple/simulated20231219/"
+            # "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/godzilla/simulated20221116/"
+            # "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/godzilla/simulated20221117/"
         ),
     ]
     sorts_from_each_path_to_load = [
-        ## simulated20221116:
+        #### simulated20221116:
         # {
         # "20231011_185107"  # 1 std, 4 jitter
         # "20231011_195053"  # 2 std, 4 jitter
         # "20231011_201450"  # 4 std, 4 jitter
         # "20231011_202716"  # 8 std, 4 jitter
         # } All in braces did not have channel delays reintroduced for continuous.dat
-        ## simulated20221117:
+        #### simulated20221117:
         # {
         # "20231027_183121"  # 1 std, 4 jitter, all MUsort options ON
         # "20231031_141254"  # 1 std, 4 jitter, all MUsort options ON, slightly better
         # "20231103_160031096827"  # 1 std, 4 jitter, all MUsort options ON, ?
         # "20231103_175840215876"  # 2 std, 8 jitter, all MUsort options ON, ?
         # "20231103_164647242198"  # 2 std, 4 jitter, all MUsort options ON, custom_merge
-        "20231105_192242190872"  # 2 std, 8 jitter, all MUsort options ON, except multi-threshold $$$ BEST EMUsort $$$
+        # "20231105_192242190872"  # 2 std, 8 jitter, all MUsort options ON, except multi-threshold $$$ BEST EMUsort $$$
         # "20231101_165306036638"  # 1 std, 4 jitter, optimal template selection routines OFF, Th=[1,0.5], spkTh=[-6]
         # "20231101_164409249821"  # 1 std, 4 jitter, optimal template selection routines OFF, Th=[1,0.5], spkTh=[-2]
         # "20231101_164937098773"  # 1 std, 4 jitter, optimal template selection routines OFF, Th=[5,2], spkTh=[-6]
@@ -1340,6 +1547,46 @@ if __name__ == "__main__":
         # simulated20231219:
         # "20231220_180513756759"  # SNR-400-constant_jitter-0std_files-11, vanilla Kilosort, Th=[10,4], spkTh=[-6]
         # "20231220_172352030313"  # SNR-400-constant_jitter-0std_files-11, EMUsort, Th=[5,2], spkTh=[-3,-6]
+        #### Below are for the monkey dataset (8CH)
+        # EMU=[0.675, 0.868, 0.817, 0.357, 0.813, 0.818,0.726,0.882,0.793] # mean accuracies, grand mean: 0.74989
+        # KS=[0.688,0.652,0.833,0.811,0.810,0.764,0.830,0.616,0.878,0.763,0.804,0.890] # mean accuracies, grand mean: 0.77825
+        # "20240206_180600872332"  # rec-1_2-good-of-3-total_Th,[10,4],spkTh,[-6]_EMUsort # too few
+        # "20240206_180621637339"  # rec-1_3-good-of-3-total_Th,[10,4],spkTh,[-6,-9]_EMUsort # too few
+        # "20240206_180658042556"  # rec-1_10-good-of-16-total_Th,[7,3],spkTh,[-3,-6]_EMUsort # Average accuracy: 0.675 +/- 0.354
+        # "20240206_180802824443"  # rec-1_25-good-of-44-total_Th,[5,2],spkTh,[-6]_EMUsort # Average accuracy: 0.868 +/- 0.094
+        # "20240206_180806779104"  # rec-1_25-good-of-42-total_Th,[5,2],spkTh,[-6,-9]_EMUsort # Average accuracy: 0.817 +/- 0.160
+        # "20240206_180856961919"  # rec-1_5-good-of-6-total_Th,[10,4],spkTh,[-3,-6]_EMUsort # Average accuracy: 0.357 +/- 0.395
+        # "20240206_180954426237"  # rec-1_23-good-of-38-total_Th,[2,1],spkTh,[-3,-6]_EMUsort # Average accuracy: 0.813 +/- 0.126
+        # "20240206_181007303651"  # rec-1_9-good-of-10-total_Th,[7,3],spkTh,[-6,-9]_EMUsort # Average accuracy: 0.818 +/- 0.176
+        # "20240206_181234362303"  # rec-1_25-good-of-41-total_Th,[5,2],spkTh,[-3,-6]_EMUsort # Average accuracy: 0.726 +/- 0.173
+        # "20240206_181342142506"  # rec-1_23-good-of-35-total_Th,[2,1],spkTh,[-6]_EMUsort # Average accuracy: 0.882 +/- 0.101 ### BEST EMU
+        # "20240206_181510823697"  # rec-1_30-good-of-56-total_Th,[2,1],spkTh,[-6,-9]_EMUsort # Average accuracy: 0.793 +/- 0.187
+        ## Kilosort with comparable grid search
+        "20240207_164752921257",  # rec-1_11-good-of-16-total_Th,[10,4],spkTh,-9_vanilla_KS' # Average accuracy: 0.688 +/- 0.375
+        "20240207_164803728144",  # rec-1_16-good-of-24-total_Th,[10,4],spkTh,-3_vanilla_KS' # Average accuracy: 0.652 +/- 0.473
+        "20240207_164826157090",  # rec-1_24-good-of-37-total_Th,[5,2],spkTh,-9_vanilla_KS' # Average accuracy: 0.833 +/- 0.126
+        "20240207_164832762566",  # rec-1_32-good-of-49-total_Th,[7,3],spkTh,-6_vanilla_KS' # Average accuracy: 0.811 +/- 0.174
+        "20240207_164840302634",  # rec-1_27-good-of-47-total_Th,[5,2],spkTh,-3_vanilla_KS' # Average accuracy: 0.810 +/- 0.134
+        "20240207_164923767820",  # rec-1_27-good-of-51-total_Th,[2,1],spkTh,-6_vanilla_KS' # Average accuracy: 0.764 +/- 0.145
+        "20240207_164943630654",  # rec-1_20-good-of-28-total_Th,[7,3],spkTh,-3_vanilla_KS' # Average accuracy: 0.830 +/- 0.092
+        "20240207_164957316623",  # rec-1_16-good-of-26-total_Th,[10,4],spkTh,-6_vanilla_KS' # Average accuracy: 0.616 +/- 0.437
+        "20240207_165018647090",  # rec-1_19-good-of-24-total_Th,[7,3],spkTh,-9_vanilla_KS' # Average accuracy: 0.878 +/- 0.130
+        "20240207_165106699721",  # rec-1_31-good-of-53-total_Th,[2,1],spkTh,-3_vanilla_KS' # Average accuracy: 0.763 +/- 0.175
+        "20240207_165116929820",  # rec-1_43-good-of-70-total_Th,[5,2],spkTh,-6_vanilla_KS' # Average accuracy: 0.804 +/- 0.134
+        "20240207_165147332421",  # rec-1_39-good-of-68-total_Th,[2,1],spkTh,-9_vanilla_KS' # Average accuracy: 0.890 +/- 0.083 ### BEST KS
+        ## EMUsort with comparable grid search
+        # "20240209_001234411226",  # rec-1_4-good-of-4-total_Th,[10,4],spkTh,[-9]_EMUsort # too few
+        # "20240209_001249124363", # rec-1_3-good-of-3-total_Th,[10,4],spkTh,[-3]_EMUsort # too few
+        "20240209_001342251355",  # rec-1_8-good-of-11-total_Th,[7,3],spkTh,[-6]_EMUsort # Average accuracy: 0.718 +/- 0.353
+        "20240209_001445351930",  # rec-1_19-good-of-34-total_Th,[5,2],spkTh,[-9]_EMUsort #
+        "20240209_001538771592",  # rec-1_24-good-of-41-total_Th,[5,2],spkTh,[-3]_EMUsort #
+        "20240209_001550701418",  # rec-1_7-good-of-9-total_Th,[10,4],spkTh,[-6]_EMUsort #
+        "20240209_001552552507",  # rec-1_14-good-of-19-total_Th,[7,3],spkTh,[-3]_EMUsort #
+        "20240209_001644282197",  # rec-1_8-good-of-11-total_Th,[7,3],spkTh,[-9]_EMUsort #
+        "20240209_001806825843",  # rec-1_39-good-of-66-total_Th,[2,1],spkTh,[-6]_EMUsort #
+        "20240209_002012987541",  # rec-1_23-good-of-45-total_Th,[5,2],spkTh,[-6]_EMUsort #
+        "20240209_002053696849",  # rec-1_37-good-of-61-total_Th,[2,1],spkTh,[-3]_EMUsort #
+        "20240209_002354264296",  # rec-1_29-good-of-51-total_Th,[2,1],spkTh,[-9]_EMUsort #
     ]
     clusters_to_take_from = {
         # {
@@ -1427,8 +1674,9 @@ if __name__ == "__main__":
         import multiprocessing as mp
         from concurrent.futures import ProcessPoolExecutor, as_completed
 
-    clusters_in_sort_to_use = clusters_to_take_from[sorts_from_each_path_to_load[0]]
-    true_spike_counts_for_each_cluster = np.load(str(ground_truth_path)).sum(axis=0)
+    true_spike_counts_for_each_cluster = np.lib.format.open_memmap(
+        str(ground_truth_path)
+    ).sum(axis=0)
     # find the folder name which ends in _myo and append to the paths_to_session_folders
     paths_to_each_myo_folder = []
     for iDir in paths_to_KS_session_folders:
@@ -1445,16 +1693,19 @@ if __name__ == "__main__":
             for f in iPath.iterdir()
             if f.is_dir() and any(s in f.name for s in sorts_from_each_path_to_load)
         ]
-        assert (
-            len(matches) == 1
-        ), f"There should be one sort folder match in each _myo folder, but there were {len(matches)} in {iPath}"
+        # assert (
+        #     len(matches) == 1
+        # ), f"There should be one sort folder match in each _myo folder, but there were {len(matches)} in {iPath}"
         if use_custom_merge_clusters:
             # append the path to the custom_merge_clusters folder
             list_of_paths_to_sorted_folders.append(
-                matches[0].joinpath("custom_merges/final_merge")
+                [
+                    matches[i].joinpath("custom_merges/final_merge")
+                    for i in range(len(matches))
+                ]
             )
         else:
-            list_of_paths_to_sorted_folders.append(matches[0])
+            list_of_paths_to_sorted_folders.append(matches)
 
     if automatically_assign_cluster_mapping:
         # automatically assign cluster mapping by extracting the waves at the spike times for all
@@ -1466,23 +1717,6 @@ if __name__ == "__main__":
         # also need to be sure to check all lags between the ground truth and the sort median waves
         # to make sure that the correlation is not being computed between two waves that are
         # misaligned in time, which would result in an errantly and artificially low correlation
-        spike_times_list = [
-            np.load(str(path_to_sorted_folder.joinpath("spike_times.npy"))).flatten()
-            for path_to_sorted_folder in list_of_paths_to_sorted_folders
-        ]
-
-        spike_clusters_list = [
-            np.load(str(path_to_sorted_folder.joinpath("spike_clusters.npy"))).flatten()
-            for path_to_sorted_folder in list_of_paths_to_sorted_folders
-        ]
-
-        # clusters_in_sort_to_use = np.unique(
-        #     spike_clusters_list[0]
-        # )  # take all clusters in the first sort
-
-        # get the spike times for each cluster
-        spike_times = spike_times_list[0]
-        spike_clusters = spike_clusters_list[0]
 
         # drop any clusters with <300 spikes
         # clusters_in_sort_to_use = clusters_in_sort_to_use[
@@ -1494,17 +1728,42 @@ if __name__ == "__main__":
         #     ).astype(int)
         # ]
 
-        # get the spike times for each cluster
-        spike_times_for_each_cluster = [
-            spike_times[spike_clusters == iCluster]
-            for iCluster in clusters_in_sort_to_use
-        ]
+        if method_for_automatic_cluster_mapping != "accuracies":
+            spike_times_list = [
+                np.lib.format.open_memmap(
+                    str(path_to_sorted_folder.joinpath("spike_times.npy"))
+                ).flatten()
+                for path_to_sorted_folder in list_of_paths_to_sorted_folders[0]
+            ]
+
+            spike_clusters_list = [
+                np.lib.format.open_memmap(
+                    str(path_to_sorted_folder.joinpath("spike_clusters.npy"))
+                ).flatten()
+                for path_to_sorted_folder in list_of_paths_to_sorted_folders[0]
+            ]
+
+            # clusters_in_sort_to_use = np.unique(
+            #     spike_clusters_list[0]
+            # )  # take all clusters in the first sort
+
+            # get the spike times for each cluster
+            spike_times = spike_times_list[0]
+            spike_clusters = spike_clusters_list[0]
+            clusters_in_sort_to_use = clusters_to_take_from[
+                sorts_from_each_path_to_load[0]
+            ]
+            # get the spike times for each cluster
+            spike_times_for_each_cluster = [
+                spike_times[spike_clusters == iCluster]
+                for iCluster in clusters_in_sort_to_use
+            ]
 
         # now do the same for the ground truth spikes. Load the ground truth spike times
         # which are 1's and 0's, where 1's indicate a spike and 0's indicate no spike
         # each column is a different unit, and row is a different time point in the recording
         # use np.where to get the spike times for each cluster
-        ground_truth_spike_times = np.load(str(ground_truth_path))
+        ground_truth_spike_times = np.lib.format.open_memmap(str(ground_truth_path))
         GT_spike_times_for_each_cluster = [
             np.where(ground_truth_spike_times[:, iCluster] == 1)[0]
             for iCluster in GT_clusters_to_use
@@ -1521,7 +1780,7 @@ if __name__ == "__main__":
                 bin_width_for_comparison,
                 ephys_fs,
                 time_frame,
-                list_of_paths_to_sorted_folders,
+                path_to_sorted_folder,
             ):
                 # use MUsim object to load and rebin ground truth data
                 mu_GT = MUsim(random_seed_entropy)
@@ -1540,7 +1799,7 @@ if __name__ == "__main__":
                 mu_KS.sample_rate = 1 / ephys_fs
                 mu_KS.load_MUs(
                     # npy_file_path
-                    list_of_paths_to_sorted_folders[0],
+                    path_to_sorted_folder,
                     1 / ephys_fs,
                     load_as="trial",
                     slice=time_frame,
@@ -1619,11 +1878,11 @@ if __name__ == "__main__":
                     # make sure shift hasn't gone near the edge of the min or max delay
                     if shift <= min_delay_samples + 1 or shift >= max_delay_samples - 1:
                         print(
-                            f"WARNING: Shifted Kilosort spikes for unit {iUnit} by {shift} samples"
+                            f"WARNING: Shifted Kilosort spikes for GT unit {jCluster_GT} and KS unit {iUnit} by {shift} samples"
                         )
-                    print(
-                        f"Done with accuracy calculation for GT unit {jCluster_GT} and KS unit {iUnit}"
-                    )
+                    # print(
+                    #     f"Done with correlation-based shifting for GT unit {jCluster_GT} and KS unit {iUnit}"
+                    # )
 
                 # rebin the spike trains to the bin width for comparison
                 mu_GT.rebin_trials(
@@ -1634,106 +1893,71 @@ if __name__ == "__main__":
                     bin_width_for_comparison / 1000
                 )  # rebin to bin_width_for_comparison ms bins
 
-                ground_truth_spikes = mu_GT.spikes[-1]  # shape is (num_bins, num_units)
                 kilosort_spikes = mu_KS.spikes[-1]  # shape is (num_bins, num_units)
+                ground_truth_spikes = mu_GT.spikes[-1]  # shape is (num_bins, num_units)
+                ground_truth_spikes_this_clust_repeat = np.tile(
+                    ground_truth_spikes[:, jCluster_GT], (kilosort_spikes.shape[1], 1)
+                ).T
 
-                # compute false positive, false negative, and true positive spikes
+                # compute false positive, false negative, and true positive spikes with vectorized operations
+                # algorithm then has O(n) time complexity
                 # create a new array for each type of error (false positive, false negative, true positive)
                 true_positive_spikes = np.zeros(kilosort_spikes.shape, dtype=int)
                 false_positive_spikes = np.zeros(kilosort_spikes.shape, dtype=int)
                 false_negative_spikes = np.zeros(kilosort_spikes.shape, dtype=int)
-                # loop through each time bin and each unit
-                for iBin in range(kilosort_spikes.shape[0]):
-                    for iUnit in range(kilosort_spikes.shape[1]):
-                        # skip the columns which contain nan's, which represent nonexistent clusters
-                        if np.any(np.isnan(kilosort_spikes[:, iUnit])):
-                            continue
 
-                        ## check cases in order of most likely to least likely for efficiency
-                        # if no kilosort spike and no ground truth spike, true negative
-                        if (
-                            kilosort_spikes[iBin, iUnit] == 0
-                            and ground_truth_spikes[iBin, jCluster_GT] == 0
-                        ):
-                            continue  # no spike in this bin for either kilosort or ground truth, go to next bin
-                        # if kilosort spike and ground truth spike, true positive
-                        elif (
-                            kilosort_spikes[iBin, iUnit] == 1
-                            and ground_truth_spikes[iBin, jCluster_GT] == 1
-                        ):
-                            true_positive_spikes[iBin, iUnit] = 1
-                        # if kilosort spike but no ground truth spike, false positive
-                        elif (
-                            kilosort_spikes[iBin, iUnit] >= 1
-                            and ground_truth_spikes[iBin, jCluster_GT] == 0
-                        ):
-                            false_positive_spikes[iBin, iUnit] = kilosort_spikes[
-                                iBin, iUnit
-                            ]
-                        # if no kilosort spike but ground truth spike, false negative
-                        elif (
-                            kilosort_spikes[iBin, iUnit] == 0
-                            and ground_truth_spikes[iBin, jCluster_GT] >= 1
-                        ):
-                            false_negative_spikes[iBin, iUnit] = ground_truth_spikes[
-                                iBin, jCluster_GT
-                            ]
-                        # now, must check for numbers larger than 1, and handle those cases appropriately
-                        elif (
-                            kilosort_spikes[iBin, iUnit] > 1
-                            and ground_truth_spikes[iBin, jCluster_GT] == 1
-                        ):
-                            # if kilosort spike and ground truth spike, true positive
-                            true_positive_spikes[iBin, iUnit] = 1
-                            # if kilosort spike but no ground truth spike, false positive
-                            false_positive_spikes[iBin, iUnit] = (
-                                kilosort_spikes[iBin, iUnit] - 1
-                            )
-                        elif (
-                            kilosort_spikes[iBin, iUnit] == 1
-                            and ground_truth_spikes[iBin, jCluster_GT] > 1
-                        ):
-                            # if kilosort spike and ground truth spike, true positive
-                            true_positive_spikes[iBin, iUnit] = 1
-                            # if no kilosort spike but ground truth spike, false negative
-                            false_negative_spikes[iBin, iUnit] = (
-                                ground_truth_spikes[iBin, jCluster_GT] - 1
-                            )
-                        elif (
-                            kilosort_spikes[iBin, iUnit] > 1
-                            and ground_truth_spikes[iBin, jCluster_GT] > 1
-                        ):
-                            # if kilosort spike and ground truth spike, true positive
-                            true_positive_spikes[iBin, iUnit] = min(
-                                kilosort_spikes[iBin, iUnit],
-                                ground_truth_spikes[iBin, jCluster_GT],
-                            )
-                            if (
-                                kilosort_spikes[iBin, iUnit]
-                                > ground_truth_spikes[iBin, jCluster_GT]
-                            ):
-                                # if kilosort spike but no ground truth spike, false positive
-                                false_positive_spikes[iBin, iUnit] = (
-                                    kilosort_spikes[iBin, iUnit]
-                                    - ground_truth_spikes[iBin, jCluster_GT]
-                                )
-                            elif (
-                                kilosort_spikes[iBin, iUnit]
-                                < ground_truth_spikes[iBin, jCluster_GT]
-                            ):
-                                # if no kilosort spike but ground truth spike, false negative
-                                false_negative_spikes[iBin, iUnit] = (
-                                    ground_truth_spikes[iBin, jCluster_GT]
-                                    - kilosort_spikes[iBin, iUnit]
-                                )
-                        else:
-                            raise ValueError(
-                                (
-                                    f"Unhandled case: kilosort_spikes[{iBin}, {iUnit}] = "
-                                    f"{kilosort_spikes[iBin, iUnit]}, ground_truth_spikes["
-                                    f"{iBin}, {iUnit}] = {ground_truth_spikes[iBin, jCluster_GT]}"
-                                )
-                            )
+                # Check for NaN's once for each unit
+                nan_units = np.any(np.isnan(kilosort_spikes), axis=0)
+
+                # Create masks for each condition
+                true_positive_mask = (kilosort_spikes == 1) & (
+                    ground_truth_spikes_this_clust_repeat == 1
+                )
+                false_positive_mask = (kilosort_spikes >= 1) & (
+                    ground_truth_spikes_this_clust_repeat == 0
+                )
+                false_negative_mask = (kilosort_spikes == 0) & (
+                    ground_truth_spikes_this_clust_repeat >= 1
+                )
+
+                # Handle cases where spike counts are larger than 1
+                true_positive_large_mask = (kilosort_spikes > 1) & (
+                    ground_truth_spikes_this_clust_repeat >= 1
+                )
+                false_positive_large_mask = (
+                    kilosort_spikes > ground_truth_spikes_this_clust_repeat
+                ) & true_positive_large_mask
+                false_negative_large_mask = (
+                    kilosort_spikes < ground_truth_spikes_this_clust_repeat
+                ) & true_positive_large_mask
+
+                # Apply masks to arrays
+                true_positive_spikes[true_positive_mask] = 1
+                false_positive_spikes[false_positive_mask] = kilosort_spikes[
+                    false_positive_mask
+                ]
+                false_negative_spikes[false_negative_mask] = (
+                    ground_truth_spikes_this_clust_repeat[false_negative_mask]
+                )
+
+                # Handle large spike counts
+                true_positive_spikes[true_positive_large_mask] = np.minimum(
+                    kilosort_spikes[true_positive_large_mask],
+                    ground_truth_spikes_this_clust_repeat[true_positive_large_mask],
+                )
+                false_positive_spikes[false_positive_large_mask] = (
+                    kilosort_spikes[false_positive_large_mask]
+                    - ground_truth_spikes_this_clust_repeat[false_positive_large_mask]
+                )
+                false_negative_spikes[false_negative_large_mask] = (
+                    ground_truth_spikes_this_clust_repeat[false_negative_large_mask]
+                    - kilosort_spikes[false_negative_large_mask]
+                )
+
+                # Set NaN units to 0
+                true_positive_spikes[:, nan_units] = 0
+                false_positive_spikes[:, nan_units] = 0
+                false_negative_spikes[:, nan_units] = 0
 
                 num_matches = np.sum(true_positive_spikes, axis=0)
                 num_kilosort_spikes = np.sum(kilosort_spikes, axis=0)
@@ -1767,45 +1991,38 @@ if __name__ == "__main__":
                     ground_truth_spikes,
                 )
 
-            # use MUsim object to load and rebin Kilosort data
-            mu_KS = MUsim(random_seed_entropy)
-            mu_KS.sample_rate = 1 / ephys_fs
-            mu_KS.load_MUs(
-                # npy_file_path
-                list_of_paths_to_sorted_folders[0],
-                1 / ephys_fs,
-                load_as="trial",
-                slice=time_frame,
-                load_type="kilosort",
-            )
-            precisions = np.zeros((len(GT_clusters_to_use), mu_KS.spikes[-1].shape[1]))
-            recalls = np.zeros((len(GT_clusters_to_use), mu_KS.spikes[-1].shape[1]))
-            accuracies = np.zeros((len(GT_clusters_to_use), mu_KS.spikes[-1].shape[1]))
+            # make lists to house the results from each iSort iteration
+            precisions_list = []
+            recalls_list = []
+            accuracies_list = []
+            num_matches_list = []
+            num_kilosort_spikes_list = []
+            num_ground_truth_spikes_list = []
+            true_positive_spikes_list = []
+            false_positive_spikes_list = []
+            false_negative_spikes_list = []
+            kilosort_spikes_list = []
+            ground_truth_spikes_list = []
 
-            if parallel:
-                with ProcessPoolExecutor(
-                    max_workers=min(mp.cpu_count() // 2, num_motor_units)
-                ) as executor:
-                    futures = [
-                        executor.submit(
-                            compute_accuracy_for_each_GT_cluster,
-                            ground_truth_path,
-                            jCluster_GT,
-                            random_seed_entropy,
-                            1,  # set bin_width_for_comparison to 1ms by default
-                            ephys_fs,
-                            time_frame,
-                            list_of_paths_to_sorted_folders,
-                        )
-                        for jCluster_GT in range(len(GT_clusters_to_use))
-                    ]
-                    results = dict()
-                    for future in as_completed(futures):
-                        result = future.result()
-                        precisions[result[0], :] = result[1]
-                        recalls[result[0], :] = result[2]
-                        accuracies[result[0], :] = result[3]
-                        results[result[0]] = result  # store result for unpacking later
+            for iSort in range(len(list_of_paths_to_sorted_folders[0])):
+                # use MUsim object to load and rebin Kilosort data
+                mu_KS = MUsim(random_seed_entropy)
+                mu_KS.sample_rate = 1 / ephys_fs
+                mu_KS.load_MUs(
+                    # npy_file_path
+                    list_of_paths_to_sorted_folders[0][iSort],
+                    1 / ephys_fs,
+                    load_as="trial",
+                    slice=time_frame,
+                    load_type="kilosort",
+                )
+                precisions = np.zeros(
+                    (len(GT_clusters_to_use), mu_KS.spikes[-1].shape[1])
+                )
+                recalls = np.zeros((len(GT_clusters_to_use), mu_KS.spikes[-1].shape[1]))
+                accuracies = np.zeros(
+                    (len(GT_clusters_to_use), mu_KS.spikes[-1].shape[1])
+                )
                 (
                     num_matches,
                     num_kilosort_spikes,
@@ -1816,17 +2033,82 @@ if __name__ == "__main__":
                     kilosort_spikes,
                     ground_truth_spikes,
                 ) = [[] for i in range(8)]
+                if parallel:
+                    with ProcessPoolExecutor(
+                        max_workers=min(mp.cpu_count() // 2, num_motor_units)
+                    ) as executor:
+                        futures = [
+                            executor.submit(
+                                compute_accuracy_for_each_GT_cluster,
+                                ground_truth_path,
+                                jCluster_GT,
+                                random_seed_entropy,
+                                1,  # set bin_width_for_comparison to 1ms by default
+                                ephys_fs,
+                                time_frame,
+                                list_of_paths_to_sorted_folders[0][iSort],
+                            )
+                            for jCluster_GT in range(len(GT_clusters_to_use))
+                        ]
+                        results = dict()
+                        for future in as_completed(futures):
+                            result = future.result()
+                            precisions[result[0], :] = result[1]
+                            recalls[result[0], :] = result[2]
+                            accuracies[result[0], :] = result[3]
+                            results[result[0]] = (
+                                result  # store result for unpacking later
+                            )
+                            print(
+                                f"Done computing accuracies for GT cluster {result[0]}"
+                            )
 
-                for iKey in results.keys():
-                    num_matches.append(results[iKey][4])
-                    num_kilosort_spikes.append(results[iKey][5])
-                    num_ground_truth_spikes.append(results[iKey][6])
-                    true_positive_spikes.append(results[iKey][7])
-                    false_positive_spikes.append(results[iKey][8])
-                    false_negative_spikes.append(results[iKey][9])
-                    kilosort_spikes.append(results[iKey][10])
-                    ground_truth_spikes.append(results[iKey][11])
+                    for iKey in results.keys():
+                        num_matches.append(results[iKey][4])
+                        num_kilosort_spikes.append(results[iKey][5])
+                        num_ground_truth_spikes.append(results[iKey][6])
+                        true_positive_spikes.append(results[iKey][7])
+                        false_positive_spikes.append(results[iKey][8])
+                        false_negative_spikes.append(results[iKey][9])
+                        kilosort_spikes.append(results[iKey][10])
+                        ground_truth_spikes.append(results[iKey][11])
 
+                else:
+                    for jCluster_GT in range(len(GT_clusters_to_use)):
+                        (
+                            _,
+                            precisions[jCluster_GT, :],
+                            recalls[jCluster_GT, :],
+                            accuracies[jCluster_GT, :],
+                            *results,
+                        ) = compute_accuracy_for_each_GT_cluster(
+                            ground_truth_path,
+                            jCluster_GT,
+                            random_seed_entropy,
+                            1,  # set bin_width_for_comparison to 1ms by default
+                            ephys_fs,
+                            time_frame,
+                            list_of_paths_to_sorted_folders[0][iSort],
+                        )
+                        print(f"Done computing accuracies for GT cluster {jCluster_GT}")
+                        # append the results into each corresponding output list
+                        _ = [
+                            x.append(y)
+                            for x, y in zip(
+                                [
+                                    num_matches,
+                                    num_kilosort_spikes,
+                                    num_ground_truth_spikes,
+                                    true_positive_spikes,
+                                    false_positive_spikes,
+                                    false_negative_spikes,
+                                    kilosort_spikes,
+                                    ground_truth_spikes,
+                                ],
+                                results,
+                            )
+                        ]
+                # make lists into numpy arrays
                 num_matches = np.vstack(num_matches)
                 num_kilosort_spikes = np.vstack(num_kilosort_spikes)
                 num_ground_truth_spikes = np.vstack(num_ground_truth_spikes)
@@ -1836,23 +2118,32 @@ if __name__ == "__main__":
                 kilosort_spikes = np.vstack(kilosort_spikes)
                 ground_truth_spikes = np.vstack(ground_truth_spikes)
 
-            else:
-                for jCluster_GT in range(len(GT_clusters_to_use)):
-                    (
-                        _,
-                        precisions[jCluster_GT, :],
-                        recalls[jCluster_GT, :],
-                        accuracies[jCluster_GT, :],
-                    ) = compute_accuracy_for_each_GT_cluster(
-                        ground_truth_path,
-                        jCluster_GT,
-                        random_seed_entropy,
-                        1,  # set bin_width_for_comparison to 1ms by default
-                        ephys_fs,
-                        time_frame,
-                        list_of_paths_to_sorted_folders,
-                    )
-                    print(f"Done computing accuracies for GT cluster {jCluster_GT}")
+                # append each stacked array to each corresponding list
+                precisions_list.append(precisions)
+                recalls_list.append(recalls)
+                accuracies_list.append(accuracies)
+                num_matches_list.append(num_matches)
+                num_kilosort_spikes_list.append(num_kilosort_spikes)
+                num_ground_truth_spikes_list.append(num_ground_truth_spikes)
+                true_positive_spikes_list.append(true_positive_spikes)
+                false_positive_spikes_list.append(false_positive_spikes)
+                false_negative_spikes_list.append(false_negative_spikes)
+                kilosort_spikes_list.append(kilosort_spikes)
+                ground_truth_spikes_list.append(ground_truth_spikes)
+
+            # now rename the lists to the original variable names
+            precisions = precisions_list
+            recalls = recalls_list
+            accuracies = accuracies_list
+            num_matches = num_matches_list
+            num_kilosort_spikes = num_kilosort_spikes_list
+            num_ground_truth_spikes = num_ground_truth_spikes_list
+            true_positive_spikes = true_positive_spikes_list
+            false_positive_spikes = false_positive_spikes_list
+            false_negative_spikes = false_negative_spikes_list
+            kilosort_spikes = kilosort_spikes_list
+            ground_truth_spikes = ground_truth_spikes_list
+
             correlations = accuracies  # use accuracies as the metric for matching
         elif method_for_automatic_cluster_mapping == "waves":
             # load and reshape into numchans x whatever (2d array) the data.bin file
@@ -2295,216 +2586,318 @@ if __name__ == "__main__":
             raise Exception(
                 f"method_for_automatic_cluster_mapping must be either 'waves', 'times', or 'trains', but was {method_for_automatic_cluster_mapping}"
             )
+        # loop through each correlations list element, which house scores for all GT clusters in each sort
+        GT_mapped_corrs_list = []
+        precisions_list = []
+        recalls_list = []
+        accuracies_list = []
+        num_matches_list = []
+        num_kilosort_spikes_list = []
+        num_ground_truth_spikes_list = []
+        true_positive_spikes_list = []
+        false_positive_spikes_list = []
+        false_negative_spikes_list = []
+        kilosort_spikes_list = []
+        ground_truth_spikes_list = []
+        clusters_in_sort_to_use_list = []
+        for iCorr in range(len(correlations)):
+            # now find the cluster with the highest correlation
+            sorted_cluster_pair_corr_idx = np.unravel_index(
+                np.argsort(correlations[iCorr].ravel()), correlations[iCorr].shape
+            )
 
-        # now find the cluster with the highest correlation
-        sorted_cluster_pair_corr_idx = np.unravel_index(
-            np.argsort(correlations.ravel()), correlations.shape
-        )
-
-        # make sure to slice of coordinate pairs with a nan result
-        num_nan_pairs = np.isnan(np.sort(correlations.ravel())).sum()
-        sorted_GT_cluster_match_idxs = np.flip(sorted_cluster_pair_corr_idx[0])[
-            num_nan_pairs:
-        ]
-        sorted_KS_cluster_match_idxs = np.flip(sorted_cluster_pair_corr_idx[1])[
-            num_nan_pairs:
-        ]
-
-        GT_mapped_idxs = np.nan * np.ones((len(sorted_GT_cluster_match_idxs), 2))
-        GT_mapped_idxs[:, 0] = sorted_GT_cluster_match_idxs
-        GT_mapped_idxs[:, 1] = sorted_KS_cluster_match_idxs
-        GT_mapped_idxs = GT_mapped_idxs.astype(int)
-
-        # now extract only non-repeated rows from the first column
-        # (so there's only one match per GT cluster, in order)
-        [uniq_GT, uniq_GT_idx, uniq_GT_inv_idx] = np.unique(
-            GT_mapped_idxs[:, 0], return_index=True, return_inverse=True
-        )
-        [uniq_KS, uniq_KS_idx, uniq_KS_inv_idx] = np.unique(
-            GT_mapped_idxs[:, 1], return_index=True, return_inverse=True
-        )
-
-        # find the ordering of which GT clusters have the highest score
-        sorted_by_corr_uniq_GT = get_unique_N(uniq_GT_inv_idx, len(uniq_GT))
-        best_uniq_pair_idxs = np.nan * np.ones_like(uniq_GT_idx)
-        claimed_KS_idxs = np.nan * np.ones_like(uniq_GT_idx)
-        for iGT_clust_idx in sorted_by_corr_uniq_GT:
-            best_corr_clust_match_idxs = np.where(uniq_GT_inv_idx == iGT_clust_idx)
-            for iBest_corr_match in best_corr_clust_match_idxs[0]:
-                if GT_mapped_idxs[iBest_corr_match][1] not in claimed_KS_idxs:
-                    best_uniq_pair_idxs[iGT_clust_idx] = iBest_corr_match
-                    claimed_KS_idxs[iGT_clust_idx] = GT_mapped_idxs[iBest_corr_match][1]
-                    break
-            else:
-                raise Exception(
-                    f"No unique cluster match was found for ground truth cluster {iGT_clust_idx}!"
-                )
-
-        best_uniq_pair_idxs = best_uniq_pair_idxs.astype(int)
-        GT_mapped_idxs = GT_mapped_idxs[best_uniq_pair_idxs]
-        GT_mapped_corrs = [
-            correlations[idx_pair[0], idx_pair[1]] for idx_pair in GT_mapped_idxs
-        ]
-
-        if method_for_automatic_cluster_mapping == "accuracies":
-            GT_mapped_precisions = [
-                precisions[idx_pair[0], idx_pair[1]] for idx_pair in GT_mapped_idxs
+            # make sure to slice of coordinate pairs with a nan result
+            num_nan_pairs = np.isnan(np.sort(correlations[iCorr].ravel())).sum()
+            sorted_GT_cluster_match_idxs = np.flip(sorted_cluster_pair_corr_idx[0])[
+                num_nan_pairs:
             ]
-            GT_mapped_recalls = [
-                recalls[idx_pair[0], idx_pair[1]] for idx_pair in GT_mapped_idxs
+            sorted_KS_cluster_match_idxs = np.flip(sorted_cluster_pair_corr_idx[1])[
+                num_nan_pairs:
             ]
-            GT_mapped_accuracies = [
-                accuracies[idx_pair[0], idx_pair[1]] for idx_pair in GT_mapped_idxs
-            ]
-            GT_mapped_num_matches = [
-                num_matches[idx_pair[0], idx_pair[1]] for idx_pair in GT_mapped_idxs
-            ]
-            GT_mapped_num_KS_spikes = [
-                num_kilosort_spikes[idx_pair[0], idx_pair[1]]
+
+            GT_mapped_idxs = np.nan * np.ones((len(sorted_GT_cluster_match_idxs), 2))
+            GT_mapped_idxs[:, 0] = sorted_GT_cluster_match_idxs
+            GT_mapped_idxs[:, 1] = sorted_KS_cluster_match_idxs
+            GT_mapped_idxs = GT_mapped_idxs.astype(int)
+
+            # now extract only non-repeated rows from the first column
+            # (so there's only one match per GT cluster, in order)
+            [uniq_GT, uniq_GT_idx, uniq_GT_inv_idx] = np.unique(
+                GT_mapped_idxs[:, 0], return_index=True, return_inverse=True
+            )
+            [uniq_KS, uniq_KS_idx, uniq_KS_inv_idx] = np.unique(
+                GT_mapped_idxs[:, 1], return_index=True, return_inverse=True
+            )
+
+            # find the ordering of which GT clusters have the highest score
+            sorted_by_corr_uniq_GT = get_unique_N(uniq_GT_inv_idx, len(uniq_GT))
+            best_uniq_pair_idxs = np.nan * np.ones_like(uniq_GT_idx)
+            claimed_KS_idxs = np.nan * np.ones_like(uniq_GT_idx)
+            for iGT_clust_idx in sorted_by_corr_uniq_GT:
+                best_corr_clust_match_idxs = np.where(uniq_GT_inv_idx == iGT_clust_idx)
+                for iBest_corr_match in best_corr_clust_match_idxs[0]:
+                    if GT_mapped_idxs[iBest_corr_match][1] not in claimed_KS_idxs:
+                        best_uniq_pair_idxs[iGT_clust_idx] = iBest_corr_match
+                        claimed_KS_idxs[iGT_clust_idx] = GT_mapped_idxs[
+                            iBest_corr_match
+                        ][1]
+                        break
+                else:
+                    raise Exception(
+                        f"No unique cluster match was found for ground truth cluster {iGT_clust_idx}!"
+                    )
+
+            best_uniq_pair_idxs = best_uniq_pair_idxs.astype(int)
+            GT_mapped_idxs = GT_mapped_idxs[best_uniq_pair_idxs]
+            GT_mapped_corrs = [
+                correlations[iCorr][idx_pair[0], idx_pair[1]]
                 for idx_pair in GT_mapped_idxs
             ]
-            accuracies = GT_mapped_accuracies
-            precisions = GT_mapped_precisions
-            recalls = GT_mapped_recalls
-            num_matches = GT_mapped_num_matches
-            num_kilosort_spikes = np.array(GT_mapped_num_KS_spikes)
-            num_ground_truth_spikes = num_ground_truth_spikes[0]
-            true_positive_spikes = true_positive_spikes[:, GT_mapped_idxs[:, 1]]
-            false_positive_spikes = false_positive_spikes[:, GT_mapped_idxs[:, 1]]
-            kilosort_spikes = kilosort_spikes[:, GT_mapped_idxs[:, 1]]
-            # ground_truth_spikes = ground_truth_spikes[0]
 
-            clusters_in_sort_to_use = GT_mapped_idxs[:, 1]
-            metrics_df = df(
+            if method_for_automatic_cluster_mapping == "accuracies":
+                GT_mapped_precisions = [
+                    precisions[iCorr][idx_pair[0], idx_pair[1]]
+                    for idx_pair in GT_mapped_idxs
+                ]
+                GT_mapped_recalls = [
+                    recalls[iCorr][idx_pair[0], idx_pair[1]]
+                    for idx_pair in GT_mapped_idxs
+                ]
+                GT_mapped_accuracies = [
+                    accuracies[iCorr][idx_pair[0], idx_pair[1]]
+                    for idx_pair in GT_mapped_idxs
+                ]
+                GT_mapped_num_matches = [
+                    num_matches[iCorr][idx_pair[0], idx_pair[1]]
+                    for idx_pair in GT_mapped_idxs
+                ]
+                GT_mapped_num_KS_spikes = [
+                    num_kilosort_spikes[iCorr][idx_pair[0], idx_pair[1]]
+                    for idx_pair in GT_mapped_idxs
+                ]
+                # shape of metrics is (num_GT_clusters, num_KS_clusters), but KS clusters were
+                # pared down to only the ones that matched to a GT cluster, so the shape of the
+                # metrics will effectively be (num_GT_clusters, num_GT_clusters)
+                accuracies[iCorr] = GT_mapped_accuracies
+                precisions[iCorr] = GT_mapped_precisions
+                recalls[iCorr] = GT_mapped_recalls
+                num_matches[iCorr] = GT_mapped_num_matches
+                num_kilosort_spikes[iCorr] = np.array(GT_mapped_num_KS_spikes)
+                num_ground_truth_spikes[iCorr] = num_ground_truth_spikes[iCorr][0]
+                true_positive_spikes[iCorr] = true_positive_spikes[iCorr][
+                    :, GT_mapped_idxs[:, 1]
+                ]
+                false_positive_spikes[iCorr] = false_positive_spikes[iCorr][
+                    :, GT_mapped_idxs[:, 1]
+                ]
+                false_negative_spikes[iCorr] = false_negative_spikes[iCorr][
+                    :, GT_mapped_idxs[:, 1]
+                ]
+                kilosort_spikes[iCorr] = kilosort_spikes[iCorr][:, GT_mapped_idxs[:, 1]]
+                clusters_in_sort_to_use = GT_mapped_idxs[:, 1]
+
+                # append each stacked array to each corresponding list
+                # accuracies_list.append(accuracies)
+                # precisions_list.append(precisions)
+                # recalls_list.append(recalls)
+                # num_matches_list.append(num_matches)
+                # num_kilosort_spikes_list.append(num_kilosort_spikes)
+                # num_ground_truth_spikes_list.append(num_ground_truth_spikes)
+                # true_positive_spikes_list.append(true_positive_spikes)
+                # false_positive_spikes_list.append(false_positive_spikes)
+                # false_negative_spikes_list.append(false_negative_spikes)
+                # kilosort_spikes_list.append(kilosort_spikes)
+                # ground_truth_spikes_list.append(ground_truth_spikes)
+                clusters_in_sort_to_use_list.append(clusters_in_sort_to_use)
+
+                metrics_df = df(
+                    GT_clusters_to_use,  # GT_mapped_idxs[:, 0],
+                    columns=["GT Unit"],
+                    index=clusters_in_sort_to_use,
+                )
+                metrics_df.index.name = "KS Unit"
+                metrics_df["Precision"] = np.array(GT_mapped_precisions)
+                metrics_df["Recall"] = np.array(GT_mapped_recalls)
+                metrics_df["Accuracy"] = np.array(GT_mapped_accuracies)
+                print(metrics_df)
+            else:
+                clusters_in_sort_to_use = [
+                    clusters_in_sort_to_use[idx] for idx in GT_mapped_idxs[:, 1]
+                ]
+
+            score_df = df(
                 GT_clusters_to_use,  # GT_mapped_idxs[:, 0],
                 columns=["GT Unit"],
                 index=clusters_in_sort_to_use,
             )
-            metrics_df.index.name = "KS Unit"
-            metrics_df["Precision"] = np.array(GT_mapped_precisions)
-            metrics_df["Recall"] = np.array(GT_mapped_recalls)
-            metrics_df["Accuracy"] = np.array(GT_mapped_accuracies)
-            print(metrics_df)
-        else:
-            clusters_in_sort_to_use = [
-                clusters_in_sort_to_use[idx] for idx in GT_mapped_idxs[:, 1]
-            ]
+            score_df.index.name = "KS Unit"
+            score_df["Match Score"] = np.array(GT_mapped_corrs)
+            print(score_df)
 
-        score_df = df(
-            GT_clusters_to_use,  # GT_mapped_idxs[:, 0],
-            columns=["GT Unit"],
-            index=clusters_in_sort_to_use,
-        )
-        score_df.index.name = "KS Unit"
-        score_df["Match Score"] = np.array(GT_mapped_corrs)
-        print(score_df)
+            # print metrics for each unit
+            print("\n")  # add a newline for readability
+            print("Sort: ", sorts_from_each_path_to_load[iSort])
 
-    if method_for_automatic_cluster_mapping != "accuracies":
-        if parallel:
-            with mp.Pool(processes=len(bin_widths_for_comparison)) as pool:
-                zip_obj = zip(
-                    [ground_truth_path] * len(bin_widths_for_comparison),
-                    [GT_clusters_to_use] * len(bin_widths_for_comparison),
-                    [random_seed_entropy] * len(bin_widths_for_comparison),
-                    bin_widths_for_comparison,
-                    [ephys_fs] * len(bin_widths_for_comparison),
-                    [time_frame] * len(bin_widths_for_comparison),
-                    [list_of_paths_to_sorted_folders] * len(bin_widths_for_comparison),
-                    [clusters_in_sort_to_use] * len(bin_widths_for_comparison),
-                    [spike_isolation_radius_ms] * len(bin_widths_for_comparison),
-                )
-                results = pool.starmap(
-                    compare_spike_trains,
-                    zip_obj,
-                )
+            unit_df = df()
+            unit_df["Unit"] = np.array(clusters_in_sort_to_use).astype(int)
+            unit_df["True Count"] = num_ground_truth_spikes[iCorr]
+            unit_df["KS Count"] = num_kilosort_spikes[iCorr]
+            unit_df["Precision"] = precisions[iCorr]
+            unit_df["Recall"] = recalls[iCorr]
+            unit_df["Accuracy"] = accuracies[iCorr]
+            unit_df["Unit"].astype(int)
+            unit_df.set_index("Unit", inplace=True)
+            print(unit_df)
+            print("\n")  # add a newline for readability
+            # print lowest and highest accuracies, limit to 3 decimal places
+            print(
+                f"Lowest accuracy: {unit_df['Accuracy'].min():.3f}, Unit {unit_df['Accuracy'].idxmin()}"
+            )
+            print(
+                f"Highest accuracy: {unit_df['Accuracy'].max():.3f}, Unit {unit_df['Accuracy'].idxmax()}"
+            )
 
-                # extract results
-                kilosort_spikes = [result[0] for result in results]
-                ground_truth_spikes = [result[1] for result in results]
-                accuracies = [result[2] for result in results]
-                precisions = [result[3] for result in results]
-                recalls = [result[4] for result in results]
-                num_matches = [result[5] for result in results]
-                num_kilosort_spikes = [result[6] for result in results]
-                num_ground_truth_spikes = [result[7] for result in results]
-                true_positive_spikes = [result[8] for result in results]
-                false_positive_spikes = [result[9] for result in results]
-                false_negative_spikes = [result[10] for result in results]
+            # print average accuracy plus or minus standard deviation
+            print(
+                f"Average accuracy: {unit_df['Accuracy'].mean():.3f} +/- {unit_df['Accuracy'].std():.3f}"
+            )
+            # print average accuracy weighted by number of spikes in each unit
+            print(
+                f"Weighted average accuracy: {np.average(unit_df['Accuracy'], weights=unit_df['True Count']):.3f}"
+            )
+            # print average precision plus or minus standard deviation
+            print(
+                f"Average precision: {unit_df['Precision'].mean():.3f} +/- {unit_df['Precision'].std():.3f}"
+            )
+            # print average recall plus or minus standard deviation
+            print(
+                f"Average recall: {unit_df['Recall'].mean():.3f} +/- {unit_df['Recall'].std():.3f}"
+            )
+
+        # now rename the lists to the original variable names
+        # precisions = precisions_list
+        # recalls = recalls_list
+        # accuracies = accuracies_list
+        # num_matches = num_matches_list
+        # num_kilosort_spikes = num_kilosort_spikes_list
+        # num_ground_truth_spikes = num_ground_truth_spikes_list
+        # true_positive_spikes = true_positive_spikes_list
+        # false_positive_spikes = false_positive_spikes_list
+        # false_negative_spikes = false_negative_spikes_list
+        # kilosort_spikes = kilosort_spikes_list
+        # ground_truth_spikes = ground_truth_spikes_list
+        clusters_in_sort_to_use = clusters_in_sort_to_use_list
+
+        if method_for_automatic_cluster_mapping != "accuracies":
+            if parallel:
+                with mp.Pool(processes=len(bin_widths_for_comparison)) as pool:
+                    zip_obj = zip(
+                        [ground_truth_path] * len(bin_widths_for_comparison),
+                        [GT_clusters_to_use] * len(bin_widths_for_comparison),
+                        [random_seed_entropy] * len(bin_widths_for_comparison),
+                        bin_widths_for_comparison,
+                        [ephys_fs] * len(bin_widths_for_comparison),
+                        [time_frame] * len(bin_widths_for_comparison),
+                        [list_of_paths_to_sorted_folders[0]]
+                        * len(bin_widths_for_comparison),
+                        [clusters_in_sort_to_use] * len(bin_widths_for_comparison),
+                        [spike_isolation_radius_ms] * len(bin_widths_for_comparison),
+                    )
+                    results = pool.starmap(
+                        compare_spike_trains,
+                        zip_obj,
+                    )
+
+                    # extract results
+                    kilosort_spikes = [result[0] for result in results]
+                    ground_truth_spikes = [result[1] for result in results]
+                    accuracies = [result[2] for result in results]
+                    precisions = [result[3] for result in results]
+                    recalls = [result[4] for result in results]
+                    num_matches = [result[5] for result in results]
+                    num_kilosort_spikes = [result[6] for result in results]
+                    num_ground_truth_spikes = [result[7] for result in results]
+                    true_positive_spikes = [result[8] for result in results]
+                    false_positive_spikes = [result[9] for result in results]
+                    false_negative_spikes = [result[10] for result in results]
+
+                    # collapse accuracies, precisions, and recalls into a 2D array
+                    accuracies = np.vstack(accuracies)
+                    precisions = np.vstack(precisions)
+                    recalls = np.vstack(recalls)
+            else:
+                # compare spike trains for each bin width
+                kilosort_spikes = []
+                ground_truth_spikes = []
+                accuracies = []
+                precisions = []
+                recalls = []
+                num_matches = []
+                num_kilosort_spikes = []
+                num_ground_truth_spikes = []
+                true_positive_spikes = []
+                false_positive_spikes = []
+                false_negative_spikes = []
+                for iBinWidth in range(len(bin_widths_for_comparison)):
+                    (
+                        kilosort_spikes_temp,
+                        ground_truth_spikes_temp,
+                        accuracy_temp,
+                        precision_temp,
+                        recall_temp,
+                        num_matches_temp,
+                        num_kilosort_spikes_temp,
+                        num_ground_truth_spikes_temp,
+                        true_positive_spikes_temp,
+                        false_positive_spikes_temp,
+                        false_negative_spikes_temp,
+                    ) = compare_spike_trains(
+                        ground_truth_path,
+                        GT_clusters_to_use,
+                        random_seed_entropy,
+                        bin_widths_for_comparison[iBinWidth],
+                        ephys_fs,
+                        time_frame,
+                        list_of_paths_to_sorted_folders[0],
+                        clusters_in_sort_to_use,
+                        spike_isolation_radius_ms,
+                    )
+
+                    # convert all to numpy arrays before appending
+                    kilosort_spikes.append(np.array(kilosort_spikes_temp))
+                    ground_truth_spikes.append(np.array(ground_truth_spikes_temp))
+                    accuracies.append(np.array(accuracy_temp))
+                    precisions.append(np.array(precision_temp))
+                    recalls.append(np.array(recall_temp))
+                    num_matches.append(np.array(num_matches_temp))
+                    num_kilosort_spikes.append(np.array(num_kilosort_spikes_temp))
+                    num_ground_truth_spikes.append(
+                        np.array(num_ground_truth_spikes_temp)
+                    )
+                    true_positive_spikes.append(np.array(true_positive_spikes_temp))
+                    false_positive_spikes.append(np.array(false_positive_spikes_temp))
+                    false_negative_spikes.append(np.array(false_negative_spikes_temp))
 
                 # collapse accuracies, precisions, and recalls into a 2D array
                 accuracies = np.vstack(accuracies)
                 precisions = np.vstack(precisions)
                 recalls = np.vstack(recalls)
-        else:
-            # compare spike trains for each bin width
-            kilosort_spikes = []
-            ground_truth_spikes = []
-            accuracies = []
-            precisions = []
-            recalls = []
-            num_matches = []
-            num_kilosort_spikes = []
-            num_ground_truth_spikes = []
-            true_positive_spikes = []
-            false_positive_spikes = []
-            false_negative_spikes = []
-            for iBinWidth in range(len(bin_widths_for_comparison)):
-                (
-                    kilosort_spikes_temp,
-                    ground_truth_spikes_temp,
-                    accuracy_temp,
-                    precision_temp,
-                    recall_temp,
-                    num_matches_temp,
-                    num_kilosort_spikes_temp,
-                    num_ground_truth_spikes_temp,
-                    true_positive_spikes_temp,
-                    false_positive_spikes_temp,
-                    false_negative_spikes_temp,
-                ) = compare_spike_trains(
-                    ground_truth_path,
-                    GT_clusters_to_use,
-                    random_seed_entropy,
-                    bin_widths_for_comparison[iBinWidth],
-                    ephys_fs,
-                    time_frame,
-                    list_of_paths_to_sorted_folders,
-                    clusters_in_sort_to_use,
-                    spike_isolation_radius_ms,
-                )
-
-                # convert all to numpy arrays before appending
-                kilosort_spikes.append(np.array(kilosort_spikes_temp))
-                ground_truth_spikes.append(np.array(ground_truth_spikes_temp))
-                accuracies.append(np.array(accuracy_temp))
-                precisions.append(np.array(precision_temp))
-                recalls.append(np.array(recall_temp))
-                num_matches.append(np.array(num_matches_temp))
-                num_kilosort_spikes.append(np.array(num_kilosort_spikes_temp))
-                num_ground_truth_spikes.append(np.array(num_ground_truth_spikes_temp))
-                true_positive_spikes.append(np.array(true_positive_spikes_temp))
-                false_positive_spikes.append(np.array(false_positive_spikes_temp))
-                false_negative_spikes.append(np.array(false_negative_spikes_temp))
-
-            # collapse accuracies, precisions, and recalls into a 2D array
-            accuracies = np.vstack(accuracies)
-            precisions = np.vstack(precisions)
-            recalls = np.vstack(recalls)
-    elif method_for_automatic_cluster_mapping == "accuracies":
-        # putting into list will allow indexing with 0
-        num_ground_truth_spikes = [num_ground_truth_spikes]
-        num_kilosort_spikes = [num_kilosort_spikes]
-        precisions = [precisions]
-        recalls = [recalls]
-        accuracies = [accuracies]
-        false_positive_spikes = [false_positive_spikes]
-        false_negative_spikes = [false_negative_spikes]
-        true_positive_spikes = [true_positive_spikes]
-        kilosort_spikes = [kilosort_spikes]
-        ground_truth_spikes = [ground_truth_spikes]
-
-    else:
-        raise Exception("Unexpected error")
+                iPlot, iSort = iShow, 0
+        elif method_for_automatic_cluster_mapping == "accuracies":
+            iPlot, iSort = iShow, 0
+        #     # putting into list will allow indexing with 0
+        #     num_ground_truth_spikes = [num_ground_truth_spikes]
+        #     num_kilosort_spikes = [num_kilosort_spikes]
+        #     precisions = [precisions]
+        #     recalls = [recalls]
+        #     accuracies = [accuracies]
+        #     false_positive_spikes = [false_positive_spikes]
+        #     false_negative_spikes = [false_negative_spikes]
+        #     true_positive_spikes = [true_positive_spikes]
+        #     kilosort_spikes = [kilosort_spikes]
+        #     ground_truth_spikes = [ground_truth_spikes]
+        # else:
+        #     raise Exception("Unexpected error")
 
     if (
         show_plot1a
@@ -2520,15 +2913,15 @@ if __name__ == "__main__":
         # now create an overlay plot of the two plots above. Do not use subplots, but use two y axes
         # make bar plot of total spike counts use left y axis
         plot1(
-            num_ground_truth_spikes[iShow],
-            num_kilosort_spikes[iShow],
-            precisions[iShow],
-            recalls[iShow],
-            accuracies[iShow],
-            bin_widths_for_comparison[iShow],
+            num_ground_truth_spikes[iPlot],
+            num_kilosort_spikes[iPlot],
+            precisions[iPlot],
+            recalls[iPlot],
+            accuracies[iPlot],
+            bin_widths_for_comparison[iPlot],
             clusters_in_sort_to_use,
             GT_clusters_to_use,
-            sorts_from_each_path_to_load[0],
+            sorts_from_each_path_to_load[iSort],
             plot_template,
             plot1_bar_type,
             plot1_ylim,
@@ -2544,59 +2937,21 @@ if __name__ == "__main__":
             figsize=(1280, 1440),
         )
 
-    # print metrics for each unit
-    print("\n")  # add a newline for readability
-    print("Sort: ", sorts_from_each_path_to_load[0])
-    unit_df = df()
-    unit_df["Unit"] = np.array(clusters_in_sort_to_use).astype(int)
-    unit_df["True Count"] = num_ground_truth_spikes[iShow]
-    unit_df["KS Count"] = num_kilosort_spikes[iShow]
-    unit_df["Precision"] = precisions[iShow]
-    unit_df["Recall"] = recalls[iShow]
-    unit_df["Accuracy"] = accuracies[iShow]
-    unit_df["Unit"].astype(int)
-    unit_df.set_index("Unit", inplace=True)
-    print(unit_df)
-    print("\n")  # add a newline for readability
-    # print lowest and highest accuracies, limit to 3 decimal places
-    print(
-        f"Lowest accuracy: {unit_df['Accuracy'].min():.3f}, Unit {unit_df['Accuracy'].idxmin()}"
-    )
-    print(
-        f"Highest accuracy: {unit_df['Accuracy'].max():.3f}, Unit {unit_df['Accuracy'].idxmax()}"
-    )
-
-    # print average accuracy plus or minus standard deviation
-    print(
-        f"Average accuracy: {unit_df['Accuracy'].mean():.3f} +/- {unit_df['Accuracy'].std():.3f}"
-    )
-    # print average accuracy weighted by number of spikes in each unit
-    print(
-        f"Weighted average accuracy: {np.average(unit_df['Accuracy'], weights=unit_df['True Count']):.3f}"
-    )
-    # print average precision plus or minus standard deviation
-    print(
-        f"Average precision: {unit_df['Precision'].mean():.3f} +/- {unit_df['Precision'].std():.3f}"
-    )
-    # print average recall plus or minus standard deviation
-    print(
-        f"Average recall: {unit_df['Recall'].mean():.3f} +/- {unit_df['Recall'].std():.3f}"
-    )
     if show_plot2 or save_png_plot2 or save_html_plot2 or save_svg_plot2:
         ### plot 2: spike trains
 
         # now plot the spike trains, emphasizing each type of error with a different color
         # include an event plot of the kilosort and ground truth spikes for reference
         plot2(
-            kilosort_spikes[iShow],
-            ground_truth_spikes[iShow],
-            false_positive_spikes[iShow],
-            false_negative_spikes[iShow],
-            true_positive_spikes[iShow],
-            bin_widths_for_comparison[iShow],
+            kilosort_spikes[iPlot],
+            ground_truth_spikes[iPlot],
+            false_positive_spikes[iPlot],
+            false_negative_spikes[iPlot],
+            true_positive_spikes[iPlot],
+            bin_widths_for_comparison[iPlot],
             clusters_in_sort_to_use,
             GT_clusters_to_use,
-            sorts_from_each_path_to_load[0],
+            sorts_from_each_path_to_load[iSort],
             plot_template,
             show_plot2,
             plot2_xlim,
@@ -2619,7 +2974,7 @@ if __name__ == "__main__":
             num_motor_units,
             clusters_in_sort_to_use,
             GT_clusters_to_use,
-            sorts_from_each_path_to_load[0],
+            sorts_from_each_path_to_load[iSort],
             plot_template,
             show_plot3,
             save_png_plot3,
@@ -2630,8 +2985,29 @@ if __name__ == "__main__":
         )
 
     if show_plot4 or save_png_plot4 or save_html_plot4 or save_svg_plot4:
-        ### plot 4: examples of overlaps throughout sort to validate results
+        ### plot 4: analogous to plot 3, but for each different run, processing results from each
+        # sort in the list of paths to sorted folders
         plot4(
+            bin_widths_for_comparison,
+            precisions,
+            recalls,
+            accuracies,
+            num_motor_units,
+            clusters_in_sort_to_use,
+            GT_clusters_to_use,
+            sorts_from_each_path_to_load,
+            plot_template,
+            show_plot4,
+            save_png_plot4,
+            save_svg_plot4,
+            save_html_plot4,
+            # make figsize 1080p
+            figsize=(1920, 1080),
+        )
+
+    if show_plot5 or save_png_plot5 or save_html_plot5 or save_svg_plot5:
+        ### plot 5: examples of overlaps throughout sort to validate results
+        plot5(
             bin_widths_for_comparison,
             precisions,
             recalls,
@@ -2640,12 +3016,12 @@ if __name__ == "__main__":
             num_motor_units,
             clusters_in_sort_to_use,
             GT_clusters_to_use,
-            sorts_from_each_path_to_load[0],
+            sorts_from_each_path_to_load[iSort],
             plot_template,
-            show_plot4,
-            save_png_plot4,
-            save_svg_plot4,
-            save_html_plot4,
+            show_plot5,
+            save_png_plot5,
+            save_svg_plot5,
+            save_html_plot5,
             # make figsize 1080p
             figsize=(1920, 1080),
         )
