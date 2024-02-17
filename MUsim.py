@@ -664,6 +664,35 @@ class MUsim:
         return units
 
     def simulate_spikes(self):
+        def _get_spikes_from_history_each_unit(self, iUnit, kernel):
+            # For each MU and time t, compute whether a spike occured using a binomial distribution,
+            # and if so, add the spike_history_kernel from t:t+len(kernel) timesteps of the response
+            # curve for that MU. Also record the spike at that time in self.spikes
+
+            for iTimestep in range(self.num_bins_per_trial):
+                if self.force_profile[iTimestep] > self.units[0][iUnit]:
+                    bounded_response_curve_at_t = expit(self.units[1][iTimestep, iUnit])
+                    if self.RNG.binomial(1, bounded_response_curve_at_t):
+                        try:
+                            self.units[1][
+                                iTimestep : iTimestep + len(kernel), iUnit
+                            ] += kernel
+                        except ValueError:
+                            if iTimestep + len(kernel) > self.num_bins_per_trial:
+                                overflow_amount = (
+                                    iTimestep + len(kernel) - self.num_bins_per_trial
+                                )
+                                self.units[1][
+                                    iTimestep : iTimestep
+                                    + len(kernel)
+                                    - overflow_amount,
+                                    iUnit,
+                                ] += kernel[:-overflow_amount]
+                        except:
+                            raise
+                        self.spikes[-1][iTimestep, iUnit] = 1
+            return
+
         """
         simple routine to generate spikes with probabilities according to the (sigmoidal) response curve.
         Input: unit response curve (probability of seeing a 0 each timestep, otherwise its 1)
@@ -735,47 +764,20 @@ class MUsim:
             # for iUnit in range(self.num_units):
             #     for iTimestep in range(self.num_bins_per_trial):
         elif self.MUspike_dynamics == "spike_history":
-
-            def get_spikes_from_history_each_unit(self, iUnit, kernel):
-                # For each MU and time t, compute whether a spike occured using a binomial distribution,
-                # and if so, add the spike_history_kernel from t:t+len(kernel) timesteps of the response
-                # curve for that MU. Also record the spike at that time in self.spikes
-                for iTimestep in range(self.num_bins_per_trial):
-                    if self.force_profile[iTimestep] < self.units[0][iUnit]:
-                        continue  # skip timestep if force is below threshold for this MU
-                    bounded_response_curve_at_t = expit(self.units[1][iTimestep, iUnit])
-                    if self.RNG.binomial(1, bounded_response_curve_at_t):
-                        try:
-                            self.units[1][
-                                iTimestep : iTimestep + len(kernel), iUnit
-                            ] += kernel
-                        except ValueError:
-                            if iTimestep + len(kernel) > self.num_bins_per_trial:
-                                overflow_amount = (
-                                    iTimestep + len(kernel) - self.num_bins_per_trial
-                                )
-                                self.units[1][
-                                    iTimestep : iTimestep
-                                    + len(kernel)
-                                    - overflow_amount,
-                                    iUnit,
-                                ] += kernel[:-overflow_amount]
-                        except:
-                            raise
-                        self.spikes[-1][iTimestep, iUnit] = 1
-                return
-
             # use second units descriptor as relation with force signal
             unit_response_curves = self.units[1]
             # initialize as array of zeros, spikes assigned later at spike_idxs
             self.spikes.append(np.zeros(unit_response_curves.shape, dtype=int))
             kernel = self._get_spike_history_kernel()
-            # compute each MU in parallel using get_spikes_from_history_each_unit
-            with ThreadPoolExecutor() as executor:
-                executor.map(
-                    get_spikes_from_history_each_unit,
-                    range(self.num_units),
-                    [kernel] * self.num_units,
+            # compute each MU in parallel using _get_spikes_from_history_each_unit
+            with ThreadPoolExecutor(max_workers=self.num_units) as executor:
+                _ = list(
+                    executor.map(
+                        _get_spikes_from_history_each_unit,
+                        [self] * self.num_units,
+                        range(self.num_units),
+                        [kernel] * self.num_units,
+                    )
                 )
         else:
             raise Exception(

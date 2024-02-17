@@ -132,7 +132,7 @@ def batch_run_MUsim(mu, force_profile, proc_num):
 session_name = "godzilla_20221117_10MU"  # "monkey_20221202_6MU"
 show_plotly_figures = False
 show_matplotlib_figures = False
-show_final_plotly_figure = False
+show_final_plotly_figure = True
 save_final_plotly_figure = False
 show_waveform_graph = False
 save_simulated_spikes = False
@@ -204,7 +204,7 @@ MU_colors = [
 ]
 
 # set plotting parameters
-time_frame = [0, 0.1]  # time frame to plot, fractional bounds of 0 to 1
+time_frame = [0, 0.01]  # time frame to plot, fractional bounds of 0 to 1
 if time_frame[1] > 0.1:
     # disable the final plotly figure if the time frame is too long
     print(
@@ -247,9 +247,9 @@ anipose_sessions_to_load = [
     "20221117-9",
 ]
 # shuffle the list of sessions to load so different simulations have different kinematics
-RNG.shuffle(
-    anipose_sessions_to_load
-)  # rat was not shuffled, monkey was shuffled once, any other should be shuffled N times
+# RNG.shuffle(
+#     anipose_sessions_to_load
+# )  # rat was not shuffled, monkey was shuffled once, any other should be shuffled N times
 # format is bodypart_side_axis, with side being L or R, and axis being x, y, or z
 chosen_bodypart_to_load = "palm_L_y"  # "wrist_L_y"
 reference_bodypart_to_load = "tailbase_y"
@@ -556,20 +556,22 @@ mu.threshmax = 2 * np.max(
 )  # np.percentile(interp_final_force_array, 99)
 mu.sample_MUs()
 
-# now create N copies of the MUsim object
-chunk_size = 2 * 7500  # number of samples to process in each multiprocessing process
-if multiprocess:
+# using multiprocess can introduce refractory period violations,
+# so now using multithreading in MUsim instead
+if False:  # multiprocess:
     import multiprocessing
 
+    chunk_size = (
+        6 * 7500
+    )  # number of samples to process in each multiprocessing process
     N_processes = int(np.ceil(np.hstack(chosen_bodypart_arrays).shape[0] / chunk_size))
     if N_processes > 1:
         print(f"Using {N_processes} processes to simulate spikes in parallel")
     else:
         print(f"Using {N_processes} process to simulate spikes")
 
-    # identical copies of the MUsim object, only shallow copy needed for now because each
-    # multiprocessing process will have its own copy
-    mu_list = [mu.copy() for i in range(N_processes)]
+    # identical copies of the MUsim object, each multiprocessing process will have its own copy
+    mu_list = [mu.deepcopy() for i in range(N_processes)]
 
     interp_final_force_array_segments = np.array_split(
         interp_final_force_array, N_processes
@@ -637,7 +639,7 @@ else:
 if save_simulated_spikes:
     mu.save_spikes(
         # f"synthetic_spikes_from_{session_name}_using_{chosen_bodypart_to_load}.npy"
-        f"spikes_{session_name}_SNR-{adjust_SNR}-{SNR_mode}_jitter-{shape_jitter_amount}std_method-{method}_files-{len(kinematic_csv_file_paths)}_{datetime.now().strftime('%Y%m%d-%H%M%S')}.npy"
+        f"spikes_{datetime.now().strftime('%Y%m%d-%H%M%S')}_{session_name}_SNR-{adjust_SNR}-{SNR_mode}_jitter-{shape_jitter_amount}std_method-{method}_{len(kinematic_csv_file_paths)}-files.npy"
     )
     # also save a copy with name "most_recent_synthetic_spikes.npy"
     mu.save_spikes("most_recent_synthetic_spikes.npy")
@@ -1336,7 +1338,7 @@ else:
 
 if save_continuous_dat:
     continuous_dat.tofile(
-        f"continuous_{session_name}_SNR-{adjust_SNR}-{SNR_mode}_jitter-{shape_jitter_amount}std_method-{method}_files-{len(kinematic_csv_file_paths)}_{datetime.now().strftime('%Y%m%d-%H%M%S')}.dat"
+        f"continuous_{datetime.now().strftime('%Y%m%d-%H%M%S')}_{session_name}_SNR-{adjust_SNR}-{SNR_mode}_jitter-{shape_jitter_amount}std_method-{method}_{len(kinematic_csv_file_paths)}-files.dat"
     )
     # overwrite a copy of most recent continuous.dat file
     continuous_dat.tofile("most_recent_continuous.dat")
