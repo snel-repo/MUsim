@@ -8,12 +8,15 @@ import plotly.graph_objects as go
 from scipy.ndimage import gaussian_filter1d
 from scipy.signal import find_peaks
 from scipy.special import expit
+from concurrent.futures import ThreadPoolExecutor
 
 
 class MUsim:
     def __init__(self, random_seed=False):
         self.MUmode = "static"  # "static" for size-principle obediance, "dynamic" for yank-dependent thresholds
-        self.MUactivation = "sigmoid"  # "sigmoid"/"heaviside" activation function of MUs
+        self.MUactivation = (
+            "sigmoid"  # "sigmoid"/"heaviside" activation function of MUs
+        )
         self.MUthresholds_dist = "exponential"  # can be either "exponential", "uniform" or "normal". Distributes proportion of small vs large MUs
         self.MUspike_dynamics = "poisson"  # can be either "poisson", "independent", or "spike_history". Models spiking behavior as poisson process or as independent
         # fractions of MU thresholds that will flip during a dynamic mode simulation
@@ -57,7 +60,9 @@ class MUsim:
         self.bin_width = 1 / self.sample_rate
         self.default_max_force = 5
         # define initial force profile
-        self.init_force_profile = np.linspace(0, self.default_max_force, self.num_bins_per_trial)
+        self.init_force_profile = np.linspace(
+            0, self.default_max_force, self.num_bins_per_trial
+        )
         # initialize force profile
         self.force_profile = self.init_force_profile
         # define initial yank profile
@@ -65,7 +70,9 @@ class MUsim:
             self.sample_rate * np.diff(self.force_profile), decimals=10
         )
         # repeat last value to match force profile length
-        self.init_yank_profile = np.append(self.init_yank_profile, self.init_yank_profile[-1])
+        self.init_yank_profile = np.append(
+            self.init_yank_profile, self.init_yank_profile[-1]
+        )
         # initialize yank profile
         self.yank_profile = self.init_yank_profile
         # default yank value at which the thresholds flips
@@ -112,7 +119,7 @@ class MUsim:
         Function returns a shallow copy of the MUsim object.
         """
         return copy.copy(self)
-    
+
     def deepcopy(self):
         """
         Function returns a deep copy of the MUsim object.
@@ -121,14 +128,20 @@ class MUsim:
 
     def _get_spike_history_kernel(
         self,
-        path_to_kernel_csv=Path(__file__).parent.joinpath("spike_history_kernel_basis.csv"),
+        path_to_kernel_csv=Path(__file__).parent.joinpath(
+            "spike_history_kernel_basis.csv"
+        ),
         weights=[-12, -0.5, -0.2, -0.4],
     ):
-        kernel_basis = np.genfromtxt(path_to_kernel_csv, delimiter=",")  # load kernel basis
+        kernel_basis = np.genfromtxt(
+            path_to_kernel_csv, delimiter=","
+        )  # load kernel basis
         kernel_ms = kernel_basis @ weights  # linear combination of basis vectors
         # interpolate kernel to match sample rate
         kernel = np.interp(
-            np.linspace(0, 1, int(np.round(len(kernel_ms) / 1000 * self.sample_rate * 7))),
+            np.linspace(
+                0, 1, int(np.round(len(kernel_ms) / 1000 * self.sample_rate * 7))
+            ),
             np.linspace(0, 1, len(kernel_ms)),
             kernel_ms,
         )
@@ -158,7 +171,9 @@ class MUsim:
             # https://en.wikipedia.org/wiki/Poisson_point_process#Thinning
             # scale and offset based on threshmin and threshmax values
             # this gives headspace for the MU firing rates, and ensures no spikes with no force
-            scaled_unit_response_curves = self.threshmax * unit_response_curves + self.threshmin
+            scaled_unit_response_curves = (
+                self.threshmax * unit_response_curves + self.threshmin
+            )
         return scaled_unit_response_curves
 
     def _get_dynamic_thresholds(self, threshmax, threshmin, new=False):
@@ -197,11 +212,15 @@ class MUsim:
                 ) + threshmin
             elif MUthresholds_dist == "normal":  # more small units, normal dist
                 MUthresholds_gen = (
-                    threshmax * abs(self.RNG.standard_normal(self.num_units) / 4) + threshmin
+                    threshmax * abs(self.RNG.standard_normal(self.num_units) / 4)
+                    + threshmin
                 )
-            elif MUthresholds_dist == "exponential":  # more small units, exponential dist
+            elif (
+                MUthresholds_dist == "exponential"
+            ):  # more small units, exponential dist
                 MUthresholds_gen = (
-                    threshmax * self.RNG.standard_exponential(self.num_units) + threshmin
+                    threshmax * self.RNG.standard_exponential(self.num_units)
+                    + threshmin
                 )
             else:
                 raise Exception(
@@ -229,7 +248,9 @@ class MUsim:
                 yank_mat >= self.yank_flip_thresh
             )  # get idxs for all yank threshold crossings
             yank_no_flip_idxs = np.where(yank_mat < self.yank_flip_thresh)
-            MUthresholds[yank_flip_idxs] = MUthresholds_flip[yank_flip_idxs]  # set flips
+            MUthresholds[yank_flip_idxs] = MUthresholds_flip[
+                yank_flip_idxs
+            ]  # set flips
             MUthresholds[yank_no_flip_idxs] = MUthresholds_orig[
                 yank_no_flip_idxs
             ]  # set original values
@@ -255,8 +276,12 @@ class MUsim:
         spike times and spike clusters from spike_times.npy and spike_clusters.npy, respectively.
         It will then create a MUsim format trial from this data.
         """
-        spike_times = np.lib.format.open_memmap(kilosort_path.joinpath("spike_times.npy")).ravel()
-        spike_clusters = np.lib.format.open_memmap(kilosort_path.joinpath("spike_clusters.npy")).ravel()
+        spike_times = np.lib.format.open_memmap(
+            kilosort_path.joinpath("spike_times.npy")
+        ).ravel()
+        spike_clusters = np.lib.format.open_memmap(
+            kilosort_path.joinpath("spike_clusters.npy")
+        ).ravel()
         units_in_sort = np.sort(np.unique(spike_clusters).astype(int))
         largest_cluster_number = units_in_sort[-1]
         # get number of bins
@@ -312,7 +337,10 @@ class MUsim:
             int,
             float,
         ], "recording_bin_width must be a positive number."
-        assert load_as in ["session", "trial"], "load_as must be either 'session' or 'trial'."
+        assert load_as in [
+            "session",
+            "trial",
+        ], "load_as must be either 'session' or 'trial'."
         assert (
             type(slice) == list
             and len(slice) == 2
@@ -371,12 +399,16 @@ class MUsim:
                     :,
                 ]
                 # sort rows by total count (descending)
-                sorted_MU_trial = sliced_MU_data[:, np.argsort(-sliced_MU_data.sum(axis=0))]
+                sorted_MU_trial = sliced_MU_data[
+                    :, np.argsort(-sliced_MU_data.sum(axis=0))
+                ]
                 self.spikes.append(sorted_MU_trial)
                 self.num_trials = 1
         elif load_type == "kilosort":
             if load_as == "session":
-                raise Exception("load_as=session not implemented for load_type=kilosort.")
+                raise Exception(
+                    "load_as=session not implemented for load_type=kilosort."
+                )
             elif load_as == "trial":
                 # use _create_trial_from_kilosort() to create a trial from kilosort output
                 trial_from_KS = self._create_trial_from_kilosort(npy_file_path)
@@ -389,7 +421,9 @@ class MUsim:
                 # sorted_MU_trial = sliced_trial_from_KS[
                 #     :, np.argsort(-sliced_trial_from_KS.sum(axis=0))
                 # ]  # sort rows by total count (descending)
-                self.spikes.append(sliced_trial_from_KS)  # spikes in order of KS cluster number
+                self.spikes.append(
+                    sliced_trial_from_KS
+                )  # spikes in order of KS cluster number
                 self.num_trials = 1
 
         self.sample_rate = 1 / recording_bin_width
@@ -418,12 +452,18 @@ class MUsim:
         """
         if target == "trial":
             spikes = self.spikes[index]
-            new_num_bins = int(np.round(spikes.shape[0] * self.bin_width / new_bin_width))
+            new_num_bins = int(
+                np.round(spikes.shape[0] * self.bin_width / new_bin_width)
+            )
             # get new bin edges as floats
-            new_bin_edges = np.linspace(0, new_num_bins * new_bin_width, new_num_bins + 1)
+            new_bin_edges = np.linspace(
+                0, new_num_bins * new_bin_width, new_num_bins + 1
+            )
             # now snap all edges to nearest integer
             new_bin_indexes = np.round(new_bin_edges * self.sample_rate).astype(int)
-            new_spikes = np.zeros((new_num_bins, spikes.shape[1]), dtype=float) # float to allow nan
+            new_spikes = np.zeros(
+                (new_num_bins, spikes.shape[1]), dtype=float
+            )  # float to allow nan
             for ii in range(new_num_bins):
                 new_spikes[ii, :] = np.sum(
                     spikes[new_bin_indexes[ii] : new_bin_indexes[ii + 1], :], axis=0
@@ -533,11 +573,15 @@ class MUsim:
             # more small units, normal dist
             elif MUthresholds_dist == "normal":
                 MUthresholds = (
-                    threshmax * abs(self.RNG.standard_normal(self.num_units) / 4) + threshmin
+                    threshmax * abs(self.RNG.standard_normal(self.num_units) / 4)
+                    + threshmin
                 )
-            elif MUthresholds_dist == "exponential":  # more small units, exponential dist
+            elif (
+                MUthresholds_dist == "exponential"
+            ):  # more small units, exponential dist
                 MUthresholds = (
-                    threshmax * self.RNG.standard_exponential(self.num_units) / 10 + threshmin
+                    threshmax * self.RNG.standard_exponential(self.num_units) / 10
+                    + threshmin
                 )
             else:
                 raise Exception(
@@ -546,7 +590,9 @@ class MUsim:
         elif MUmode == "dynamic":
             MUthresholds = self._get_dynamic_thresholds(threshmax, threshmin, new=True)
         elif MUmode == "lorenz":
-            MUthresholds = np.empty(self.num_units)  # thresholds ignored for Lorenz simulation
+            MUthresholds = np.empty(
+                self.num_units
+            )  # thresholds ignored for Lorenz simulation
         else:
             raise Exception("MUmode must be either 'static', 'dynamic', or 'lorenz'.")
         units[0] = MUthresholds
@@ -609,7 +655,9 @@ class MUsim:
         low_lambda = 8 * self.sample_rate / 1000
         high_lambda = 32 * self.sample_rate / 1000
         # self.RNG = np.random.default_rng(self.MUseed_sqn.generate_state(5)[-1])
-        self.units[2] = self.RNG.integers(low_lambda, high_lambda, size=(self.num_units))
+        self.units[2] = self.RNG.integers(
+            low_lambda, high_lambda, size=(self.num_units)
+        )
         # sort self.units[2] in ascending order, to match with units[0] and units[1] ordering
         self.units[2] = np.sort(self.units[2])
         self.MUmode = MUmode  # record the last recruitment mode
@@ -629,7 +677,9 @@ class MUsim:
         if self.MUmode == "lorenz":
             # project latent variables to high-D space
             # don't care what the high-D space is, so use random
-            proj_mat = self.RNG.random((self.num_units, 3)) - 0.5  # balance it by subtracting 0.5
+            proj_mat = (
+                self.RNG.random((self.num_units, 3)) - 0.5
+            )  # balance it by subtracting 0.5
             latents = self.units[1]
             hiD_proj = proj_mat @ latents.T  # projection to hiD
             hiD_rates = np.exp(hiD_proj)
@@ -669,7 +719,8 @@ class MUsim:
                     (
                         (
                             unit_response_curves[:, ii]
-                            > self.threshmax * self.RNG.random(unit_response_curves.shape[0])
+                            > self.threshmax
+                            * self.RNG.random(unit_response_curves.shape[0])
                         )  # thin spikes according to 1-sigmoidal relationship defined in _get_spiking_probability
                     ),
                     np.zeros(self.spikes[-1][:, ii].shape),
@@ -684,29 +735,52 @@ class MUsim:
             # for iUnit in range(self.num_units):
             #     for iTimestep in range(self.num_bins_per_trial):
         elif self.MUspike_dynamics == "spike_history":
+
+            def get_spikes_from_history_each_unit(self, iUnit, kernel):
+                # For each MU and time t, compute whether a spike occured using a binomial distribution,
+                # and if so, add the spike_history_kernel from t:t+len(kernel) timesteps of the response
+                # curve for that MU. Also record the spike at that time in self.spikes
+                for iTimestep in range(self.num_bins_per_trial):
+                    if self.force_profile[iTimestep] < self.units[0][iUnit]:
+                        continue  # skip timestep if force is below threshold for this MU
+                    bounded_response_curve_at_t = expit(self.units[1][iTimestep, iUnit])
+                    if self.RNG.binomial(1, bounded_response_curve_at_t):
+                        try:
+                            self.units[1][
+                                iTimestep : iTimestep + len(kernel), iUnit
+                            ] += kernel
+                        except ValueError:
+                            if iTimestep + len(kernel) > self.num_bins_per_trial:
+                                overflow_amount = (
+                                    iTimestep + len(kernel) - self.num_bins_per_trial
+                                )
+                                self.units[1][
+                                    iTimestep : iTimestep
+                                    + len(kernel)
+                                    - overflow_amount,
+                                    iUnit,
+                                ] += kernel[:-overflow_amount]
+                        except:
+                            raise
+                        self.spikes[-1][iTimestep, iUnit] = 1
+                return
+
             # use second units descriptor as relation with force signal
             unit_response_curves = self.units[1]
             # initialize as array of zeros, spikes assigned later at spike_idxs
             self.spikes.append(np.zeros(unit_response_curves.shape, dtype=int))
             kernel = self._get_spike_history_kernel()
-            # For each MU and time t, compute whether a spike occured using a binomial distribution,
-            # and if so, add the spike_history_kernel from t:t+len(kernel) timesteps of the response
-            # curve for that MU. Also record the spike at that time in self.spikes
-            for iUnit in range(self.num_units):
-                for iTimestep in range(self.num_bins_per_trial):
-                    bounded_response_curve_at_t = expit(self.units[1][iTimestep, iUnit])
-                    if self.RNG.binomial(1, bounded_response_curve_at_t):
-                        try:
-                            self.units[1][iTimestep : iTimestep + len(kernel), iUnit] += kernel
-                        except ValueError:
-                            if iTimestep + len(kernel) > self.num_bins_per_trial:
-                                overflow_amount = iTimestep + len(kernel) - self.num_bins_per_trial
-                                self.units[1][
-                                    iTimestep : iTimestep + len(kernel) - overflow_amount, iUnit
-                                ] += kernel[:-overflow_amount]
-                        except:
-                            raise
-                        self.spikes[-1][iTimestep, iUnit] = 1
+            # compute each MU in parallel using get_spikes_from_history_each_unit
+            with ThreadPoolExecutor() as executor:
+                executor.map(
+                    get_spikes_from_history_each_unit,
+                    range(self.num_units),
+                    [kernel] * self.num_units,
+                )
+        else:
+            raise Exception(
+                "MUspike_dynamics must be either 'independent', 'poisson', 'spike_history', or 'lorenz'."
+            )
         return self.spikes[-1]
 
     def simulate_session(self):
@@ -731,7 +805,9 @@ class MUsim:
         """
         feed in a new 1D force profile to apply to all recruited motor units
         """
-        assert len(input_force_profile.shape) == 1, "new force profile must be one-dimensional."
+        assert (
+            len(input_force_profile.shape) == 1
+        ), "new force profile must be one-dimensional."
         self.num_bins_per_trial = len(input_force_profile)  # set new trial length
 
         if len(self.units[0]) == 0:
@@ -777,7 +853,9 @@ class MUsim:
         """
         if target == "spikes":
             num_units_in_last_trial = self.spikes[-1].shape[1]
-            self.smooth_spikes.append(np.zeros(self.spikes[-1].shape))  # create new list entry
+            self.smooth_spikes.append(
+                np.zeros(self.spikes[-1].shape)
+            )  # create new list entry
             for iUnit in range(num_units_in_last_trial):
                 self.smooth_spikes[-1][:, iUnit] = gaussian_filter1d(
                     self.spikes[-1][:, iUnit], sigma, mode="reflect"
@@ -791,7 +869,9 @@ class MUsim:
                 num_units_in_last_session,
                 num_trials_in_last_session,
             )
-            self.smooth_session.append(np.zeros(session_data_shape))  # create new list entry
+            self.smooth_session.append(
+                np.zeros(session_data_shape)
+            )  # create new list entry
             for iUnit in range(num_units_in_last_session):
                 for iTrial in range(num_trials_in_last_session):
                     self.smooth_session[-1][:, iUnit, iTrial] = gaussian_filter1d(
@@ -799,7 +879,15 @@ class MUsim:
                     )
             return self.smooth_session[-1]
 
-    def see(self, target="spikes", trial=-1, session=-1, unit=0, legend=True, no_offset=False):
+    def see(
+        self,
+        target="spikes",
+        trial=-1,
+        session=-1,
+        unit=0,
+        legend=True,
+        no_offset=False,
+    ):
         """
         Main visualization method for MUsim.
 
@@ -825,7 +913,9 @@ class MUsim:
             elif self.MUmode == "dynamic":
                 thresholds = self.units[0].mean(axis=0)
             else:
-                raise Exception("MUmode must be either 'static', 'dynamic', or 'lorenz'.")
+                raise Exception(
+                    "MUmode must be either 'static', 'dynamic', or 'lorenz'."
+                )
             plt.hist(thresholds, self.num_units)
             plt.title("thresholds across " + str(self.num_units) + " generated units")
             plt.ylabel("count")
@@ -873,13 +963,20 @@ class MUsim:
             ax = fig.add_subplot(1, 1, 1)
             # if self.MUspike_dynamics == "spike_history":
             #     self.units[1] = expit(self.units[1])
-            if legend:  # flip legend to match data; handle dynamic vs. static (arrays vs. scalars)
+            if (
+                legend
+            ):  # flip legend to match data; handle dynamic vs. static (arrays vs. scalars)
                 if self.MUmode == "static":
                     thresholds = self.units[0]
                     for ii in range(self.num_units):
                         ax.plot(self.units[1][:, ii], label=thresholds[ii])
                     handles, labels = ax.get_legend_handles_labels()
-                    ax.legend(handles[::-1], labels[::-1], title="thresholds", loc="lower left")
+                    ax.legend(
+                        handles[::-1],
+                        labels[::-1],
+                        title="thresholds",
+                        loc="lower left",
+                    )
                 elif self.MUmode == "dynamic":
                     # take mean to reduce to 1 number
                     thresholds = self.units[0].mean(axis=0).round()
@@ -887,7 +984,10 @@ class MUsim:
                         ax.plot(self.units[1][:, ii], label=thresholds[ii])
                     handles, labels = ax.get_legend_handles_labels()
                     ax.legend(
-                        handles[::-1], labels[::-1], title="mean thresholds", loc="lower left"
+                        handles[::-1],
+                        labels[::-1],
+                        title="mean thresholds",
+                        loc="lower left",
                     )
             else:
                 if self.MUmode == "static":
@@ -933,7 +1033,8 @@ class MUsim:
                 np.nonzero(self.spikes[trial][:, :].T)
             ).T  # find spikes with nonzero, transpose for eventplot format
             list_of_spike_idxs = np.split(
-                find_spikes_idxs[:, 1], np.unique(find_spikes_idxs[:, 0], return_index=True)[1][1:]
+                find_spikes_idxs[:, 1],
+                np.unique(find_spikes_idxs[:, 0], return_index=True)[1][1:],
             )  # group idxs by MU identity
 
             # plot spike events as raster
@@ -944,7 +1045,12 @@ class MUsim:
                 colors=["C{}".format(i) for i in range(len(list_of_spike_idxs))],
             )
             if legend:  # determine whether to plot the legend
-                ax.legend(handles[::-1], list(counts)[::-1], title="approx. cnt", loc="upper left")
+                ax.legend(
+                    handles[::-1],
+                    list(counts)[::-1],
+                    title="approx. cnt",
+                    loc="upper left",
+                )
             # ax.set_facecolor((200/255,200/255,200/255)) # set RGB color (gray)
             # fig.set_facecolor((40/255,40/255,40/255)) # set RGB color (235,210,180) is manila
             plt.title("spikes present across MU population during trial")
@@ -961,7 +1067,10 @@ class MUsim:
                 if no_offset is False:
                     if len(self.smooth_session) != 0:
                         max_smooth_val = self.smooth_session[session].max() / 2
-                        plt.plot(self.smooth_session[session][:, ii, trial] / max_smooth_val + ii)
+                        plt.plot(
+                            self.smooth_session[session][:, ii, trial] / max_smooth_val
+                            + ii
+                        )
                     elif len(self.smooth_spikes) != 0:
                         max_smooth_val = self.smooth_spikes[trial].max() / 2
                         plt.plot(self.smooth_spikes[trial][:, ii] / max_smooth_val + ii)
@@ -988,9 +1097,12 @@ class MUsim:
                     "there is no smoothed session data. run '.convolve(target='session')' method to smooth a session."
                 )
             else:
-                plt.plot(self.smooth_session[session][:, unit, :], color="skyblue", alpha=0.5)
                 plt.plot(
-                    np.mean(self.smooth_session[session][:, unit, :], axis=1), color="darkblue"
+                    self.smooth_session[session][:, unit, :], color="skyblue", alpha=0.5
+                )
+                plt.plot(
+                    np.mean(self.smooth_session[session][:, unit, :], axis=1),
+                    color="darkblue",
                 )
                 plt.title(
                     "smoothed rates for unit #"
@@ -1027,7 +1139,9 @@ class MUsim:
             plt.xlabel("time (indexes)")
             plt.ylabel("motor units")
             plt.show(block=False)
-        elif target == "ave_rates":  # shows all units' trial-averaged rates in a session
+        elif (
+            target == "ave_rates"
+        ):  # shows all units' trial-averaged rates in a session
             if len(self.smooth_session) == 0:
                 raise Exception(
                     "there is no smoothed session data. run '.convolve(target='session')' method to smooth a session."
@@ -1036,7 +1150,9 @@ class MUsim:
                 trial_ave_responses = np.mean(self.smooth_session[session], axis=2)
                 max_smooth_val = trial_ave_responses.max() / 2
                 plt.imshow(
-                    trial_ave_responses.T / max_smooth_val, aspect="auto", interpolation="none"
+                    trial_ave_responses.T / max_smooth_val,
+                    aspect="auto",
+                    interpolation="none",
                 )
                 clb = plt.colorbar()
                 clb.set_label("rates", labelpad=-30, y=1.05, rotation=0)
@@ -1057,4 +1173,6 @@ class MUsim:
             )
             fig.show(block=False)
         else:
-            raise Exception("invalid keyword argument for '.see()' visualization method.")
+            raise Exception(
+                "invalid keyword argument for '.see()' visualization method."
+            )

@@ -129,13 +129,15 @@ def batch_run_MUsim(mu, force_profile, proc_num):
 
 
 # set analysis parameters
+session_name = "godzilla_20221117_10MU"  # "monkey_20221202_6MU"
 show_plotly_figures = False
 show_matplotlib_figures = False
 show_final_plotly_figure = False
 save_final_plotly_figure = False
-save_simulated_spikes = True
-save_continuous_dat = True
-multiprocess = True  # set to True to run on multiple processes
+show_waveform_graph = False
+save_simulated_spikes = False
+save_continuous_dat = False
+multiprocess = False  # set to True to run on multiple processes
 use_KS_templates = False  # set to True to use Kilosort templates to create waveform shapes, else load open ephys data, and use spike times to extract median waveform shapes for each unit
 shift_MU_templates_along_channels = False
 kinematics_fs = 125
@@ -202,7 +204,15 @@ MU_colors = [
 ]
 
 # set plotting parameters
-time_frame = [0, 1]  # time frame to plot, fractional bounds of 0 to 1
+time_frame = [0, 0.1]  # time frame to plot, fractional bounds of 0 to 1
+if time_frame[1] > 0.1:
+    # disable the final plotly figure if the time frame is too long
+    print(
+        "WARNING: time_frame[1] is >0.1, so disabling final plotly figure to save time"
+    )
+    show_final_plotly_figure = False
+    save_final_plotly_figure = False
+
 plot_template = "plotly_white"
 
 # check inputs
@@ -255,6 +265,10 @@ files = [
 kinematic_csv_file_paths = [
     f for f in files if any(s in f.name for s in anipose_sessions_to_load)
 ]
+# add duplicates to make sure the array is at least 10min long
+random_duplicate_paths = RNG.choice(kinematic_csv_file_paths, 2).tolist()
+kinematic_csv_file_paths = kinematic_csv_file_paths + random_duplicate_paths
+
 print(f"Taking kinematic data from: \n{[f.name for f in kinematic_csv_file_paths]}")
 kinematic_dataframes = [pd.read_csv(f) for f in kinematic_csv_file_paths]
 chosen_bodypart_arrays = [
@@ -415,42 +429,42 @@ orig_spike_history_kernel_df = pd.read_csv(orig_spike_history_kernel_path)
 ## load proc.dat from a sort for each rat including 16 channels (zeroed-out channels replace noisy ones)
 # paths to the folders containing the Kilosort data
 paths_to_proc_dat = [
-    # Path(
-    #     "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/godzilla/session20221117/2022-11-17_17-08-07_myo/sorted0_20231218_200926870049_rec-1,2,4,5,6"
-    # ),
+    Path(
+        "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/godzilla/session20221117/2022-11-17_17-08-07_myo/sorted0_20231027_163931_rec-1,2,4,5,6_chans-2,3,5,6,13,14,15,16_12-good-of-43-total_Th,[10,2]"
+    ),
     # Path(
     #     "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/inkblot/session20230323/2023-03-23_14-41-46_myo/sorted0_20231218_202453598454_rec-3,5,7,8,9,10_Th,[10,4],spkTh,[-6]"
     # ),
     # Path(
     #     "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/kitkat/session20230420/2023-04-20_14-12-09_myo/sorted0_20231218_203140625455_rec-1,2,3,4,5,7,8,9,11,12,14,15,16,17,19,20,21"
     # ),
-    Path(
-        "/snel/share/data/rodent-ephys/open-ephys/monkey/sean-pipeline/session20231202/2022-12-02_10-14-45_myo/sorted0_20240131_172133542034_rec-1_11-good-of-20-total_Th,[10,4],spkTh,[-6]"
-    ),
+    # Path(
+    #     "/snel/share/data/rodent-ephys/open-ephys/monkey/sean-pipeline/session20231202/2022-12-02_10-14-45_myo/sorted0_20240131_172133542034_rec-1_11-good-of-20-total_Th,[10,4],spkTh,[-6]"
+    # ),
 ]
 
 ## load Kilosort data
 # paths to the folders containing the Kilosort data
 paths_to_KS_session_folders = [
-    # Path(
-    #     # "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/godzilla/session20221116/"
-    #     "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/godzilla/session20221117/"
-    # ),
+    Path(
+        # "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/godzilla/session20221116/"
+        "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/godzilla/session20221117/"
+    ),
     # Path(
     #     "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/inkblot/session20230323/"
     # ),
     # Path(
     #     "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/kitkat/session20230420/"
     # ),
-    Path(
-        "/snel/share/data/rodent-ephys/open-ephys/monkey/sean-pipeline/session20231202/"
-    ),
+    # Path(
+    #     "/snel/share/data/rodent-ephys/open-ephys/monkey/sean-pipeline/session20231202/"
+    # ),
 ]
 sorts_from_each_path_to_load = [
-    # "20231027_163931",  # godzilla
+    "20231027_163931",  # godzilla
     # "20231218_181442825759",  # inkblot
     # "20231214_104534576438",  # kitkat
-    "20240131_172133542034",  # monkey
+    # "20240131_172133542034",  # monkey
 ]  # ["20230924_151421"]  # , ["20230923_125645"], ["20230923_125645"]]
 
 # find the folder name which ends in _myo and append to the paths_to_session_folders
@@ -516,10 +530,10 @@ amplitudes_df_list = amplitudes_df_list[0].set_index("cluster_id")
 # list of lists of good clusters to take from each rez_list
 # place units in order of total spike count, from highest to lowest
 clusters_to_take_from = [
-    # [26, 13, 10, 3, 22, 32, 1, 15, 40, 27],  # godzilla, 20231027_163931
+    [26, 13, 10, 3, 22, 32, 1, 15, 40, 27],  # godzilla, 20231027_163931
     # [9, 7, 8, 13],  # [12, 8, 14, 1, 13],  # inkblot, 20231218_181442825759
     # [15, 52, 9, 20, 16, 5, 14, 23, 13, 8],  # kitkat, 20231214_104534576438
-    [6, 13, 24, 1, 23, 14],  # monkey
+    # [6, 13, 24, 1, 23, 14],  # monkey, 20240131_172133542034
 ]  # [[25, 3, 1, 5, 17, 18, 0, 22, 20, 30]]  # [[18, 2, 11, 0, 4, 10, 1, 9]]
 
 num_motor_units = sum([len(i) for i in clusters_to_take_from])
@@ -543,7 +557,7 @@ mu.threshmax = 2 * np.max(
 mu.sample_MUs()
 
 # now create N copies of the MUsim object
-chunk_size = 7500 / 2  # number of samples to process in each multiprocessing process
+chunk_size = 2 * 7500  # number of samples to process in each multiprocessing process
 if multiprocess:
     import multiprocessing
 
@@ -552,9 +566,11 @@ if multiprocess:
         print(f"Using {N_processes} processes to simulate spikes in parallel")
     else:
         print(f"Using {N_processes} process to simulate spikes")
-    mu_list = [
-        mu.copy() for i in range(N_processes)
-    ]  # identical copies of the MUsim object, only shallow copy is needed because each process has separate data
+
+    # identical copies of the MUsim object, only shallow copy needed for now because each
+    # multiprocessing process will have its own copy
+    mu_list = [mu.copy() for i in range(N_processes)]
+
     interp_final_force_array_segments = np.array_split(
         interp_final_force_array, N_processes
     )
@@ -610,13 +626,18 @@ if show_matplotlib_figures:
 #         kinematic_csv_file_paths[0].stem.split("_")[1],
 #     )
 # )  # just get the date and rat name
-session_name = "_".join(
-    sorts_from_each_path_to_load[0], str(paths_to_KS_session_folders[0]).split("/")[5]
-)
+# session_name = "_".join(
+#     sorts_from_each_path_to_load[0], str(paths_to_KS_session_folders[0]).split("/")[5]
+# )
+if use_KS_templates:
+    method = "KS_templates"
+else:
+    method = "median_waves"
+
 if save_simulated_spikes:
     mu.save_spikes(
         # f"synthetic_spikes_from_{session_name}_using_{chosen_bodypart_to_load}.npy"
-        f"spikes_{session_name}_SNR-{adjust_SNR}-{SNR_mode}_jitter-{shape_jitter_amount}std_files-{len(anipose_sessions_to_load)}_{datetime.now().strftime('%Y%m%d-%H%M%S')}.npy"
+        f"spikes_{session_name}_SNR-{adjust_SNR}-{SNR_mode}_jitter-{shape_jitter_amount}std_method-{method}_files-{len(kinematic_csv_file_paths)}_{datetime.now().strftime('%Y%m%d-%H%M%S')}.npy"
     )
     # also save a copy with name "most_recent_synthetic_spikes.npy"
     mu.save_spikes("most_recent_synthetic_spikes.npy")
@@ -768,7 +789,7 @@ median_spikes_array = np.concatenate(
     median_spikes_list
 )  # new shape is (num_units, nt0, num_chans_in_recording)
 order_by_amplitude = np.max(np.abs(median_spikes_array), axis=(1, 2)).argsort()
-if True:
+if show_waveform_graph:
     # plot the median waveform shape for each cluster in a different subplot, which is channel x unit
     # plot the unit by color
 
@@ -1214,7 +1235,7 @@ if show_final_plotly_figure or save_final_plotly_figure:
         secondary_y=True,
     )
     # round down to nearest thousand from largest-amplitude channel's 15th standard deviation
-    max_ylim = 15 * 1000 * (np.max(np.std(continuous_dat, axis=0)) // 1000)
+    max_ylim = 1000 * (15 * np.max(np.std(continuous_dat, axis=0)) // 1000)
     fig.update_yaxes(
         row=2,
         col=1,
@@ -1308,9 +1329,14 @@ print(f"Overall recording length: {len(continuous_dat) / ephys_fs} seconds")
 # now save as binary file in int16 format, where elements are 2 bytes, and samples from each channel
 # are interleaved, such as: [chan1_sample1, chan2_sample1, chan3_sample1, ...]
 # save simulation properties in continuous.dat file name
+if use_KS_templates:
+    method = "KS_templates"
+else:
+    method = "median_waves"
+
 if save_continuous_dat:
     continuous_dat.tofile(
-        f"continuous_{session_name}_SNR-{adjust_SNR}-{SNR_mode}_jitter-{shape_jitter_amount}std_files-{len(anipose_sessions_to_load)}_{datetime.now().strftime('%Y%m%d-%H%M%S')}.dat"
+        f"continuous_{session_name}_SNR-{adjust_SNR}-{SNR_mode}_jitter-{shape_jitter_amount}std_method-{method}_files-{len(kinematic_csv_file_paths)}_{datetime.now().strftime('%Y%m%d-%H%M%S')}.dat"
     )
     # overwrite a copy of most recent continuous.dat file
     continuous_dat.tofile("most_recent_continuous.dat")
