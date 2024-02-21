@@ -461,7 +461,7 @@ def plot1(
                 yaxis=dict(
                     title="<b>Metric Score</b>",
                     title_standoff=1,
-                    range=[0, 1.01],
+                    range=[0, 1.1],
                     # overlaying="y2",
                 ),
                 # yaxis2=dict(
@@ -886,7 +886,7 @@ def plot3(
             title_text="<b>Metric Score</b>",
             row=iRow + 1,
             col=1,
-            range=[0, 1.01],
+            range=[0, 1.1],
         )
 
     fig.update_yaxes(matches="y")
@@ -977,219 +977,242 @@ def plot4(
                 break
     # make sure all sort_types were found
     assert None not in sort_types, "Not all sort_types were found"
-
-    # make a subplot for each metric
-    fig = subplots.make_subplots(
-        rows=3,
-        cols=1,
-        shared_xaxes=True,
-        shared_yaxes=True,
-        vertical_spacing=0.02,
-        subplot_titles=["Precision", "Recall", "Accuracy"],
-    )
-
-    # interpolate within darker half the color map to get as many colors as there are motor units
-    N_colors = 10
-    precision_color_map = cl.interp(cl.scales["9"]["seq"]["Greens"][4:9], N_colors)
-    recall_color_map = cl.interp(cl.scales["9"]["seq"]["Oranges"][4:9], N_colors)
-    accuracy_color_map = cl.interp(cl.scales["9"]["seq"]["Blues"][4:9], N_colors)
-
-    metric_color_maps = [
-        precision_color_map,
-        recall_color_map,
-        accuracy_color_map,
-    ]
-
-    # collapse list of each metric into a 3D numpy array, then take the mean and standard deviation
-    # of each metric across the newly created axis, then plot the mean and standard deviation for each
-    # motor unit in each metric
-    precision = np.array(precision)
-    recall = np.array(recall)
-    accuracy = np.array(accuracy)
-
-    # place each metric into a pandas dataframe, sorted by the accuracy. Include a column what type of sort it is
-    # then sort the dataframe by the accuracy, grouped by the type of sort
-    # also include the sort datestring as a df column
-    metrics_df = df(
-        {
-            "precision": precision.mean(axis=1),
-            "recall": recall.mean(axis=1),
-            "accuracy": accuracy.mean(axis=1),
-            "sort_type": sort_types,
-            "datestring": sorts_from_each_path_to_load,
-        }
-    )
-    metrics_df = metrics_df.sort_values(
-        by=["accuracy", "sort_type"], ascending=[False, True]
-    )
-    print(metrics_df)
-
-    metric_values = [precision, recall, accuracy]
-    # color by what type of sort it is, make it darker if it is Kilosort
-    for iMetric in range(len(metric_values)):
-
-        for sort_type in set(sort_types):
-            if sort_type == "EMUsort":
-                # take averages across the sort axis (axis 0), but only for the elements that match
-                # the sort type
-                metric_means_EMU = np.mean(
-                    metric_values[iMetric][
-                        np.where([int(i == "EMUsort") for i in sort_types])
-                    ],
-                    axis=0,
-                )
-                metric_stds_EMU = np.std(
-                    metric_values[iMetric][
-                        np.where([int(i == "EMUsort") for i in sort_types])
-                    ],
-                    axis=0,
-                )
-                # # add the standard deviation as shaded region around the mean
-                # # make opacity of the fill 0.6
-                # fig.add_trace(
-                #     go.Scatter(
-                #         x=list(range(num_motor_units))
-                #         + list(range(num_motor_units)[::-1]),
-                #         y=np.concatenate(
-                #             [
-                #                 metric_means_EMU + metric_stds_EMU,
-                #                 metric_means_EMU[::-1] - metric_stds_EMU[::-1],
-                #             ]
-                #         ),
-                #         fill="toself",
-                #         mode="lines",
-                #         fillcolor=(metric_color_maps[iMetric][0]),
-                #         line=dict(width=0),
-                #         showlegend=False,
-                #         opacity=0.6,
-                #     ),
-                #     row=iMetric + 1,
-                #     col=1,
-                # )
-
-                # add the mean as a line
-                # and add the standard deviation as a +/- error bars around the mean
-                fig.add_trace(
-                    go.Scatter(
-                        x=list(range(num_motor_units)),
-                        y=metric_means_EMU,
-                        mode="markers+lines",
-                        name=sort_type,
-                        marker=dict(
-                            symbol="cross-thin",
-                            color=(metric_color_maps[iMetric][0]),
-                        ),
-                        line=dict(
-                            width=2,
-                            color=(metric_color_maps[iMetric][0]),
-                        ),
-                        # add the standard deviation as a +/- error bars around the mean
-                        error_y=dict(
-                            type="data",
-                            array=metric_stds_EMU,
-                            visible=True,
-                            color=(metric_color_maps[iMetric][0]),
-                            thickness=1,
-                            width=0,
-                        ),
-                        opacity=0.6,
-                    ),
-                    row=iMetric + 1,
-                    col=1,
-                )
-            elif sort_type == "Kilosort":
-                # add the standard deviation as a +/- error bars around the mean
-                # make opacity of the fill 0.6
-                metric_means_KS = np.mean(
-                    metric_values[iMetric][
-                        np.where([int(i == "Kilosort") for i in sort_types])
-                    ],
-                    axis=0,
-                )
-                metric_stds_KS = np.std(
-                    metric_values[iMetric][
-                        np.where([int(i == "Kilosort") for i in sort_types])
-                    ],
-                    axis=0,
-                )
-                # fig.add_trace(
-                #     go.Scatter(
-                #         x=list(range(num_motor_units))
-                #         + list(range(num_motor_units)[::-1]),
-                #         y=np.concatenate(
-                #             [
-                #                 metric_means_KS + metric_stds_KS,
-                #                 metric_means_KS[::-1] - metric_stds_KS[::-1],
-                #             ]
-                #         ),
-                #         fill="toself",
-                #         mode="lines",
-                #         fillcolor=(metric_color_maps[iMetric][-2]),
-                #         line=dict(width=0),
-                #         showlegend=False,
-                #         opacity=0.6,
-                #     ),
-                #     row=iMetric + 1,
-                #     col=1,
-                # )
-                # add the mean as a line
-                # and add the standard deviation as a +/- error bars around the mean
-                fig.add_trace(
-                    go.Scatter(
-                        x=list(range(num_motor_units)),
-                        y=metric_means_KS,
-                        mode="markers+lines",
-                        name=sort_type,
-                        marker=dict(
-                            # color="black",
-                            symbol="cross-thin",
-                            color=(metric_color_maps[iMetric][-1]),
-                        ),
-                        line=dict(
-                            width=2,
-                            color=(metric_color_maps[iMetric][-1]),
-                        ),
-                        # add the standard deviation as a +/- error bars around the mean
-                        error_y=dict(
-                            type="data",
-                            array=metric_stds_KS,
-                            visible=True,
-                            color=(metric_color_maps[iMetric][-1]),
-                            thickness=1,
-                            width=0,
-                        ),
-                        opacity=0.6,
-                    ),
-                    row=iMetric + 1,
-                    col=1,
-                )
-    unique_sort_types = list(set(sort_types))
-    num_each_sort_type = [sort_types.count(i) for i in unique_sort_types]
-    fig.update_layout(
-        title=f"<b>Performance of {', '.join(unique_sort_types)} Across All {', '.join([str(i) for i in num_each_sort_type])} Sorts, Highest Accuracy: {metrics_df['accuracy'].max():.2f}</b>",
-        legend_title="Means +/- 1 Standard Deviation",
-        template=plot_template,
-        yaxis=dict(title="<b>Metric Score</b>", range=[0, 1.01]),
-    )
-
-    # make sure each row has the same y axis range
-    for iRow in range(3):
-        fig.update_yaxes(
-            title_text="<b>Metric Score</b>",
-            row=iRow + 1,
-            col=1,
-            range=[0, 1.01],
+    if show_plot4 or save_png_plot4 or save_svg_plot4 or save_html_plot4:
+        # make a subplot for each metric
+        fig = subplots.make_subplots(
+            rows=3,
+            cols=1,
+            shared_xaxes=True,
+            shared_yaxes=True,
+            vertical_spacing=0.02,
+            subplot_titles=["Precision", "Recall", "Accuracy"],
         )
 
-    fig.update_yaxes(matches="y")
+        # interpolate within darker half the color map to get as many colors as there are motor units
+        N_colors = 10
+        precision_color_map = cl.interp(cl.scales["9"]["seq"]["Greens"][4:9], N_colors)
+        recall_color_map = cl.interp(cl.scales["9"]["seq"]["Oranges"][4:9], N_colors)
+        accuracy_color_map = cl.interp(cl.scales["9"]["seq"]["Blues"][4:9], N_colors)
 
-    fig.update_xaxes(
-        title_text="<b>GT Cluster ID</b>",
-        row=3,
-        col=1,
-    )
+        metric_color_maps = [
+            precision_color_map,
+            recall_color_map,
+            accuracy_color_map,
+        ]
 
-    fig.show()
+        # collapse list of each metric into a 3D numpy array, then take the mean and standard deviation
+        # of each metric across the newly created axis, then plot the mean and standard deviation for each
+        # motor unit in each metric
+        precision = np.array(precision)
+        recall = np.array(recall)
+        accuracy = np.array(accuracy)
+
+        # place each metric into a pandas dataframe, sorted by the accuracy. Include a column what type of sort it is
+        # then sort the dataframe by the accuracy, grouped by the type of sort
+        # also include the sort datestring as a df column
+        metrics_df = df(
+            {
+                "precision": precision.mean(axis=1),
+                "recall": recall.mean(axis=1),
+                "accuracy": accuracy.mean(axis=1),
+                "sort_type": sort_types,
+                "datestring": sorts_from_each_path_to_load,
+            }
+        )
+        metrics_df = metrics_df.sort_values(
+            by=["accuracy", "sort_type"], ascending=[False, True]
+        )
+        print(metrics_df)
+
+        metric_values = [precision, recall, accuracy]
+        # color by what type of sort it is, make it darker if it is Kilosort
+        for iMetric in range(len(metric_values)):
+
+            for sort_type in set(sort_types):
+                if sort_type == "EMUsort":
+                    # take averages across the sort axis (axis 0), but only for the elements that match
+                    # the sort type
+                    metric_means_EMU = np.mean(
+                        metric_values[iMetric][
+                            np.where([int(i == "EMUsort") for i in sort_types])
+                        ],
+                        axis=0,
+                    )
+                    metric_stds_EMU = np.std(
+                        metric_values[iMetric][
+                            np.where([int(i == "EMUsort") for i in sort_types])
+                        ],
+                        axis=0,
+                    )
+                    # # add the standard deviation as shaded region around the mean
+                    # # make opacity of the fill 0.6
+                    # fig.add_trace(
+                    #     go.Scatter(
+                    #         x=list(range(num_motor_units))
+                    #         + list(range(num_motor_units)[::-1]),
+                    #         y=np.concatenate(
+                    #             [
+                    #                 metric_means_EMU + metric_stds_EMU,
+                    #                 metric_means_EMU[::-1] - metric_stds_EMU[::-1],
+                    #             ]
+                    #         ),
+                    #         fill="toself",
+                    #         mode="lines",
+                    #         fillcolor=(metric_color_maps[iMetric][0]),
+                    #         line=dict(width=0),
+                    #         showlegend=False,
+                    #         opacity=0.6,
+                    #     ),
+                    #     row=iMetric + 1,
+                    #     col=1,
+                    # )
+
+                    # add the mean as a line
+                    # and add the standard deviation as a +/- error bars around the mean
+                    fig.add_trace(
+                        go.Scatter(
+                            x=list(range(num_motor_units)),
+                            y=metric_means_EMU,
+                            mode="markers+lines",
+                            name=sort_type,
+                            marker=dict(
+                                color=(metric_color_maps[iMetric][0]),
+                                size=2,
+                            ),
+                            line=dict(
+                                width=4,
+                                color=(metric_color_maps[iMetric][0]),
+                            ),
+                            # add the standard deviation as a +/- error bars around the mean
+                            error_y=dict(
+                                type="data",
+                                array=metric_stds_EMU,
+                                visible=True,
+                                color=(metric_color_maps[iMetric][0]),
+                                thickness=2,
+                                width=2,
+                            ),
+                            opacity=0.6,
+                        ),
+                        row=iMetric + 1,
+                        col=1,
+                    )
+                elif sort_type == "Kilosort":
+                    # add the standard deviation as a +/- error bars around the mean
+                    # make opacity of the fill 0.6
+                    metric_means_KS = np.mean(
+                        metric_values[iMetric][
+                            np.where([int(i == "Kilosort") for i in sort_types])
+                        ],
+                        axis=0,
+                    )
+                    metric_stds_KS = np.std(
+                        metric_values[iMetric][
+                            np.where([int(i == "Kilosort") for i in sort_types])
+                        ],
+                        axis=0,
+                    )
+                    # fig.add_trace(
+                    #     go.Scatter(
+                    #         x=list(range(num_motor_units))
+                    #         + list(range(num_motor_units)[::-1]),
+                    #         y=np.concatenate(
+                    #             [
+                    #                 metric_means_KS + metric_stds_KS,
+                    #                 metric_means_KS[::-1] - metric_stds_KS[::-1],
+                    #             ]
+                    #         ),
+                    #         fill="toself",
+                    #         mode="lines",
+                    #         fillcolor=(metric_color_maps[iMetric][-2]),
+                    #         line=dict(width=0),
+                    #         showlegend=False,
+                    #         opacity=0.6,
+                    #     ),
+                    #     row=iMetric + 1,
+                    #     col=1,
+                    # )
+                    # add the mean as a line
+                    # and add the standard deviation as a +/- error bars around the mean
+                    fig.add_trace(
+                        go.Scatter(
+                            x=list(range(num_motor_units)),
+                            y=metric_means_KS,
+                            mode="markers+lines",
+                            name=sort_type,
+                            marker=dict(
+                                # color="black",
+                                color=(metric_color_maps[iMetric][-1]),
+                                size=2,
+                            ),
+                            line=dict(
+                                width=4,
+                                color=(metric_color_maps[iMetric][-1]),
+                            ),
+                            # add the standard deviation as a +/- error bars around the mean
+                            error_y=dict(
+                                type="data",
+                                array=metric_stds_KS,
+                                visible=True,
+                                color=(metric_color_maps[iMetric][-1]),
+                                thickness=2,
+                                width=2,
+                            ),
+                            opacity=0.6,
+                        ),
+                        row=iMetric + 1,
+                        col=1,
+                    )
+        unique_sort_types = list(set(sort_types))
+        num_each_sort_type = [sort_types.count(i) for i in unique_sort_types]
+        fig.update_layout(
+            title=f"<b>Performance of {', '.join(unique_sort_types)} Across All {', '.join([str(i) for i in num_each_sort_type])} Sorts, Highest Accuracy: {metrics_df['accuracy'].max():.4f} (sort {metrics_df['datestring'].iloc[0]})</b>",
+            legend_title="Means +/- 1 Standard Deviation",
+            template=plot_template,
+            yaxis=dict(title="<b>Metric Score</b>", range=[0, 1.1]),
+        )
+
+        # make sure each row has the same y axis range
+        for iRow in range(3):
+            fig.update_yaxes(
+                title_text="<b>Metric Score</b>",
+                row=iRow + 1,
+                col=1,
+                range=[0, 1.1],
+            )
+
+        fig.update_yaxes(matches="y")
+
+        fig.update_xaxes(
+            title_text="<b>GT Cluster ID</b>",
+            row=3,
+            col=1,
+        )
+
+        fig.show()
+
+        if save_png_plot4:
+            fig.write_image(  # add datestr
+                f"plot4_KS_vs_GT_performance_comparison_{datetime.now().strftime('%Y%m%d-%H%M%S')}_{','.join(unique_sort_types)}_{','.join([str(i) for i in num_each_sort_type])}.png",
+                width=figsize[0],
+                height=figsize[1],
+            )
+        if save_svg_plot4:
+            fig.write_image(
+                f"plot4_KS_vs_GT_performance_comparison_{datetime.now().strftime('%Y%m%d-%H%M%S')}_{','.join(unique_sort_types)}_{','.join([str(i) for i in num_each_sort_type])}.svg",
+                width=figsize[0],
+                height=figsize[1],
+            )
+        if save_html_plot4:
+            fig.write_html(
+                f"plot4_KS_vs_GT_performance_comparison_{datetime.now().strftime('%Y%m%d-%H%M%S')}_{','.join(unique_sort_types)}_{','.join([str(i) for i in num_each_sort_type])}.html",
+                include_plotlyjs="cdn",
+                full_html=False,
+            )
+        if save_plot4_df_as_pickle:
+            metrics_df.to_pickle(
+                f"plot4_KS_vs_GT_performance_comparison_{datetime.now().strftime('%Y%m%d-%H%M%S')}_{','.join(unique_sort_types)}_{','.join([str(i) for i in num_each_sort_type])}.pkl"
+            )
 
 
 def plot5(
@@ -1578,6 +1601,7 @@ if __name__ == "__main__":
     save_html_plot3 = False
     save_html_plot4 = False
     save_html_plot5 = False
+    save_plot4_df_as_pickle = True
 
     ## TBD: NEED TO ADD FLAG FOR DATASET CHOICE, to flip all related variables
     ## paths with simulated data
@@ -1585,15 +1609,24 @@ if __name__ == "__main__":
         # "continuous_20221117_godzilla_SNR-100-constant_jitter-0std_files-14_20240206-160607.dat"  # monkey
         # "continuous_20221117_godzilla_SNR-400-constant_jitter-0std_files-11.dat"  # triple rat
         # "continuous_20221117_godzilla_SNR-None-constant_jitter-0std_files-11.dat"  # godzilla only, old
-        "continuous_godzilla_20221117_10MU_SNR-100-constant_jitter-0std_method-median_waves_files-10_20240213-134301.dat"  # godzilla only, new
+        # "continuous_20240217-185655_godzilla_20221117_10MU_SNR-None-constant_jitter-0std_method-median_waves_12-files.dat"  # godzilla only, None
         # "continuous_20221117_godzilla_SNR-1-from_data_jitter-4std_files-11.dat"
     )
     ## load ground truth data
     ground_truth_path = Path(
         # "spikes_20221117_godzilla_SNR-100-constant_jitter-0std_files-14_20240206-160539.npy"  # monkey
         # "spikes_20221117_godzilla_SNR-400-constant_jitter-0std_files-11.npy"  # triple rat
-        # "spikes_20221117_godzilla_SNR-1-from_data_jitter-4std_files-11.npy"  # godzilla only, old
-        "spikes_godzilla_20221117_10MU_SNR-100-constant_jitter-0std_method-median_waves_files-10_20240213-134227.npy"  # godzilla only, new
+        "spikes_20221117_godzilla_SNR-1-from_data_jitter-4std_files-11.npy"  # godzilla only, old
+        # "spikes_20240217-185626_godzilla_20221117_10MU_SNR-None-constant_jitter-0std_method-median_waves_12-files.npy"  # godzilla only, None
+        # "spikes_20240217-185448_godzilla_20221117_10MU_SNR-100-constant_jitter-0std_method-median_waves_12-files.npy"  # godzilla only, 100
+        # "spikes_20240217-185509_godzilla_20221117_10MU_SNR-200-constant_jitter-0std_method-median_waves_12-files.npy"  # godzilla only, 200
+        # "spikes_20240217-185512_godzilla_20221117_10MU_SNR-300-constant_jitter-0std_method-median_waves_12-files.npy"  # godzilla only, 300
+        # "spikes_20240217-185528_godzilla_20221117_10MU_SNR-400-constant_jitter-0std_method-median_waves_12-files.npy"  # godzilla only, 400
+        # "spikes_20240217-221958_monkey_20221202_6MU_SNR-None-constant_jitter-0std_method-median_waves_1-files.npy" # monkey, None
+        # "spikes_20240217-221838_monkey_20221202_6MU_SNR-100-constant_jitter-0std_method-median_waves_1-files.npy" # monkey, 100
+        # "spikes_20240217-221902_monkey_20221202_6MU_SNR-200-constant_jitter-0std_method-median_waves_1-files.npy" # monkey, 200
+        # "spikes_20240217-221916_monkey_20221202_6MU_SNR-300-constant_jitter-0std_method-median_waves_1-files.npy" # monkey, 300
+        # "spikes_20240217-221932_monkey_20221202_6MU_SNR-400-constant_jitter-0std_method-median_waves_1-files.npy" # monkey, 400
         # "spikes_20221117_godzilla_SNR-1-from_data_jitter-1std_files-5.npy"
         # "spikes_20221116_godzilla_SNR-8-from_data_jitter-4std_files-1.npy"
     )  # spikes_20221116_godzilla_SNR-None_jitter-0std_files-1.npy
@@ -1627,17 +1660,17 @@ if __name__ == "__main__":
         # "20231027_183121"  # 1 std, 4 jitter, all MUsort options ON
         # "20231031_141254"  # 1 std, 4 jitter, all MUsort options ON, slightly better
         # "20231103_160031096827"  # 1 std, 4 jitter, all MUsort options ON, ?
-        # "20231103_175840215876"  # 2 std, 8 jitter, all MUsort options ON, ?
-        # "20231103_164647242198"  # 2 std, 4 jitter, all MUsort options ON, custom_merge
-        # "20231105_192242190872"  # 2 std, 8 jitter, all MUsort options ON, except multi-threshold $$$ BEST EMUsort $$$
+        # "20231103_175840215876",  # 2 std, 8 jitter, all MUsort options ON, ?
+        # "20231103_164647242198",  # 2 std, 4 jitter, all MUsort options ON, custom_merge
+        # "20231105_192242190872",  # 2 std, 8 jitter, all MUsort options ON, except multi-threshold $$$ BEST EMUsort $$$
         # "20231101_165306036638"  # 1 std, 4 jitter, optimal template selection routines OFF, Th=[1,0.5], spkTh=[-6]
         # "20231101_164409249821"  # 1 std, 4 jitter, optimal template selection routines OFF, Th=[1,0.5], spkTh=[-2]
         # "20231101_164937098773"  # 1 std, 4 jitter, optimal template selection routines OFF, Th=[5,2], spkTh=[-6]
         # "20231101_164129797219"  # 1 std, 4 jitter, optimal template selection routines OFF, Th=[5,2], spkTh=[-2]
         # "20231101_165135058289"  # 1 std, 4 jitter, optimal template selection routines OFF, Th=[2,1], spkTh=[-6]
-        # "20231102_175449741223"  # 1 std, 4 jitter, vanilla Kilosort, Th=[1,0.5], spkTh=[-6]
-        # "20231103_184523634126"  # 2 std, 8 jitter, vanilla Kilosort, Th=[1,0.5], spkTh=[-6] $$$ BEST Kilosort3 $$$
-        # "20231103_184518491799"  # 2 std, 8 jitter, vanilla Kilosort, Th=[2,1], spkTh=[-6]
+        # "20231102_175449741223",  # 1 std, 4 jitter, vanilla Kilosort, Th=[1,0.5], spkTh=[-6]
+        # "20231103_184523634126",  # 2 std, 8 jitter, vanilla Kilosort, Th=[1,0.5], spkTh=[-6] $$$ BEST Kilosort3 $$$
+        # "20231103_184518491799",  # 2 std, 8 jitter, vanilla Kilosort, Th=[2,1], spkTh=[-6]
         # } All in braces did not have channel delays reintroduced for continuous.dat
         ## new godzilla only dataset
         ## EMUsort with comparable grid search, 100 noise, with sgolay filter to align templates (makes performance worse)
@@ -1821,6 +1854,219 @@ if __name__ == "__main__":
         # "20240216_141231164527",  # rec-1,2,4,5,6,7_16-good-of-22-total_Th,[2,1],spkTh,[-6]_EMUsort
         # "20240216_142720098104",  # rec-1,2,4,5,6,7_10-good-of-21-total_Th,[2,1],spkTh,[-9]_EMUsort
         # "20240216_144236943320",  # rec-1,2,4,5,6,7_22-good-of-30-total_Th,[5,2],spkTh,[-6,-9]_EMUsort
+        #####
+        #####
+        # >= 20240217 for godzilla 10 MU, 8 CH dataset
+        ## EMUsort with extended grid search, None noise, without sgolay filter, with MUsim force thresh bugfix
+        # "20240217_224003193512",  # rec-1,2,4,5,6,7_30-good-of-56-total_Th,[10,4],spkTh,[-3]_EMUsort
+        # "20240217_224108054752",  # rec-1,2,4,5,6,7_30-good-of-53-total_Th,[10,4],spkTh,[-3,-6]_EMUsort
+        # "20240217_224141239120",  # rec-1,2,4,5,6,7_20-good-of-47-total_Th,[5,2],spkTh,[-9]_EMUsort
+        # "20240217_224152269940",  # rec-1,2,4,5,6,7_20-good-of-33-total_Th,[2,1],spkTh,[-6]_EMUsort
+        # "20240217_224211353949",  # rec-1,2,4,5,6,7_21-good-of-36-total_Th,[7,3],spkTh,[-6]_EMUsort
+        # "20240217_224326279576",  # rec-1,2,4,5,6,7_31-good-of-53-total_Th,[7,3],spkTh,[-6,-9]_EMUsort
+        # "20240217_224345530015",  # rec-1,2,4,5,6,7_26-good-of-43-total_Th,[2,1],spkTh,[-3,-6]_EMUsort
+        # "20240217_224626823237",  # rec-1,2,4,5,6,7_28-good-of-47-total_Th,[5,2],spkTh,[-6,-9]_EMUsort
+        # "20240217_224847712317",  # rec-1,2,4,5,6,7_31-good-of-48-total_Th,[10,4],spkTh,[-6]_EMUsort
+        # "20240217_225152732046",  # rec-1,2,4,5,6,7_19-good-of-44-total_Th,[10,4],spkTh,[-6,-9]_EMUsort
+        # "20240217_225241237508",  # rec-1,2,4,5,6,7_19-good-of-35-total_Th,[7,3],spkTh,[-9]_EMUsort
+        # "20240217_225412138316",  # rec-1,2,4,5,6,7_25-good-of-53-total_Th,[2,1],spkTh,[-9]_EMUsort
+        # "20240217_225418313668",  # rec-1,2,4,5,6,7_22-good-of-39-total_Th,[5,2],spkTh,[-3,-6]_EMUsort
+        # "20240217_225529556786",  # rec-1,2,4,5,6,7_27-good-of-44-total_Th,[5,2],spkTh,[-3]_EMUsort
+        # "20240217_225627826416",  # rec-1,2,4,5,6,7_33-good-of-60-total_Th,[10,4],spkTh,[-9]_EMUsort
+        # "20240217_225824031470",  # rec-1,2,4,5,6,7_24-good-of-48-total_Th,[2,1],spkTh,[-3]_EMUsort
+        # "20240217_225920326910",  # rec-1,2,4,5,6,7_42-good-of-61-total_Th,[2,1],spkTh,[-6,-9]_EMUsort
+        # "20240217_230029875076",  # rec-1,2,4,5,6,7_20-good-of-34-total_Th,[7,3],spkTh,[-3]_EMUsort
+        # "20240217_230033887205",  # rec-1,2,4,5,6,7_18-good-of-28-total_Th,[7,3],spkTh,[-3,-6]_EMUsort
+        # "20240217_230350788243",  # rec-1,2,4,5,6,7_26-good-of-55-total_Th,[5,2],spkTh,[-6]_EMUsort
+        # KS3 with comp extended grid search, None noise, without sgolay filter, with MUsim force thresh bugfix
+        # "20240217_231633349195",  # rec-1,2,4,5,6,7_23-good-of-41-total_Th,[10,4],spkTh,-9_vanilla_KS
+        # "20240217_231655749865",  # rec-1,2,4,5,6,7_28-good-of-51-total_Th,[10,4],spkTh,-3_vanilla_KS
+        # "20240217_231659616705",  # rec-1,2,4,5,6,7_25-good-of-38-total_Th,[2,1],spkTh,-9_vanilla_KS
+        # "20240217_231713589705",  # rec-1,2,4,5,6,7_23-good-of-42-total_Th,[5,2],spkTh,-9_vanilla_KS
+        # "20240217_231717416227",  # rec-1,2,4,5,6,7_27-good-of-45-total_Th,[2,1],spkTh,-6_vanilla_KS
+        # "20240217_231729641361",  # rec-1,2,4,5,6,7_30-good-of-53-total_Th,[2,1],spkTh,-3_vanilla_KS
+        # "20240217_231732606702",  # rec-1,2,4,5,6,7_38-good-of-62-total_Th,[5,2],spkTh,-3_vanilla_KS
+        # "20240217_231741270098",  # rec-1,2,4,5,6,7_42-good-of-87-total_Th,[7,3],spkTh,-6_vanilla_KS
+        # "20240217_231923201778",  # rec-1,2,4,5,6,7_24-good-of-45-total_Th,[10,4],spkTh,-6_vanilla_KS
+        # "20240217_231940429488",  # rec-1,2,4,5,6,7_33-good-of-72-total_Th,[7,3],spkTh,-3_vanilla_KS
+        # "20240217_231958781297",  # rec-1,2,4,5,6,7_26-good-of-43-total_Th,[7,3],spkTh,-9_vanilla_KS
+        # "20240217_232015522833",  # rec-1,2,4,5,6,7_27-good-of-46-total_Th,[5,2],spkTh,-6_vanilla_KS
+        # "20240217_232442771911",  # rec-1,2,4,5,6,7_24-good-of-44-total_Th,[10,4],spkTh,-9_vanilla_KS
+        # "20240217_232508234168",  # rec-1,2,4,5,6,7_21-good-of-35-total_Th,[2,1],spkTh,-9_vanilla_KS
+        # "20240217_232510229797",  # rec-1,2,4,5,6,7_35-good-of-74-total_Th,[10,4],spkTh,-6_vanilla_KS
+        # "20240217_232514581960",  # rec-1,2,4,5,6,7_24-good-of-34-total_Th,[5,2],spkTh,-9_vanilla_KS
+        # "20240217_232521618753",  # rec-1,2,4,5,6,7_41-good-of-76-total_Th,[7,3],spkTh,-9_vanilla_KS
+        # "20240217_232527658456",  # rec-1,2,4,5,6,7_27-good-of-45-total_Th,[2,1],spkTh,-6_vanilla_KS
+        # "20240217_232542700124",  # rec-1,2,4,5,6,7_40-good-of-80-total_Th,[7,3],spkTh,-6_vanilla_KS
+        # "20240217_232555750144",  # rec-1,2,4,5,6,7_36-good-of-67-total_Th,[5,2],spkTh,-6_vanilla_KS
+        # EMUsort with extended grid search, 100 noise, without sgolay filter, with MUsim force thresh bugfix
+        # "20240217_192122267876",  # rec-1,2,4,5,6,7_24-good-of-38-total_Th,[10,4],spkTh,[-3]_EMUsort
+        # "20240217_192236125563",  # rec-1,2,4,5,6,7_23-good-of-44-total_Th,[10,4],spkTh,[-3,-6]_EMUsort
+        # "20240217_192325659165",  # rec-1,2,4,5,6,7_27-good-of-41-total_Th,[5,2],spkTh,[-9]_EMUsort
+        # "20240217_192346544292",  # rec-1,2,4,5,6,7_18-good-of-34-total_Th,[7,3],spkTh,[-6,-9]_EMUsort
+        # "20240217_192355158664",  # rec-1,2,4,5,6,7_27-good-of-46-total_Th,[7,3],spkTh,[-6]_EMUsort
+        # "20240217_192423273218",  # rec-1,2,4,5,6,7_12-good-of-21-total_Th,[5,2],spkTh,[-6,-9]_EMUsort
+        # "20240217_192838365155",  # rec-1,2,4,5,6,7_9-good-of-16-total_Th,[2,1],spkTh,[-3,-6]_EMUsort
+        # "20240217_192858798234",  # rec-1,2,4,5,6,7_13-good-of-19-total_Th,[2,1],spkTh,[-6]_EMUsort
+        # "20240217_192916906942",  # rec-1,2,4,5,6,7_21-good-of-42-total_Th,[10,4],spkTh,[-6]_EMUsort
+        # "20240217_193107995203",  # rec-1,2,4,5,6,7_18-good-of-36-total_Th,[10,4],spkTh,[-6,-9]_EMUsort
+        # "20240217_193322235903",  # rec-1,2,4,5,6,7_20-good-of-25-total_Th,[7,3],spkTh,[-9]_EMUsort
+        # "20240217_193435393281",  # rec-1,2,4,5,6,7_15-good-of-33-total_Th,[5,2],spkTh,[-3]_EMUsort
+        # "20240217_193435570686",  # rec-1,2,4,5,6,7_20-good-of-28-total_Th,[5,2],spkTh,[-3,-6]_EMUsort
+        # "20240217_193625407292",  # rec-1,2,4,5,6,7_18-good-of-34-total_Th,[10,4],spkTh,[-9]_EMUsort
+        # "20240217_193647102438",  # rec-1,2,4,5,6,7_17-good-of-24-total_Th,[2,1],spkTh,[-3]_EMUsort
+        # "20240217_194023805917",  # rec-1,2,4,5,6,7_12-good-of-18-total_Th,[2,1],spkTh,[-6,-9]_EMUsort
+        # "20240217_194036970007",  # rec-1,2,4,5,6,7_21-good-of-41-total_Th,[7,3],spkTh,[-3]_EMUsort
+        # "20240217_194126031933",  # rec-1,2,4,5,6,7_15-good-of-24-total_Th,[7,3],spkTh,[-3,-6]_EMUsort
+        # "20240217_194325607757",  # rec-1,2,4,5,6,7_18-good-of-33-total_Th,[5,2],spkTh,[-6]_EMUsort
+        # "20240217_194418940074",  # rec-1,2,4,5,6,7_22-good-of-33-total_Th,[2,1],spkTh,[-9]_EMUsort
+        # KS3 with comp extended grid search, 100 noise, without sgolay filter, with MUsim force thresh bugfix
+        # "20240217_233255126443",  # rec-1,2,4,5,6,7_17-good-of-27-total_Th,[10,4],spkTh,-3_vanilla_KS
+        # "20240217_233305449152",  # rec-1,2,4,5,6,7_25-good-of-40-total_Th,[10,4],spkTh,-9_vanilla_KS
+        # "20240217_233336792862",  # rec-1,2,4,5,6,7_40-good-of-67-total_Th,[5,2],spkTh,-3_vanilla_KS
+        # "20240217_233338174785",  # rec-1,2,4,5,6,7_31-good-of-51-total_Th,[7,3],spkTh,-6_vanilla_KS
+        # "20240217_233339883848",  # rec-1,2,4,5,6,7_34-good-of-65-total_Th,[5,2],spkTh,-9_vanilla_KS
+        # "20240217_233447782629",  # rec-1,2,4,5,6,7_27-good-of-39-total_Th,[2,1],spkTh,-6_vanilla_KS
+        # "20240217_233448277865",  # rec-1,2,4,5,6,7_15-good-of-25-total_Th,[2,1],spkTh,-9_vanilla_KS
+        # "20240217_233514747828",  # rec-1,2,4,5,6,7_24-good-of-34-total_Th,[10,4],spkTh,-6_vanilla_KS
+        # "20240217_233516880078",  # rec-1,2,4,5,6,7_25-good-of-41-total_Th,[2,1],spkTh,-3_vanilla_KS
+        # "20240217_233552967775",  # rec-1,2,4,5,6,7_28-good-of-54-total_Th,[7,3],spkTh,-3_vanilla_KS
+        # "20240217_233603235866",  # rec-1,2,4,5,6,7_29-good-of-53-total_Th,[5,2],spkTh,-6_vanilla_KS
+        # "20240217_233625779661",  # rec-1,2,4,5,6,7_35-good-of-53-total_Th,[7,3],spkTh,-9_vanilla_KS
+        # "20240217_234943274547",  # rec-1,2,4,5,6,7_26-good-of-35-total_Th,[10,4],spkTh,-6_vanilla_KS
+        # "20240217_234946979058",  # rec-1,2,4,5,6,7_19-good-of-37-total_Th,[10,4],spkTh,-9_vanilla_KS
+        # "20240217_235019441640",  # rec-1,2,4,5,6,7_30-good-of-51-total_Th,[7,3],spkTh,-6_vanilla_KS
+        # "20240217_235026880934",  # rec-1,2,4,5,6,7_29-good-of-54-total_Th,[5,2],spkTh,-6_vanilla_KS
+        # "20240217_235027999358",  # rec-1,2,4,5,6,7_35-good-of-53-total_Th,[7,3],spkTh,-9_vanilla_KS
+        # "20240217_235031070781",  # rec-1,2,4,5,6,7_27-good-of-53-total_Th,[5,2],spkTh,-9_vanilla_KS
+        # "20240217_235111528027",  # rec-1,2,4,5,6,7_15-good-of-23-total_Th,[2,1],spkTh,-9_vanilla_KS
+        # "20240217_235116483852",  # rec-1,2,4,5,6,7_27-good-of-38-total_Th,[2,1],spkTh,-6_vanilla_KS
+        ## EMUsort with extended grid search, 200 noise, without sgolay filter, with MUsim force thresh bugfix
+        # "20240217_195521501495",  # rec-1,2,4,5,6,7_17-good-of-29-total_Th,[10,4],spkTh,[-3]_EMUsort
+        # "20240217_195556814631",  # rec-1,2,4,5,6,7_15-good-of-19-total_Th,[10,4],spkTh,[-3,-6]_EMUsort
+        # "20240217_195707422437",  # rec-1,2,4,5,6,7_17-good-of-21-total_Th,[7,3],spkTh,[-6]_EMUsort
+        # "20240217_195812260301",  # rec-1,2,4,5,6,7_13-good-of-23-total_Th,[5,2],spkTh,[-6,-9]_EMUsort
+        # "20240217_195825049122",  # rec-1,2,4,5,6,7_17-good-of-23-total_Th,[7,3],spkTh,[-6,-9]_EMUsort
+        # "20240217_195900555193",  # rec-1,2,4,5,6,7_19-good-of-32-total_Th,[5,2],spkTh,[-9]_EMUsort
+        # "20240217_200154269269",  # rec-1,2,4,5,6,7_15-good-of-19-total_Th,[10,4],spkTh,[-6]_EMUsort
+        # "20240217_200234978058",  # rec-1,2,4,5,6,7_21-good-of-29-total_Th,[10,4],spkTh,[-6,-9]_EMUsort
+        # "20240217_200427297896",  # rec-1,2,4,5,6,7_21-good-of-30-total_Th,[7,3],spkTh,[-9]_EMUsort
+        # "20240217_200707001451",  # rec-1,2,4,5,6,7_16-good-of-22-total_Th,[10,4],spkTh,[-9]_EMUsort
+        # "20240217_200831447384",  # rec-1,2,4,5,6,7_24-good-of-36-total_Th,[5,2],spkTh,[-3,-6]_EMUsort
+        # "20240217_200904395477",  # rec-1,2,4,5,6,7_18-good-of-32-total_Th,[5,2],spkTh,[-3]_EMUsort
+        # "20240217_200913864079",  # rec-1,2,4,5,6,7_17-good-of-25-total_Th,[2,1],spkTh,[-6]_EMUsort
+        # "20240217_200941881432",  # rec-1,2,4,5,6,7_16-good-of-26-total_Th,[7,3],spkTh,[-3]_EMUsort
+        # "20240217_201105858246",  # rec-1,2,4,5,6,7_13-good-of-20-total_Th,[2,1],spkTh,[-3,-6]_EMUsort
+        # "20240217_201236641018",  # rec-1,2,4,5,6,7_19-good-of-27-total_Th,[7,3],spkTh,[-3,-6]_EMUsort
+        # "20240217_201539444875",  # rec-1,2,4,5,6,7_16-good-of-31-total_Th,[5,2],spkTh,[-6]_EMUsort
+        # "20240217_201750151788",  # rec-1,2,4,5,6,7_15-good-of-22-total_Th,[2,1],spkTh,[-3]_EMUsort
+        # "20240217_202349700245",  # rec-1,2,4,5,6,7_10-good-of-19-total_Th,[2,1],spkTh,[-9]_EMUsort
+        # "20240217_202448036644",  # rec-1,2,4,5,6,7_16-good-of-23-total_Th,[2,1],spkTh,[-6,-9]_EMUsort
+        # ## KS3 with comp extended grid search, 200 noise, without sgolay filter, with MUsim force thresh bugfix
+        # "20240217_235539758904",  # rec-1,2,4,5,6,7_15-good-of-22-total_Th,[10,4],spkTh,-9_vanilla_KS
+        # "20240217_235544170809",  # rec-1,2,4,5,6,7_16-good-of-24-total_Th,[10,4],spkTh,-3_vanilla_KS
+        # "20240217_235622239161",  # rec-1,2,4,5,6,7_27-good-of-45-total_Th,[7,3],spkTh,-6_vanilla_KS
+        # "20240217_235624051935",  # rec-1,2,4,5,6,7_25-good-of-49-total_Th,[5,2],spkTh,-3_vanilla_KS
+        # "20240217_235639705692",  # rec-1,2,4,5,6,7_29-good-of-57-total_Th,[5,2],spkTh,-9_vanilla_KS
+        # "20240217_235754992983",  # rec-1,2,4,5,6,7_24-good-of-33-total_Th,[10,4],spkTh,-6_vanilla_KS
+        # "20240217_235758396813",  # rec-1,2,4,5,6,7_12-good-of-14-total_Th,[2,1],spkTh,-3_vanilla_KS
+        # "20240217_235812008674",  # rec-1,2,4,5,6,7_28-good-of-46-total_Th,[7,3],spkTh,-3_vanilla_KS
+        # "20240217_235848229410",  # rec-1,2,4,5,6,7_38-good-of-65-total_Th,[7,3],spkTh,-9_vanilla_KS
+        # "20240217_235859286917",  # rec-1,2,4,5,6,7_23-good-of-40-total_Th,[5,2],spkTh,-6_vanilla_KS
+        # "20240217_235900367407",  # rec-1,2,4,5,6,7_16-good-of-25-total_Th,[2,1],spkTh,-9_vanilla_KS
+        # "20240217_235923628397",  # rec-1,2,4,5,6,7_23-good-of-35-total_Th,[2,1],spkTh,-6_vanilla_KS
+        # "20240218_000601635490",  # rec-1,2,4,5,6,7_25-good-of-36-total_Th,[10,4],spkTh,-6_vanilla_KS
+        # "20240218_000605135764",  # rec-1,2,4,5,6,7_24-good-of-41-total_Th,[10,4],spkTh,-9_vanilla_KS
+        # "20240218_000627680830",  # rec-1,2,4,5,6,7_20-good-of-41-total_Th,[7,3],spkTh,-6_vanilla_KS
+        # "20240218_000627762187",  # rec-1,2,4,5,6,7_35-good-of-55-total_Th,[7,3],spkTh,-9_vanilla_KS
+        # "20240218_000642207605",  # rec-1,2,4,5,6,7_39-good-of-79-total_Th,[5,2],spkTh,-9_vanilla_KS
+        # "20240218_000651006235",  # rec-1,2,4,5,6,7_31-good-of-57-total_Th,[5,2],spkTh,-6_vanilla_KS
+        # "20240218_000823934226",  # rec-1,2,4,5,6,7_12-good-of-16-total_Th,[2,1],spkTh,-6_vanilla_KS
+        # "20240218_000842388820",  # rec-1,2,4,5,6,7_15-good-of-24-total_Th,[2,1],spkTh,-9_vanilla_KS
+        ## EMUsort with extended grid search, 300 noise, without sgolay filter, with MUsim force thresh bugfix
+        # "20240217_205213152532",  # rec-1,2,4,5,6,7_17-good-of-29-total_Th,[10,4],spkTh,[-3]_EMUsort
+        # "20240217_205248779700",  # rec-1,2,4,5,6,7_14-good-of-23-total_Th,[10,4],spkTh,[-3,-6]_EMUsort
+        # "20240217_205335452432",  # rec-1,2,4,5,6,7_14-good-of-20-total_Th,[7,3],spkTh,[-6]_EMUsort
+        # "20240217_205454241766",  # rec-1,2,4,5,6,7_22-good-of-36-total_Th,[7,3],spkTh,[-6,-9]_EMUsort
+        # "20240217_205527660904",  # rec-1,2,4,5,6,7_14-good-of-20-total_Th,[5,2],spkTh,[-9]_EMUsort
+        # "20240217_205612737711",  # rec-1,2,4,5,6,7_15-good-of-29-total_Th,[5,2],spkTh,[-6,-9]_EMUsort
+        # "20240217_205737795895",  # rec-1,2,4,5,6,7_17-good-of-23-total_Th,[10,4],spkTh,[-6]_EMUsort
+        # "20240217_205834644935",  # rec-1,2,4,5,6,7_18-good-of-29-total_Th,[10,4],spkTh,[-6,-9]_EMUsort
+        # "20240217_210029838134",  # rec-1,2,4,5,6,7_19-good-of-24-total_Th,[7,3],spkTh,[-9]_EMUsort
+        # "20240217_210229533257",  # rec-1,2,4,5,6,7_15-good-of-25-total_Th,[10,4],spkTh,[-9]_EMUsort
+        # "20240217_210328042975",  # rec-1,2,4,5,6,7_17-good-of-25-total_Th,[5,2],spkTh,[-3]_EMUsort
+        # "20240217_210504142829",  # rec-1,2,4,5,6,7_16-good-of-25-total_Th,[7,3],spkTh,[-3]_EMUsort
+        # "20240217_210504798508",  # rec-1,2,4,5,6,7_13-good-of-20-total_Th,[5,2],spkTh,[-3,-6]_EMUsort
+        # "20240217_210607971168",  # rec-1,2,4,5,6,7_12-good-of-15-total_Th,[2,1],spkTh,[-3,-6]_EMUsort
+        # "20240217_210716250683",  # rec-1,2,4,5,6,7_14-good-of-20-total_Th,[2,1],spkTh,[-6]_EMUsort
+        # "20240217_210723914181",  # rec-1,2,4,5,6,7_19-good-of-32-total_Th,[7,3],spkTh,[-3,-6]_EMUsort
+        # "20240217_211056792741",  # rec-1,2,4,5,6,7_14-good-of-19-total_Th,[5,2],spkTh,[-6]_EMUsort
+        # "20240217_211426290382",  # rec-1,2,4,5,6,7_13-good-of-21-total_Th,[2,1],spkTh,[-3]_EMUsort
+        # "20240217_212119870180",  # rec-1,2,4,5,6,7_14-good-of-23-total_Th,[2,1],spkTh,[-6,-9]_EMUsort
+        # "20240217_212508770260",  # rec-1,2,4,5,6,7_13-good-of-18-total_Th,[2,1],spkTh,[-9]_EMUsort
+        # ## KS3 with comp extended grid search, 300 noise, without sgolay filter, with MUsim force thresh bugfix
+        # "20240218_001457617699",  # rec-1,2,4,5,6,7_24-good-of-39-total_Th,[10,4],spkTh,-9_vanilla_KS
+        # "20240218_001503051000",  # rec-1,2,4,5,6,7_26-good-of-42-total_Th,[10,4],spkTh,-3_vanilla_KS
+        # "20240218_001525264574",  # rec-1,2,4,5,6,7_19-good-of-38-total_Th,[7,3],spkTh,-6_vanilla_KS
+        # "20240218_001536187180",  # rec-1,2,4,5,6,7_24-good-of-42-total_Th,[5,2],spkTh,-9_vanilla_KS
+        # "20240218_001543746505",  # rec-1,2,4,5,6,7_28-good-of-37-total_Th,[5,2],spkTh,-3_vanilla_KS
+        # "20240218_001706723417",  # rec-1,2,4,5,6,7_17-good-of-24-total_Th,[10,4],spkTh,-6_vanilla_KS
+        # "20240218_001728982374",  # rec-1,2,4,5,6,7_30-good-of-50-total_Th,[7,3],spkTh,-3_vanilla_KS
+        # "20240218_001747381677",  # rec-1,2,4,5,6,7_29-good-of-49-total_Th,[7,3],spkTh,-9_vanilla_KS
+        # "20240218_001757303558",  # rec-1,2,4,5,6,7_25-good-of-35-total_Th,[2,1],spkTh,-3_vanilla_KS
+        # "20240218_001804812070",  # rec-1,2,4,5,6,7_24-good-of-28-total_Th,[2,1],spkTh,-6_vanilla_KS
+        # "20240218_001821946080",  # rec-1,2,4,5,6,7_24-good-of-44-total_Th,[5,2],spkTh,-6_vanilla_KS
+        # "20240218_001822451087",  # rec-1,2,4,5,6,7_27-good-of-33-total_Th,[2,1],spkTh,-9_vanilla_KS
+        # "20240218_003116183655",  # rec-1,2,4,5,6,7_19-good-of-24-total_Th,[10,4],spkTh,-6_vanilla_KS
+        # "20240218_003122532150",  # rec-1,2,4,5,6,7_20-good-of-33-total_Th,[10,4],spkTh,-9_vanilla_KS
+        # "20240218_003138491336",  # rec-1,2,4,5,6,7_23-good-of-37-total_Th,[7,3],spkTh,-9_vanilla_KS
+        # "20240218_003151256524",  # rec-1,2,4,5,6,7_19-good-of-38-total_Th,[7,3],spkTh,-6_vanilla_KS
+        # "20240218_003200849500",  # rec-1,2,4,5,6,7_23-good-of-35-total_Th,[5,2],spkTh,-9_vanilla_KS
+        # "20240218_003207952692",  # rec-1,2,4,5,6,7_24-good-of-45-total_Th,[5,2],spkTh,-6_vanilla_KS
+        # "20240218_003401886807",  # rec-1,2,4,5,6,7_24-good-of-28-total_Th,[2,1],spkTh,-6_vanilla_KS
+        # "20240218_003432066613",  # rec-1,2,4,5,6,7_29-good-of-34-total_Th,[2,1],spkTh,-9_vanilla_KS
+        ## EMUsort with extended grid search, 400 noise, without sgolay filter, with MUsim force thresh bugfix
+        # "20240217_214034268104",  # rec-1,2,4,5,6,7_16-good-of-20-total_Th,[7,3],spkTh,[-6]_EMUsort
+        # "20240217_214037411440",  # rec-1,2,4,5,6,7_21-good-of-34-total_Th,[10,4],spkTh,[-3]_EMUsort
+        # "20240217_214048686091",  # rec-1,2,4,5,6,7_14-good-of-17-total_Th,[10,4],spkTh,[-3,-6]_EMUsort
+        # "20240217_214221908317",  # rec-1,2,4,5,6,7_14-good-of-22-total_Th,[7,3],spkTh,[-6,-9]_EMUsort
+        # "20240217_214510207183",  # rec-1,2,4,5,6,7_17-good-of-25-total_Th,[5,2],spkTh,[-9]_EMUsort
+        # "20240217_214531242943",  # rec-1,2,4,5,6,7_17-good-of-32-total_Th,[10,4],spkTh,[-6]_EMUsort
+        # "20240217_214551377608",  # rec-1,2,4,5,6,7_15-good-of-19-total_Th,[7,3],spkTh,[-9]_EMUsort
+        # "20240217_214607656420",  # rec-1,2,4,5,6,7_28-good-of-34-total_Th,[10,4],spkTh,[-6,-9]_EMUsort
+        # "20240217_214632862386",  # rec-1,2,4,5,6,7_15-good-of-24-total_Th,[5,2],spkTh,[-6,-9]_EMUsort
+        # "20240217_214957744559",  # rec-1,2,4,5,6,7_27-good-of-35-total_Th,[10,4],spkTh,[-9]_EMUsort
+        # "20240217_215128168817",  # rec-1,2,4,5,6,7_10-good-of-17-total_Th,[5,2],spkTh,[-3]_EMUsort
+        # "20240217_215156202015",  # rec-1,2,4,5,6,7_17-good-of-28-total_Th,[7,3],spkTh,[-3]_EMUsort
+        # "20240217_215228005465",  # rec-1,2,4,5,6,7_18-good-of-26-total_Th,[7,3],spkTh,[-3,-6]_EMUsort
+        # "20240217_215309688453",  # rec-1,2,4,5,6,7_12-good-of-20-total_Th,[2,1],spkTh,[-3,-6]_EMUsort
+        # "20240217_215612328805",  # rec-1,2,4,5,6,7_17-good-of-27-total_Th,[5,2],spkTh,[-3,-6]_EMUsort
+        # "20240217_215856145144",  # rec-1,2,4,5,6,7_13-good-of-24-total_Th,[2,1],spkTh,[-6]_EMUsort
+        # "20240217_220053259185",  # rec-1,2,4,5,6,7_17-good-of-26-total_Th,[5,2],spkTh,[-6]_EMUsort
+        # "20240217_220524277931",  # rec-1,2,4,5,6,7_12-good-of-26-total_Th,[2,1],spkTh,[-3]_EMUsort
+        # "20240217_221122178214",  # rec-1,2,4,5,6,7_16-good-of-22-total_Th,[2,1],spkTh,[-6,-9]_EMUsort
+        # "20240217_221309252093",  # rec-1,2,4,5,6,7_15-good-of-21-total_Th,[2,1],spkTh,[-9]_EMUsort
+        # KS3 with comp extended grid search, 400 noise, without sgolay filter, with MUsim force thresh bugfix
+        # "20240218_004114984029",  # rec-1,2,4,5,6,7_17-good-of-30-total_Th,[10,4],spkTh,-3_vanilla_KS
+        # "20240218_004115109274",  # rec-1,2,4,5,6,7_21-good-of-34-total_Th,[10,4],spkTh,-9_vanilla_KS
+        # "20240218_004126413615",  # rec-1,2,4,5,6,7_11-good-of-21-total_Th,[7,3],spkTh,-6_vanilla_KS
+        # "20240218_004213492592",  # rec-1,2,4,5,6,7_17-good-of-28-total_Th,[5,2],spkTh,-3_vanilla_KS
+        # "20240218_004225655619",  # rec-1,2,4,5,6,7_20-good-of-29-total_Th,[5,2],spkTh,-9_vanilla_KS
+        # "20240218_004307384579",  # rec-1,2,4,5,6,7_15-good-of-23-total_Th,[10,4],spkTh,-6_vanilla_KS
+        # "20240218_004327328879",  # rec-1,2,4,5,6,7_17-good-of-29-total_Th,[7,3],spkTh,-3_vanilla_KS
+        # "20240218_004345707117",  # rec-1,2,4,5,6,7_22-good-of-39-total_Th,[7,3],spkTh,-9_vanilla_KS
+        # "20240218_004353871492",  # rec-1,2,4,5,6,7_11-good-of-16-total_Th,[2,1],spkTh,-3_vanilla_KS
+        # "20240218_004358918919",  # rec-1,2,4,5,6,7_14-good-of-20-total_Th,[2,1],spkTh,-6_vanilla_KS
+        # "20240218_004416239994",  # rec-1,2,4,5,6,7_13-good-of-22-total_Th,[2,1],spkTh,-9_vanilla_KS
+        # "20240218_004423785219",  # rec-1,2,4,5,6,7_12-good-of-14-total_Th,[5,2],spkTh,-6_vanilla_KS
+        # "20240218_004948647206",  # rec-1,2,4,5,6,7_17-good-of-25-total_Th,[10,4],spkTh,-6_vanilla_KS
+        # "20240218_004953834378",  # rec-1,2,4,5,6,7_20-good-of-35-total_Th,[10,4],spkTh,-9_vanilla_KS
+        # "20240218_005008033690",  # rec-1,2,4,5,6,7_12-good-of-22-total_Th,[7,3],spkTh,-6_vanilla_KS
+        # "20240218_005018587180",  # rec-1,2,4,5,6,7_23-good-of-42-total_Th,[7,3],spkTh,-9_vanilla_KS
+        # "20240218_005023676015",  # rec-1,2,4,5,6,7_12-good-of-14-total_Th,[5,2],spkTh,-6_vanilla_KS
+        # "20240218_005042258088",  # rec-1,2,4,5,6,7_20-good-of-29-total_Th,[5,2],spkTh,-9_vanilla_KS
+        # "20240218_005214186792",  # rec-1,2,4,5,6,7_14-good-of-20-total_Th,[2,1],spkTh,-6_vanilla_KS
+        # "20240218_005228258671",  # rec-1,2,4,5,6,7_12-good-of-22-total_Th,[2,1],spkTh,-9_vanilla_KS
         #### Below are with new 16 channel, triple rat dataset
         # simulated20231219:
         # "20231220_180513756759"  # SNR-400-constant_jitter-0std_files-11, vanilla Kilosort, Th=[10,4], spkTh=[-6]
@@ -1982,8 +2228,8 @@ if __name__ == "__main__":
         import multiprocessing as mp
         from concurrent.futures import ProcessPoolExecutor, as_completed
 
-    true_spike_counts_for_each_cluster = np.lib.format.open_memmap(
-        str(ground_truth_path)
+    true_spike_counts_for_each_cluster = np.load(
+        str(ground_truth_path), mmap_mode="r"
     ).sum(axis=0)
     # find the folder name which ends in _myo and append to the paths_to_session_folders
     paths_to_each_myo_folder = []
@@ -1996,11 +2242,15 @@ if __name__ == "__main__":
     # inside each _myo folder, find the folder name which constains sort_from_each_path_to_load string
     list_of_paths_to_sorted_folders = []
     for iPath in paths_to_each_myo_folder:
-        matches = [
+        matches_init = [
             f
             for f in iPath.iterdir()
             if f.is_dir() and any(s in f.name for s in sorts_from_each_path_to_load)
         ]
+        # sort the matches by the order in sorts_from_each_path_to_load
+        matches = []
+        for iSort in sorts_from_each_path_to_load:
+            matches.append([f for f in matches_init if iSort in f.name][0])
         # assert (
         #     len(matches) == 1
         # ), f"There should be one sort folder match in each _myo folder, but there were {len(matches)} in {iPath}"
@@ -2038,15 +2288,17 @@ if __name__ == "__main__":
 
         if method_for_automatic_cluster_mapping != "accuracies":
             spike_times_list = [
-                np.lib.format.open_memmap(
-                    str(path_to_sorted_folder.joinpath("spike_times.npy"))
+                np.load(
+                    str(path_to_sorted_folder.joinpath("spike_times.npy")),
+                    mmap_mode="r",
                 ).flatten()
                 for path_to_sorted_folder in list_of_paths_to_sorted_folders[0]
             ]
 
             spike_clusters_list = [
-                np.lib.format.open_memmap(
-                    str(path_to_sorted_folder.joinpath("spike_clusters.npy"))
+                np.load(
+                    str(path_to_sorted_folder.joinpath("spike_clusters.npy")),
+                    mmap_mode="r",
                 ).flatten()
                 for path_to_sorted_folder in list_of_paths_to_sorted_folders[0]
             ]
@@ -2071,7 +2323,7 @@ if __name__ == "__main__":
         # which are 1's and 0's, where 1's indicate a spike and 0's indicate no spike
         # each column is a different unit, and row is a different time point in the recording
         # use np.where to get the spike times for each cluster
-        ground_truth_spike_times = np.lib.format.open_memmap(str(ground_truth_path))
+        ground_truth_spike_times = np.load(str(ground_truth_path), mmap_mode="r")
         GT_spike_times_for_each_cluster = [
             np.where(ground_truth_spike_times[:, iCluster] == 1)[0]
             for iCluster in GT_clusters_to_use
@@ -2916,6 +3168,7 @@ if __name__ == "__main__":
         kilosort_spikes_list = []
         ground_truth_spikes_list = []
         clusters_in_sort_to_use_list = []
+
         for iCorr in range(len(correlations)):
             # now find the cluster with the highest correlation
             sorted_cluster_pair_corr_idx = np.unravel_index(

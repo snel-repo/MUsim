@@ -18,7 +18,8 @@ class MUsim:
             "sigmoid"  # "sigmoid"/"heaviside" activation function of MUs
         )
         self.MUthresholds_dist = "exponential"  # can be either "exponential", "uniform" or "normal". Distributes proportion of small vs large MUs
-        self.MUspike_dynamics = "poisson"  # can be either "poisson", "independent", or "spike_history". Models spiking behavior as poisson process or as independent
+        self.MUspike_dynamics = "spike_history"  # can be either "poisson", "independent", or "spike_history". Models spiking behavior as poisson process or as independent
+        self.kernel_interpolation_factor = 1  # factor to interpolate the kernel by
         # fractions of MU thresholds that will flip during a dynamic mode simulation
         self.MUreversal_frac = 1
         # will force the units at these indexes to remain static during the dynamic simulations
@@ -137,10 +138,21 @@ class MUsim:
             path_to_kernel_csv, delimiter=","
         )  # load kernel basis
         kernel_ms = kernel_basis @ weights  # linear combination of basis vectors
-        # interpolate kernel to match sample rate
+        # interpolate kernel to match sample rate and adjust max rate
+        # default 7 sets the rate to match rat MU firing rates (5-15Hz)
         kernel = np.interp(
             np.linspace(
-                0, 1, int(np.round(len(kernel_ms) / 1000 * self.sample_rate * 7))
+                0,
+                1,
+                int(
+                    np.round(
+                        len(kernel_ms)
+                        / 1000
+                        * self.sample_rate
+                        * 7
+                        * self.kernel_interpolation_factor
+                    )
+                ),
             ),
             np.linspace(0, 1, len(kernel_ms)),
             kernel_ms,
@@ -276,11 +288,11 @@ class MUsim:
         spike times and spike clusters from spike_times.npy and spike_clusters.npy, respectively.
         It will then create a MUsim format trial from this data.
         """
-        spike_times = np.lib.format.open_memmap(
-            kilosort_path.joinpath("spike_times.npy")
+        spike_times = np.load(
+            kilosort_path.joinpath("spike_times.npy"), mmap_mode="r"
         ).ravel()
-        spike_clusters = np.lib.format.open_memmap(
-            kilosort_path.joinpath("spike_clusters.npy")
+        spike_clusters = np.load(
+            kilosort_path.joinpath("spike_clusters.npy"), mmap_mode="r"
         ).ravel()
         units_in_sort = np.sort(np.unique(spike_clusters).astype(int))
         largest_cluster_number = units_in_sort[-1]
@@ -355,7 +367,7 @@ class MUsim:
         ], "load_type must be 'MUsim', 'rat-loco' or 'kilosort'."
 
         if load_type in ["MUsim", "rat-loco"]:
-            input_MU_data = np.lib.format.open_memmap(npy_file_path)
+            input_MU_data = np.load(npy_file_path, mmap_mode="r")
             if load_as == "session":
                 if load_type == "MUsim":
                     # if MUsim data, do not transpose
@@ -664,15 +676,15 @@ class MUsim:
         return units
 
     def simulate_spikes(self):
-        def _get_spikes_from_history_each_unit(self, iUnit, kernel):
+        def _get_spikes_from_history_each_unit(self, iUnit, kernel, seed):
             # For each MU and time t, compute whether a spike occured using a binomial distribution,
             # and if so, add the spike_history_kernel from t:t+len(kernel) timesteps of the response
             # curve for that MU. Also record the spike at that time in self.spikes
-
+            local_RNG = np.random.default_rng(seed)
             for iTimestep in range(self.num_bins_per_trial):
                 if self.force_profile[iTimestep] > self.units[0][iUnit]:
                     bounded_response_curve_at_t = expit(self.units[1][iTimestep, iUnit])
-                    if self.RNG.binomial(1, bounded_response_curve_at_t):
+                    if local_RNG.binomial(1, bounded_response_curve_at_t):
                         try:
                             self.units[1][
                                 iTimestep : iTimestep + len(kernel), iUnit
@@ -770,15 +782,18 @@ class MUsim:
             self.spikes.append(np.zeros(unit_response_curves.shape, dtype=int))
             kernel = self._get_spike_history_kernel()
             # compute each MU in parallel using _get_spikes_from_history_each_unit
+            # make sure to initialize the random seed on all threads
+            seeds = self.RNG.integers(0, 2**32, size=self.num_units)
             with ThreadPoolExecutor(max_workers=self.num_units) as executor:
-                _ = list(
-                    executor.map(
+                for iUnit in range(self.num_units):
+                    executor.submit(
                         _get_spikes_from_history_each_unit,
-                        [self] * self.num_units,
-                        range(self.num_units),
-                        [kernel] * self.num_units,
+                        self,
+                        iUnit,
+                        kernel,
+                        seeds[iUnit],
                     )
-                )
+
         else:
             raise Exception(
                 "MUspike_dynamics must be either 'independent', 'poisson', 'spike_history', or 'lorenz'."

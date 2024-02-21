@@ -129,15 +129,17 @@ def batch_run_MUsim(mu, force_profile, proc_num):
 
 
 # set analysis parameters
-session_name = "godzilla_20221117_10MU"  # "monkey_20221202_6MU"
+session_name = (
+    "godzilla_20221117_10MU"  # "godzilla_20221117_10MU"  # "monkey_20221202_6MU"
+)
 show_plotly_figures = False
 show_matplotlib_figures = False
 show_final_plotly_figure = True
 save_final_plotly_figure = False
-show_waveform_graph = False
+show_waveform_graph = True
 save_simulated_spikes = False
 save_continuous_dat = False
-multiprocess = False  # set to True to run on multiple processes
+# multiprocess = False  # deprecated setting, now multithreading in MUsim to avoid refractory period violations
 use_KS_templates = False  # set to True to use Kilosort templates to create waveform shapes, else load open ephys data, and use spike times to extract median waveform shapes for each unit
 shift_MU_templates_along_channels = False
 kinematics_fs = 125
@@ -149,11 +151,11 @@ num_chans_in_output = 8  # desired real number of channels in the output data
 # number determines noise power added to channels (e.g. 50), or set None to disable
 SNR_mode = "constant"  # 'power' to compute desired SNR with power,'from_data' simulates from the real data values, or 'constant' to add a constant amount of noise to all channels
 # target SNR value if "power", or factor to adjust SNR by if "from_data", or set None to disable
-adjust_SNR = 100  # None
+adjust_SNR = 200  # None
 # set 0 for no shape jitter, or a positive number for standard deviations of additive shape jitter
 shape_jitter_amount = 0
 # set None for random behavior, or a previous entropy int value to reproduce
-random_seed_entropy = 218530072159092100005306709809425040261  # 218530072159092100005306709809425040261  # 75092699954400878964964014863999053929  # None
+random_seed_entropy = 17750944332329041344095472642137516706  # 218530072159092100005306709809425040261  # 75092699954400878964964014863999053929  # None
 if random_seed_entropy is None:
     random_seed_entropy = np.random.SeedSequence().entropy
 RNG = np.random.default_rng(random_seed_entropy)  # create a random number generator
@@ -231,151 +233,204 @@ assert time_frame[0] >= 0 and time_frame[1] <= 1 and time_frame[0] < time_frame[
     "with the first number smaller"
 )
 
+if "monkey" not in session_name:
+    ## first load a 1D kinematic array from a csv file into a numpy array
+    # format is YYYYMMDD-N, with N being the session number
+    anipose_sessions_to_load = [
+        "20221116-3",
+        "20221116-5",
+        "20221116-7",
+        "20221116-8",
+        "20221116-9",
+        "20221117-4",
+        "20221117-5",
+        "20221117-6",
+        "20221117-8",
+        "20221117-9",
+    ]
+    # format is bodypart_side_axis, with side being L or R, and axis being x, y, or z
+    chosen_bodypart_to_load = "palm_L_y"  # "wrist_L_y"
+    reference_bodypart_to_load = "tailbase_y"
+    # choose path to get anipose data from
+    anipose_folder = Path("/snel/share/data/anipose/analysis20230830_godzilla/")
+    # anipose_folder = Path("/snel/share/data/anipose/analysis20230829_inkblot+kitkat")
 
-## first load a 1D kinematic array from a csv file into a numpy array
-# format is YYYYMMDD-N, with N being the session number
-anipose_sessions_to_load = [
-    "20221116-3",
-    "20221116-5",
-    "20221116-7",
-    "20221116-8",
-    "20221116-9",
-    "20221117-4",
-    "20221117-5",
-    "20221117-6",
-    "20221117-8",
-    "20221117-9",
-]
-# shuffle the list of sessions to load so different simulations have different kinematics
-# RNG.shuffle(
-#     anipose_sessions_to_load
-# )  # rat was not shuffled, monkey was shuffled once, any other should be shuffled N times
-# format is bodypart_side_axis, with side being L or R, and axis being x, y, or z
-chosen_bodypart_to_load = "palm_L_y"  # "wrist_L_y"
-reference_bodypart_to_load = "tailbase_y"
-# choose path to get anipose data from
-anipose_folder = Path("/snel/share/data/anipose/analysis20230830_godzilla/")
-# anipose_folder = Path("/snel/share/data/anipose/analysis20230829_inkblot+kitkat")
+    # load the csv file into a pandas dataframe and get numpy array of chosen bodypart
+    kinematic_csv_folder_path = anipose_folder.joinpath("pose-3d")
+    files = [
+        f
+        for f in kinematic_csv_folder_path.iterdir()
+        if f.is_file() and f.suffix == ".csv"
+    ]
+    kinematic_csv_file_paths = [
+        f for f in files if any(s in f.name for s in anipose_sessions_to_load)
+    ]
+    # add duplicates to make sure the array is at least 10min long
+    random_duplicate_paths = RNG.choice(kinematic_csv_file_paths, 2).tolist()
+    kinematic_csv_file_paths = kinematic_csv_file_paths + random_duplicate_paths
+    # shuffle the list of paths to load so different simulations have different "kinematics"
+    # RNG.shuffle(
+    #     kinematic_csv_file_paths
+    # )  # rat was not shuffled, monkey was shuffled once, any other should be shuffled N times
 
-# load the csv file into a pandas dataframe and get numpy array of chosen bodypart
-kinematic_csv_folder_path = anipose_folder.joinpath("pose-3d")
-files = [
-    f for f in kinematic_csv_folder_path.iterdir() if f.is_file() and f.suffix == ".csv"
-]
-kinematic_csv_file_paths = [
-    f for f in files if any(s in f.name for s in anipose_sessions_to_load)
-]
-# add duplicates to make sure the array is at least 10min long
-random_duplicate_paths = RNG.choice(kinematic_csv_file_paths, 2).tolist()
-kinematic_csv_file_paths = kinematic_csv_file_paths + random_duplicate_paths
+    print(f"Taking kinematic data from: \n{[f.name for f in kinematic_csv_file_paths]}")
+    kinematic_dataframes = [pd.read_csv(f) for f in kinematic_csv_file_paths]
+    chosen_bodypart_arrays = [
+        kinematic_dataframe[chosen_bodypart_to_load].to_numpy()
+        for kinematic_dataframe in kinematic_dataframes
+    ]
+    time_slices = [
+        slice(
+            round(len(arr) * time_frame[0]),
+            round(len(arr) * time_frame[1]),
+        )
+        for arr in chosen_bodypart_arrays
+    ]
+    chosen_bodypart_arrays = [
+        chosen_bodypart_array[time_slice]
+        for chosen_bodypart_array, time_slice in zip(
+            chosen_bodypart_arrays, time_slices
+        )
+    ]
 
-print(f"Taking kinematic data from: \n{[f.name for f in kinematic_csv_file_paths]}")
-kinematic_dataframes = [pd.read_csv(f) for f in kinematic_csv_file_paths]
-chosen_bodypart_arrays = [
-    kinematic_dataframe[chosen_bodypart_to_load].to_numpy()
-    for kinematic_dataframe in kinematic_dataframes
-]
-time_slices = [
-    slice(
-        round(len(arr) * time_frame[0]),
-        round(len(arr) * time_frame[1]),
+    if show_plotly_figures:
+        # plot each array with plotly express
+        for iArray in chosen_bodypart_arrays:
+            fig = px.line(iArray)
+        # add title and axis labels
+        fig.update_layout(
+            title="Raw Kinematics-derived Force Profile",
+            xaxis_title="Time",
+            yaxis_title="Force Approximation",
+        )
+        fig.show()
+
+    ## load, 2Hz lowpass, and subtract reference bodypart from chosen bodypart
+    reference_bodypart_arrays = [
+        kinematic_dataframe[reference_bodypart_to_load].to_numpy()
+        for kinematic_dataframe in kinematic_dataframes
+    ]
+
+    # subtract filtered reference, lowpass filter, then combine all arrays into single arrays by using and overlap of N samples
+    # blend the arrays using a linear relationship at the edges
+    # lowpass filter the reference array
+    nyq = 0.5 * kinematics_fs
+    ref_lowcut = 2
+    ref_low = ref_lowcut / nyq
+    ref_order = 2
+    # bandpass filter parameters
+    lowcut = 1
+    highcut = 8
+    low = lowcut / nyq
+    high = highcut / nyq
+    order = 2
+    # apply filters
+    ref_filtered_array_list = []
+    ref_chosen_bodypart_array_list = []
+    inv_filtered_array_list = []
+    min_sub_array_list = []
+    Nsamp = 25  # this is the number of samples to blend at the edges
+    for ii in range(len(reference_bodypart_arrays)):
+        iRef = reference_bodypart_arrays[ii]
+        ref_filtered_array_list.append(
+            butter_lowpass_filter(iRef, ref_lowcut, kinematics_fs, ref_order)
+        )
+        iSub = ref_filtered_array_list[ii][time_slices[ii]]
+        # subtract reference bodypart from chosen bodypart
+        ref_chosen_bodypart_array_list.append(chosen_bodypart_arrays[ii] - iSub)
+        iFilt = ref_chosen_bodypart_array_list[ii]
+        # invert the array to better simulate force from y kinematics
+        inv_filtered_array_list.append(
+            -butter_bandpass_filter(iFilt, lowcut, highcut, kinematics_fs, order)
+        )
+
+    # blend the arrays together
+    blended_chosen_array = blend_arrays(inv_filtered_array_list, Nsamp)
+
+    if show_plotly_figures:
+        fig = px.line(np.concatenate(ref_chosen_bodypart_array_list))
+        # add title and axis labels
+        fig.update_layout(
+            title="Raw Kinematics-derived Force Profile, Reference Subtracted",
+            xaxis_title="Time",
+            yaxis_title="Force Approximation",
+        )
+        fig.show()
+
+        # plot the filtered array with plotly express
+        fig = px.line(np.concatenate(inv_filtered_array_list))
+        # add title and axis labels
+        fig.update_layout(
+            title="Filtered and Inverted Kinematics-derived Force Profile",
+            xaxis_title="Time",
+            yaxis_title="Force Approximation",
+        )
+        fig.show()
+
+        # plot the final array with plotly express
+        fig = px.line(blended_chosen_array)
+        # add title and axis labels
+        fig.update_layout(
+            title="Final Kinematics-derived Force Profile",
+            xaxis_title="Time",
+            yaxis_title="Force Approximation",
+        )
+        fig.show()
+
+    # interpolate final force array to match ephys sampling rate
+    interp_final_force_array = signal.resample(
+        blended_chosen_array,
+        round(len(blended_chosen_array) * (ephys_fs / kinematics_fs)),
     )
-    for arr in chosen_bodypart_arrays
-]
-chosen_bodypart_arrays = [
-    chosen_bodypart_array[time_slice]
-    for chosen_bodypart_array, time_slice in zip(chosen_bodypart_arrays, time_slices)
-]
 
-if show_plotly_figures:
-    # plot each array with plotly express
-    for iArray in chosen_bodypart_arrays:
-        fig = px.line(iArray)
-    # add title and axis labels
-    fig.update_layout(
-        title="Raw Kinematics-derived Force Profile",
-        xaxis_title="Time",
-        yaxis_title="Force Approximation",
+# if monkey, replace with a ramp up to max force, constant hold, and ramp down, then another hold,
+# then 1 Hz sine wave then repeat until 10 minutes
+else:
+    force_max = 20
+    force_ramp_time = 2 * time_frame[1]
+    force_hold_time = 3 * time_frame[1]
+    force_down_time = 1 * time_frame[1]
+    force_sine_time = 6 * time_frame[1]
+    force_total_time = 600 * time_frame[1]
+    force_ramp_up = np.linspace(0, force_max, int(force_ramp_time * ephys_fs))
+    force_hold_up = np.ones(int(force_hold_time * ephys_fs)) * force_max
+    force_ramp_down = np.linspace(force_max, 0, int(force_ramp_time * ephys_fs))
+    force_down_time = np.zeros(int(force_down_time * ephys_fs))
+    # 1 hz
+    force_sine = np.sin(
+        2 * np.pi * np.linspace(0, force_sine_time, int(force_sine_time * ephys_fs))
     )
-    fig.show()
-
-## load, 2Hz lowpass, and subtract reference bodypart from chosen bodypart
-reference_bodypart_arrays = [
-    kinematic_dataframe[reference_bodypart_to_load].to_numpy()
-    for kinematic_dataframe in kinematic_dataframes
-]
-
-# subtract filtered reference, lowpass filter, then combine all arrays into single arrays by using and overlap of N samples
-# blend the arrays using a linear relationship at the edges
-# lowpass filter the reference array
-nyq = 0.5 * kinematics_fs
-ref_lowcut = 2
-ref_low = ref_lowcut / nyq
-ref_order = 2
-# bandpass filter parameters
-lowcut = 1
-highcut = 8
-low = lowcut / nyq
-high = highcut / nyq
-order = 2
-# apply filters
-ref_filtered_array_list = []
-ref_chosen_bodypart_array_list = []
-inv_filtered_array_list = []
-min_sub_array_list = []
-Nsamp = 25  # this is the number of samples to blend at the edges
-for ii in range(len(reference_bodypart_arrays)):
-    iRef = reference_bodypart_arrays[ii]
-    ref_filtered_array_list.append(
-        butter_lowpass_filter(iRef, ref_lowcut, kinematics_fs, ref_order)
+    force_sine = force_sine * force_max
+    force_profile_unit = np.concatenate(
+        (force_ramp_up, force_hold_up, force_ramp_down, force_down_time, force_sine)
     )
-    iSub = ref_filtered_array_list[ii][time_slices[ii]]
-    # subtract reference bodypart from chosen bodypart
-    ref_chosen_bodypart_array_list.append(chosen_bodypart_arrays[ii] - iSub)
-    iFilt = ref_chosen_bodypart_array_list[ii]
-    # invert the array to better simulate force from y kinematics
-    inv_filtered_array_list.append(
-        -butter_bandpass_filter(iFilt, lowcut, highcut, kinematics_fs, order)
+    num_force_units_needed = force_total_time / force_profile_unit.shape[0] * ephys_fs
+    interp_final_force_array = np.tile(force_profile_unit, int(num_force_units_needed))
+    interp_final_force_array = np.hstack(
+        (
+            interp_final_force_array,
+            force_profile_unit[
+                : int(np.ceil((num_force_units_needed % 1) * len(force_profile_unit)))
+            ],
+        )
     )
 
-# blend the arrays together
-blended_chosen_array = blend_arrays(inv_filtered_array_list, Nsamp)
+    blended_chosen_array = signal.resample(
+        interp_final_force_array,
+        round(len(interp_final_force_array) * (kinematics_fs / ephys_fs)),
+    )  # create a fake kinematic array to match the kinematic sampling rate
+    kinematic_csv_file_paths = [None]  # fake placeholder, to indicate 1 file was used
 
-if show_plotly_figures:
-    fig = px.line(np.concatenate(ref_chosen_bodypart_array_list))
-    # add title and axis labels
-    fig.update_layout(
-        title="Raw Kinematics-derived Force Profile, Reference Subtracted",
-        xaxis_title="Time",
-        yaxis_title="Force Approximation",
-    )
-    fig.show()
-
-    # plot the filtered array with plotly express
-    fig = px.line(np.concatenate(inv_filtered_array_list))
-    # add title and axis labels
-    fig.update_layout(
-        title="Filtered and Inverted Kinematics-derived Force Profile",
-        xaxis_title="Time",
-        yaxis_title="Force Approximation",
-    )
-    fig.show()
-
-    # plot the final array with plotly express
-    fig = px.line(blended_chosen_array)
-    # add title and axis labels
-    fig.update_layout(
-        title="Final Kinematics-derived Force Profile",
-        xaxis_title="Time",
-        yaxis_title="Force Approximation",
-    )
-    fig.show()
-
-# interpolate final force array to match ephys sampling rate
-interp_final_force_array = signal.resample(
-    blended_chosen_array, round(len(blended_chosen_array) * (ephys_fs / kinematics_fs))
-)
-
+#     # plot with plotly express
+#     fig = px.line(interp_final_force_array)
+#     # add title and axis labels
+#     fig.update_layout(
+#         title="Interpolated Final Force Profile",
+#         xaxis_title="Time",
+#         yaxis_title="Force Approximation",
+#     )
+#     fig.show()
+#     set_trace()
 ## load the spike history kernel csv's and plot them with plotly express to compare in 2 subplots
 # load each csv file into a pandas dataframe
 # MU_spike_history_kernel_path = Path(__file__).parent.joinpath("spike_history_kernel_basis_MU.csv")
@@ -545,6 +600,7 @@ mu = MUsim(random_seed_entropy)
 mu.num_units = num_motor_units  # set same number of motor units as in the Kilosort data
 mu.MUthresholds_dist = "exponential"  # set the distribution of motor unit thresholds
 mu.MUspike_dynamics = "spike_history"
+mu.kernel_interpolation_factor = 4 if "monkey" in session_name else 1
 mu.sample_rate = ephys_fs  # 30000 Hz
 # fixed minimum force threshold for the generated units' response curves. Tune this for lower
 # bound of force thresholds sampled in the distribution of MUs during MU_sample()
@@ -1080,14 +1136,13 @@ outside_spike_band_power = low_band_power + high_band_power
 computed_SNR = spike_band_power / outside_spike_band_power
 print(f"Computed SNR: {computed_SNR}")
 
+# finally use ops variable channelDelays to reapply the original channel delays to the data
+channel_delays_to_apply = ops_list[0]["channelDelays"][0]
+for iChan in range(num_chans_with_data):
+    continuous_dat[:, iChan] = np.roll(
+        continuous_dat[:, iChan], -channel_delays_to_apply[iChan]
+    )
 if use_KS_templates:
-    # finally use ops variable channelDelays to reapply the original channel delays to the data
-    channel_delays_to_apply = ops_list[0]["channelDelays"][0]
-    for iChan in range(num_chans_with_data):
-        continuous_dat[:, iChan] = np.roll(
-            continuous_dat[:, iChan], -channel_delays_to_apply[iChan]
-        )
-
     continuous_dat *= 200  # scale for Kilosort
 
 if show_final_plotly_figure or save_final_plotly_figure:
