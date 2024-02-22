@@ -7,3 +7,4 @@ plotly
 pytorch-gpu
 scikit-learn
 scipy
+kaleido
