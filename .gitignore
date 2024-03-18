@@ -3,8 +3,12 @@
 *.npy
 *.png
 *.svg
+*.pkl
+*.prof
+*.mat
+*.dat
+*.h5
 /mu
 !requirements.txt
 .vscode/
 __pycache__/
-*dat

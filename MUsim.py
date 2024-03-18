@@ -1,6 +1,7 @@
 import pdb
 import copy
 from pathlib import Path, PosixPath
+import tempfile
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -8,6 +9,7 @@ import plotly.graph_objects as go
 from scipy.ndimage import gaussian_filter1d
 from scipy.signal import find_peaks
 from scipy.special import expit
+from mat73 import loadmat
 from concurrent.futures import ThreadPoolExecutor
 
 
@@ -301,7 +303,15 @@ class MUsim:
             np.round(spike_times[-1]) + 1
         )  # use last spike time because it is the largest in time
         # create empty trial
-        trial = np.zeros((num_bins, largest_cluster_number + 1))
+        # trial = np.zeros((num_bins, largest_cluster_number + 1))
+        # do not load the trial into ram, as it may be very large
+        # make a memmap to a temporary file using tempfile library
+        trial = np.memmap(
+            tempfile.TemporaryFile(),
+            dtype=np.float32,
+            mode="w+",
+            shape=(num_bins, largest_cluster_number + 1),
+        )
         # fill trial with spikes in order of KS cluster number
         for ii in range(largest_cluster_number + 1):
             unit_spike_times = spike_times[spike_clusters == ii]
@@ -313,38 +323,42 @@ class MUsim:
 
     def load_MUs(
         self,
-        npy_file_path,
+        data_file_path,
         recording_bin_width,
         load_as="session",
         slice=[0, 1],
-        load_type="rat-loco",
+        load_type="MUsim",
     ):
         """
         Function loads data and appends into MUsim().session, just like with simulated sessions.
-        Data axes are transposed to make structure compatible transpose operation:
+        Data axes are transposed to make structure compatible. Transpose operation:
         (Trials x Time x MUs) --> (Time x MUs x Trials)
 
         Input:
-            npy_file_path: if load type is "rat-loco", then this is the path to the .npy file
+            data_file_path:
+                If load type is "MUsim", then this is the path to the .npy file containing the binned MU data.
+                If load type is "rat-loco", then this is the path to the .npy file
                 containing the binned MU data.
                 If load type is "kilosort", then this is the path to the kilosort output folder
                 (containing spike_times.npy and spike_clusters.npy)
+                If load type is "konstantin", then this is the path to .mat file with Time x MUs,
+                output of "spikes" variable from https://github.com/smetanadvorak/iemg_simulator
             recording_bin_width: provide the time width between samples of the input data
             load_as: "session" or "trial". If "session", then the entire session is loaded into MUsim().session.
                 Otherwise, all trials in the session are concatenated and placed as a single trial into MUsim().spikes[-1].
                 If "session", then the data is transposed to (Time x MUs x Trials).
-                If "trial", then the data is reshaped into ((Time x Trials) x MUs)
+                If "trial", then the data is loaded as (Time x MUs) or reshaped into ((Time x Trials) x MUs)
             slice: slice of the data to load, as a fraction of the total data. Default is [0, 1], which loads all data.
             load_type: "MUsim", "rat-loco" or "kilosort". If "rat-loco", then the data is loaded from the rat_loco_analysis
                 repository format. If "kilosort", then the data is loaded from the kilosort output format.
         Returns: nothing.
         """
         # check inputs
-        assert type(npy_file_path) in [
+        assert type(data_file_path) in [
             str,
             Path,
             PosixPath,
-        ], "npy_file_path must be a string or a Path object."
+        ], "data_file_path must be a string or a Path object."
         assert recording_bin_width > 0 and type(recording_bin_width) in [
             int,
             float,
@@ -364,10 +378,11 @@ class MUsim:
             "MUsim",
             "rat-loco",
             "kilosort",
-        ], "load_type must be 'MUsim', 'rat-loco' or 'kilosort'."
+            "konstantin",
+        ], "load_type must be 'MUsim', 'rat-loco', 'kilosort', or 'konstantin'."
 
         if load_type in ["MUsim", "rat-loco"]:
-            input_MU_data = np.load(npy_file_path, mmap_mode="r")
+            input_MU_data = np.load(data_file_path, mmap_mode="r")
             if load_as == "session":
                 if load_type == "MUsim":
                     # if MUsim data, do not transpose
@@ -388,6 +403,7 @@ class MUsim:
                     self.spikes.append(sliced_MU_data[:, :, ii])
                 self.num_trials = sliced_MU_data.shape[2]
                 self.session_num_trials.append(self.num_trials)
+                del loaded_MU_data, sliced_MU_data  # clear large variables
                 self.MUmode = "loaded"  # record that this session was loaded
             elif load_as == "trial":
                 if load_type == "MUsim":
@@ -415,7 +431,9 @@ class MUsim:
                     :, np.argsort(-sliced_MU_data.sum(axis=0))
                 ]
                 self.spikes.append(sorted_MU_trial)
+                del loaded_MU_data, sliced_MU_data  # clear large variables
                 self.num_trials = 1
+                self.MUmode = "loaded"  # record that this session was loaded
         elif load_type == "kilosort":
             if load_as == "session":
                 raise Exception(
@@ -423,7 +441,7 @@ class MUsim:
                 )
             elif load_as == "trial":
                 # use _create_trial_from_kilosort() to create a trial from kilosort output
-                trial_from_KS = self._create_trial_from_kilosort(npy_file_path)
+                trial_from_KS = self._create_trial_from_kilosort(data_file_path)
                 sliced_trial_from_KS = trial_from_KS[
                     int(np.round(trial_from_KS.shape[0] * slice[0])) : int(
                         np.round(trial_from_KS.shape[0] * slice[1])
@@ -434,10 +452,45 @@ class MUsim:
                 #     :, np.argsort(-sliced_trial_from_KS.sum(axis=0))
                 # ]  # sort rows by total count (descending)
                 self.spikes.append(
-                    sliced_trial_from_KS
+                    sliced_trial_from_KS.copy()
                 )  # spikes in order of KS cluster number
+                del trial_from_KS, sliced_trial_from_KS  # clear large variables
                 self.num_trials = 1
-
+                self.MUmode = "loaded"  # record that this session was loaded
+        elif load_type == "konstantin":
+            if load_as == "session":
+                raise Exception(
+                    "load_as=session not implemented for load_type=konstantin."
+                )
+            elif load_as == "trial":
+                # use mat73.loadmat to import the spikes.mat file, which is a Time x MUs matrix
+                # of 1s and 0s, where 1s represent spikes
+                spikes_mat = loadmat(data_file_path.joinpath("spikes.mat"))
+                # memmap it, but slice before memmapping to save disk space
+                spikes_mat = spikes_mat["spikes"]
+                sliced_spikes_mat = spikes_mat[
+                    int(np.round(spikes_mat.shape[0] * slice[0])) : int(
+                        np.round(spikes_mat.shape[0] * slice[1])
+                    ),
+                    :,
+                ]
+                sliced_trial_from_konstantin = np.memmap(
+                    tempfile.TemporaryFile(),
+                    dtype=np.float32,
+                    mode="w+",
+                    shape=sliced_spikes_mat.shape,
+                )
+                sliced_trial_from_konstantin[:] = (
+                    sliced_spikes_mat.copy()  # transfer from RAM to disk
+                )
+                del spikes_mat, sliced_spikes_mat  # clear RAM
+                self.spikes.append(sliced_trial_from_konstantin)
+                self.num_trials = 1
+                self.MUmode = "loaded"  # record that this session was loaded
+        else:
+            raise Exception(
+                "load_type must be either 'MUsim', 'rat-loco', 'kilosort', or 'konstantin'."
+            )
         self.sample_rate = 1 / recording_bin_width
         self.num_bins_per_trial = self.spikes[-1].shape[0]
         self.num_units = self.spikes[-1].shape[1]
@@ -486,7 +539,13 @@ class MUsim:
             # update number of bins
             self.num_bins_per_trial = new_num_bins
             # update spikes
-            self.spikes[index] = new_spikes
+            self.spikes[index] = np.memmap(
+                tempfile.TemporaryFile(),
+                dtype=np.float32,
+                mode="w+",
+                shape=(new_num_bins, spikes.shape[1]),
+            )
+            self.spikes[index][:] = new_spikes
         if target == "session":
             raise Exception("self.rebin for target=session not implemented yet.")
         return
