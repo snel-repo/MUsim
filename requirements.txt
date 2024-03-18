@@ -1,6 +1,7 @@
 colorlover
 jupyter
 matplotlib
+mat73
 numpy
 pandas
 plotly

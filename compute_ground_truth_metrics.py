@@ -9,10 +9,46 @@ import plotly.graph_objects as go
 import plotly.subplots as subplots
 from pandas import DataFrame as df
 from scipy.signal import correlate, correlation_lags
+from mat73 import loadmat
+import gc
+
+# import tracemalloc
+# from collections import Counter
+# import linecache
+# import os
 
 from MUsim import MUsim
 
 start_time = datetime.now()  # begin timer for script execution time
+
+
+# def display_top(snapshot, key_type="lineno", limit=3):
+#     snapshot = snapshot.filter_traces(
+#         (
+#             tracemalloc.Filter(False, "<frozen importlib._bootstrap>"),
+#             tracemalloc.Filter(False, "<unknown>"),
+#         )
+#     )
+#     top_stats = snapshot.statistics(key_type)
+
+#     print("Top %s lines" % limit)
+#     for index, stat in enumerate(top_stats[:limit], 1):
+#         frame = stat.traceback[0]
+#         # replace "/path/to/module/file.py" with "module/file.py"
+#         filename = os.sep.join(frame.filename.split(os.sep)[-2:])
+#         print(
+#             "#%s: %s:%s: %.1f KiB" % (index, filename, frame.lineno, stat.size / 1024)
+#         )
+#         line = linecache.getline(frame.filename, frame.lineno).strip()
+#         if line:
+#             print("    %s" % line)
+
+#     other = top_stats[limit:]
+#     if other:
+#         size = sum(stat.size for stat in other)
+#         print("%s other: %.1f KiB" % (len(other), size / 1024))
+#     total = sum(stat.size for stat in top_stats)
+#     print("Total allocated size: %.1f KiB" % (total / 1024))
 
 
 # define a function to convert a timedelta object to a pretty string representation
@@ -1188,8 +1224,8 @@ def plot4(
             row=3,
             col=1,
         )
-
-        fig.show()
+        if show_plot4:
+            fig.show()
 
         if save_png_plot4:
             fig.write_image(  # add datestr
@@ -1561,6 +1597,7 @@ if __name__ == "__main__":
     use_custom_merge_clusters = False
     automatically_assign_cluster_mapping = True
     method_for_automatic_cluster_mapping = "accuracies"  # can be "accuracies", "waves", "times", or "trains"  what the correlation is computed on to map clusters
+    simulation_method = "konstantin"  # can be "MUsim" or "konstantin"
     time_frame = [0, 1]  # must be between 0 and 1
     ephys_fs = 30000  # Hz
     xstart = np.log2(
@@ -1581,7 +1618,7 @@ if __name__ == "__main__":
     show_plot1b = False
     show_plot2 = False
     show_plot3 = False
-    show_plot4 = True
+    show_plot4 = False
     show_plot5 = False
     save_png_plot1a = False
     save_png_plot1b = False
@@ -1616,12 +1653,22 @@ if __name__ == "__main__":
     ground_truth_path = Path(
         # "spikes_20221117_godzilla_SNR-100-constant_jitter-0std_files-14_20240206-160539.npy"  # monkey
         # "spikes_20221117_godzilla_SNR-400-constant_jitter-0std_files-11.npy"  # triple rat
-        "spikes_20221117_godzilla_SNR-1-from_data_jitter-4std_files-11.npy"  # godzilla only, old
+        # "spikes_20221117_godzilla_SNR-1-from_data_jitter-4std_files-11.npy"  # godzilla only, old
         # "spikes_20240217-185626_godzilla_20221117_10MU_SNR-None-constant_jitter-0std_method-median_waves_12-files.npy"  # godzilla only, None
         # "spikes_20240217-185448_godzilla_20221117_10MU_SNR-100-constant_jitter-0std_method-median_waves_12-files.npy"  # godzilla only, 100
         # "spikes_20240217-185509_godzilla_20221117_10MU_SNR-200-constant_jitter-0std_method-median_waves_12-files.npy"  # godzilla only, 200
         # "spikes_20240217-185512_godzilla_20221117_10MU_SNR-300-constant_jitter-0std_method-median_waves_12-files.npy"  # godzilla only, 300
         # "spikes_20240217-185528_godzilla_20221117_10MU_SNR-400-constant_jitter-0std_method-median_waves_12-files.npy"  # godzilla only, 400
+        ## >= 20240220, godzilla
+        #
+        # "spikes_20240221-185920_godzilla_20221117_10MU_SNR-None-constant_jitter-0std_method-median_waves_12-files.npy"
+        # "spikes_20240220-213114_godzilla_20221117_10MU_SNR-100-constant_jitter-0std_method-median_waves_12-files.npy"
+        # "spikes_20240220-213122_godzilla_20221117_10MU_SNR-400-constant_jitter-0std_method-median_waves_12-files.npy"
+        # "spikes_20240221-132651_godzilla_20221117_10MU_SNR-700-constant_jitter-0std_method-median_waves_12-files.npy"
+        # "spikes_20240220-213138_godzilla_20221117_10MU_SNR-1000-constant_jitter-0std_method-median_waves_12-files.npy"
+        ## >= 20240301, godzilla shape noise
+        # "spikes_20240229-200231_godzilla_20221117_10MU_SNR-1-from_data_jitter-0std_method-KS_templates_12-files.npy"
+        ##
         # "spikes_20240217-221958_monkey_20221202_6MU_SNR-None-constant_jitter-0std_method-median_waves_1-files.npy" # monkey, None
         # "spikes_20240217-221838_monkey_20221202_6MU_SNR-100-constant_jitter-0std_method-median_waves_1-files.npy" # monkey, 100
         # "spikes_20240217-221902_monkey_20221202_6MU_SNR-200-constant_jitter-0std_method-median_waves_1-files.npy" # monkey, 200
@@ -1629,6 +1676,8 @@ if __name__ == "__main__":
         # "spikes_20240217-221932_monkey_20221202_6MU_SNR-400-constant_jitter-0std_method-median_waves_1-files.npy" # monkey, 400
         # "spikes_20221117_godzilla_SNR-1-from_data_jitter-1std_files-5.npy"
         # "spikes_20221116_godzilla_SNR-8-from_data_jitter-4std_files-1.npy"
+        ## for konstantin simulated data, use the path to the simulation folder
+        "/home/smoconn/git/iemg_simulator/simulation_output/vector_100%MVC_600sec_17p_array_18_MUs_2/"
     )  # spikes_20221116_godzilla_SNR-None_jitter-0std_files-1.npy
 
     # set which ground truth clusters to compare with (a range from 0 to num_motor_units)
@@ -1642,7 +1691,8 @@ if __name__ == "__main__":
             # "/snel/share/data/rodent-ephys/open-ephys/monkey/sean-pipeline/simulated20240206"
             # "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/triple/simulated20231219/"
             # "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/godzilla/simulated20221116/"
-            "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/godzilla/simulated20221117/"
+            # "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/godzilla/simulated20221117/"
+            "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/konstantin/simulated20240307/"
         ),
     ]
     sorts_from_each_path_to_load = [
@@ -2067,25 +2117,530 @@ if __name__ == "__main__":
         # "20240218_005042258088",  # rec-1,2,4,5,6,7_20-good-of-29-total_Th,[5,2],spkTh,-9_vanilla_KS
         # "20240218_005214186792",  # rec-1,2,4,5,6,7_14-good-of-20-total_Th,[2,1],spkTh,-6_vanilla_KS
         # "20240218_005228258671",  # rec-1,2,4,5,6,7_12-good-of-22-total_Th,[2,1],spkTh,-9_vanilla_KS
+        #####
+        #####
+        ## >= 20240220, Gaussian noise level comparison
+        # EMUsort None noise, with 20 sorts no duplicates
+        # "20240221_194225564737",  # rec-1,2,4,5,6,7_21-good-of-31-total_Th,[10,4],spkTh,[-3,-6]_EMUsort
+        # "20240221_194616828336",  # rec-1,2,4,5,6,7_31-good-of-63-total_Th,[10,4],spkTh,[-3]_EMUsort
+        # "20240221_194804296657",  # rec-1,2,4,5,6,7_26-good-of-48-total_Th,[2,1],spkTh,[-6]_EMUsort $
+        # "20240221_194806291347",  # rec-1,2,4,5,6,7_28-good-of-52-total_Th,[7,3],spkTh,[-6,-9]_EMUsort
+        # "20240221_194853069212",  # rec-1,2,4,5,6,7_22-good-of-55-total_Th,[5,2],spkTh,[-9]_EMUsort
+        # "20240221_194926600290",  # rec-1,2,4,5,6,7_30-good-of-65-total_Th,[7,3],spkTh,[-6]_EMUsort
+        # "20240221_194945979086",  # rec-1,2,4,5,6,7_28-good-of-55-total_Th,[5,2],spkTh,[-6,-9]_EMUsort
+        # "20240221_195051770093",  # rec-1,2,4,5,6,7_16-good-of-29-total_Th,[2,1],spkTh,[-3,-6]_EMUsort
+        # "20240221_195307081960",  # rec-1,2,4,5,6,7_25-good-of-37-total_Th,[10,4],spkTh,[-6,-9]_EMUsort
+        # "20240221_195847085585",  # rec-1,2,4,5,6,7_20-good-of-50-total_Th,[10,4],spkTh,[-6]_EMUsort
+        # "20240221_200311467782",  # rec-1,2,4,5,6,7_17-good-of-36-total_Th,[5,2],spkTh,[-3,-6]_EMUsort
+        # "20240221_200528129089",  # rec-1,2,4,5,6,7_31-good-of-70-total_Th,[7,3],spkTh,[-9]_EMUsort
+        # "20240221_200602806964",  # rec-1,2,4,5,6,7_25-good-of-51-total_Th,[2,1],spkTh,[-6,-9]_EMUsort
+        # "20240221_200617109817",  # rec-1,2,4,5,6,7_29-good-of-69-total_Th,[2,1],spkTh,[-9]_EMUsort
+        # "20240221_200707891813",  # rec-1,2,4,5,6,7_23-good-of-49-total_Th,[5,2],spkTh,[-3]_EMUsort
+        # "20240221_200744604104",  # rec-1,2,4,5,6,7_25-good-of-50-total_Th,[2,1],spkTh,[-3]_EMUsort
+        # "20240221_200944947431",  # rec-1,2,4,5,6,7_34-good-of-70-total_Th,[10,4],spkTh,[-9]_EMUsort
+        # "20240221_201018827148",  # rec-1,2,4,5,6,7_13-good-of-32-total_Th,[7,3],spkTh,[-3]_EMUsort
+        # "20240221_201259033819",  # rec-1,2,4,5,6,7_24-good-of-39-total_Th,[7,3],spkTh,[-3,-6]_EMUsort
+        # "20240221_201911080030",  # rec-1,2,4,5,6,7_25-good-of-49-total_Th,[5,2],spkTh,[-6]_EMUsort
+        # # Kilosort None noise, with 20 sorts no duplicates
+        # "20240221_212948303345",  # rec-1,2,4,5,6,7_17-good-of-35-total_Th,[10,4],spkTh,-7.5_vanilla_KS
+        # "20240221_212957038595",  # rec-1,2,4,5,6,7_26-good-of-44-total_Th,[10,4],spkTh,-3_vanilla_KS
+        # "20240221_213030488264",  # rec-1,2,4,5,6,7_25-good-of-45-total_Th,[7,3],spkTh,-9_vanilla_KS
+        # "20240221_213048167806",  # rec-1,2,4,5,6,7_28-good-of-63-total_Th,[5,2],spkTh,-9_vanilla_KS
+        # "20240221_213107059441",  # rec-1,2,4,5,6,7_27-good-of-56-total_Th,[5,2],spkTh,-6_vanilla_KS
+        # "20240221_213112218765",  # rec-1,2,4,5,6,7_25-good-of-54-total_Th,[2,1],spkTh,-4.5_vanilla_KS
+        # "20240221_213119572208",  # rec-1,2,4,5,6,7_45-good-of-97-total_Th,[7,3],spkTh,-4.5_vanilla_KS
+        # "20240221_213124386835",  # rec-1,2,4,5,6,7_37-good-of-62-total_Th,[2,1],spkTh,-7.5_vanilla_KS
+        # "20240221_213239392454",  # rec-1,2,4,5,6,7_23-good-of-46-total_Th,[10,4],spkTh,-9_vanilla_KS
+        # "20240221_213310991514",  # rec-1,2,4,5,6,7_34-good-of-68-total_Th,[10,4],spkTh,-4.5_vanilla_KS
+        # "20240221_213455947947",  # rec-1,2,4,5,6,7_20-good-of-44-total_Th,[5,2],spkTh,-3_vanilla_KS
+        # "20240221_213456565400",  # rec-1,2,4,5,6,7_20-good-of-38-total_Th,[2,1],spkTh,-3_vanilla_KS
+        # "20240221_213503064652",  # rec-1,2,4,5,6,7_37-good-of-77-total_Th,[7,3],spkTh,-6_vanilla_KS
+        # "20240221_213506825237",  # rec-1,2,4,5,6,7_18-good-of-35-total_Th,[2,1],spkTh,-9_vanilla_KS
+        # "20240221_213517883880",  # rec-1,2,4,5,6,7_31-good-of-59-total_Th,[2,1],spkTh,-6_vanilla_KS
+        # "20240221_213526154348",  # rec-1,2,4,5,6,7_29-good-of-47-total_Th,[5,2],spkTh,-7.5_vanilla_KS
+        # "20240221_213542293664",  # rec-1,2,4,5,6,7_29-good-of-54-total_Th,[10,4],spkTh,-6_vanilla_KS
+        # "20240221_213543376363",  # rec-1,2,4,5,6,7_13-good-of-29-total_Th,[7,3],spkTh,-3_vanilla_KS $
+        # "20240221_213738494238",  # rec-1,2,4,5,6,7_29-good-of-47-total_Th,[7,3],spkTh,-7.5_vanilla_KS
+        # "20240221_213754340661",  # rec-1,2,4,5,6,7_28-good-of-55-total_Th,[5,2],spkTh,-4.5_vanilla_KS
+        ## EMUsort 10 noise, with 20 sorts no duplicates
+        # "20240221_203627096172",  # rec-1,2,4,5,6,7_21-good-of-44-total_Th,[10,4],spkTh,[-3,-6]_EMUsort
+        # "20240221_203647102873",  # rec-1,2,4,5,6,7_31-good-of-69-total_Th,[10,4],spkTh,[-3]_EMUsort
+        # "20240221_203932254381",  # rec-1,2,4,5,6,7_18-good-of-39-total_Th,[7,3],spkTh,[-6,-9]_EMUsort
+        # "20240221_203957961033",  # rec-1,2,4,5,6,7_21-good-of-47-total_Th,[5,2],spkTh,[-6,-9]_EMUsort
+        # "20240221_204055583927",  # rec-1,2,4,5,6,7_32-good-of-55-total_Th,[2,1],spkTh,[-3,-6]_EMUsort
+        # "20240221_204234589562",  # rec-1,2,4,5,6,7_32-good-of-68-total_Th,[7,3],spkTh,[-6]_EMUsort
+        # "20240221_204238440240",  # rec-1,2,4,5,6,7_32-good-of-71-total_Th,[2,1],spkTh,[-6]_EMUsort
+        # "20240221_204312223114",  # rec-1,2,4,5,6,7_32-good-of-64-total_Th,[5,2],spkTh,[-9]_EMUsort
+        # "20240221_204733389681",  # rec-1,2,4,5,6,7_23-good-of-49-total_Th,[10,4],spkTh,[-6]_EMUsort
+        # "20240221_204748017658",  # rec-1,2,4,5,6,7_25-good-of-45-total_Th,[10,4],spkTh,[-6,-9]_EMUsort
+        # "20240221_205433548814",  # rec-1,2,4,5,6,7_23-good-of-45-total_Th,[2,1],spkTh,[-6,-9]_EMUsort
+        # "20240221_205435321118",  # rec-1,2,4,5,6,7_22-good-of-38-total_Th,[5,2],spkTh,[-3]_EMUsort
+        # "20240221_205603333914",  # rec-1,2,4,5,6,7_17-good-of-36-total_Th,[7,3],spkTh,[-9]_EMUsort
+        # "20240221_205722810626",  # rec-1,2,4,5,6,7_18-good-of-38-total_Th,[2,1],spkTh,[-3]_EMUsort
+        # "20240221_205816993478",  # rec-1,2,4,5,6,7_31-good-of-71-total_Th,[5,2],spkTh,[-3,-6]_EMUsort
+        # "20240221_205818291897",  # rec-1,2,4,5,6,7_15-good-of-30-total_Th,[2,1],spkTh,[-9]_EMUsort
+        # "20240221_205912382252",  # rec-1,2,4,5,6,7_30-good-of-85-total_Th,[10,4],spkTh,[-9]_EMUsort
+        # "20240221_210134793142",  # rec-1,2,4,5,6,7_22-good-of-41-total_Th,[7,3],spkTh,[-3]_EMUsort
+        # "20240221_210531778884",  # rec-1,2,4,5,6,7_29-good-of-81-total_Th,[5,2],spkTh,[-6]_EMUsort
+        # "20240221_210706476813",  # rec-1,2,4,5,6,7_26-good-of-51-total_Th,[7,3],spkTh,[-3,-6]_EMUsort
+        ## Kilosort 10 noise, with 20 sorts no duplicates
+        # "20240221_211707190848",  # rec-1,2,4,5,6,7_21-good-of-37-total_Th,[10,4],spkTh,-7.5_vanilla_KS
+        # "20240221_211714115022",  # rec-1,2,4,5,6,7_23-good-of-54-total_Th,[10,4],spkTh,-3_vanilla_KS
+        # "20240221_211744460642",  # rec-1,2,4,5,6,7_31-good-of-55-total_Th,[7,3],spkTh,-9_vanilla_KS
+        # "20240221_211758603061",  # rec-1,2,4,5,6,7_28-good-of-56-total_Th,[7,3],spkTh,-4.5_vanilla_KS
+        # "20240221_211813841457",  # rec-1,2,4,5,6,7_27-good-of-48-total_Th,[5,2],spkTh,-6_vanilla_KS
+        # "20240221_211825505862",  # rec-1,2,4,5,6,7_37-good-of-62-total_Th,[5,2],spkTh,-9_vanilla_KS
+        # "20240221_211843467657",  # rec-1,2,4,5,6,7_40-good-of-86-total_Th,[2,1],spkTh,-4.5_vanilla_KS
+        # "20240221_211846677218",  # rec-1,2,4,5,6,7_30-good-of-51-total_Th,[2,1],spkTh,-7.5_vanilla_KS
+        # "20240221_212018355182",  # rec-1,2,4,5,6,7_30-good-of-47-total_Th,[10,4],spkTh,-4.5_vanilla_KS
+        # "20240221_212032769602",  # rec-1,2,4,5,6,7_40-good-of-75-total_Th,[10,4],spkTh,-9_vanilla_KS
+        # "20240221_212145454994",  # rec-1,2,4,5,6,7_32-good-of-59-total_Th,[7,3],spkTh,-6_vanilla_KS
+        # "20240221_212206179477",  # rec-1,2,4,5,6,7_25-good-of-49-total_Th,[5,2],spkTh,-3_vanilla_KS
+        # "20240221_212210857042",  # rec-1,2,4,5,6,7_23-good-of-42-total_Th,[5,2],spkTh,-7.5_vanilla_KS
+        # "20240221_212237941038",  # rec-1,2,4,5,6,7_28-good-of-53-total_Th,[2,1],spkTh,-6_vanilla_KS
+        # "20240221_212300082997",  # rec-1,2,4,5,6,7_32-good-of-69-total_Th,[2,1],spkTh,-3_vanilla_KS
+        # "20240221_212306894517",  # rec-1,2,4,5,6,7_43-good-of-80-total_Th,[2,1],spkTh,-9_vanilla_KS
+        # "20240221_212308129120",  # rec-1,2,4,5,6,7_22-good-of-48-total_Th,[10,4],spkTh,-6_vanilla_KS
+        # "20240221_212333847315",  # rec-1,2,4,5,6,7_24-good-of-39-total_Th,[7,3],spkTh,-3_vanilla_KS
+        # "20240221_212428424425",  # rec-1,2,4,5,6,7_26-good-of-41-total_Th,[7,3],spkTh,-7.5_vanilla_KS
+        # "20240221_212523736963",  # rec-1,2,4,5,6,7_26-good-of-70-total_Th,[5,2],spkTh,-4.5_vanilla_KS
+        # EMUsort 100 noise, with 20 sorts no duplicates
+        # "20240221_163400874837",  # rec-1,2,4,5,6,7_17-good-of-37-total_Th,[10,4],spkTh,[-3,-6]_EMUsort
+        # "20240221_163531190104",  # rec-1,2,4,5,6,7_34-good-of-59-total_Th,[10,4],spkTh,[-3]_EMUsort
+        # "20240221_163555134178",  # rec-1,2,4,5,6,7_21-good-of-43-total_Th,[7,3],spkTh,[-6,-9]_EMUsort
+        # "20240221_163822292059",  # rec-1,2,4,5,6,7_30-good-of-56-total_Th,[5,2],spkTh,[-9]_EMUsort
+        # "20240221_163853065718",  # rec-1,2,4,5,6,7_24-good-of-49-total_Th,[2,1],spkTh,[-3,-6]_EMUsort
+        # "20240221_163936955356",  # rec-1,2,4,5,6,7_22-good-of-55-total_Th,[7,3],spkTh,[-6]_EMUsort
+        # "20240221_164105628067",  # rec-1,2,4,5,6,7_21-good-of-47-total_Th,[2,1],spkTh,[-6]_EMUsort
+        # "20240221_164224318977",  # rec-1,2,4,5,6,7_22-good-of-65-total_Th,[5,2],spkTh,[-6,-9]_EMUsort
+        # "20240221_164354820488",  # rec-1,2,4,5,6,7_26-good-of-52-total_Th,[10,4],spkTh,[-6,-9]_EMUsort
+        # "20240221_164626135332",  # rec-1,2,4,5,6,7_28-good-of-47-total_Th,[10,4],spkTh,[-6]_EMUsort
+        # "20240221_164642673423",  # rec-1,2,4,5,6,7_12-good-of-18-total_Th,[5,2],spkTh,[-3]_EMUsort
+        # "20240221_165220456488",  # rec-1,2,4,5,6,7_35-good-of-59-total_Th,[7,3],spkTh,[-9]_EMUsort
+        # "20240221_165323789495",  # rec-1,2,4,5,6,7_22-good-of-41-total_Th,[2,1],spkTh,[-9]_EMUsort
+        # "20240221_165624793951",  # rec-1,2,4,5,6,7_15-good-of-32-total_Th,[7,3],spkTh,[-3]_EMUsort
+        # "20240221_165625595283",  # rec-1,2,4,5,6,7_22-good-of-47-total_Th,[5,2],spkTh,[-3,-6]_EMUsort
+        # "20240221_165630520884",  # rec-1,2,4,5,6,7_22-good-of-39-total_Th,[2,1],spkTh,[-3]_EMUsort
+        # "20240221_165631118099",  # rec-1,2,4,5,6,7_29-good-of-55-total_Th,[10,4],spkTh,[-9]_EMUsort
+        # "20240221_165655445611",  # rec-1,2,4,5,6,7_28-good-of-62-total_Th,[2,1],spkTh,[-6,-9]_EMUsort
+        # "20240221_165918163843",  # rec-1,2,4,5,6,7_25-good-of-60-total_Th,[5,2],spkTh,[-6]_EMUsort
+        # "20240221_170036244672",  # rec-1,2,4,5,6,7_18-good-of-37-total_Th,[7,3],spkTh,[-3,-6]_EMUsort $
+        # ## Kilosort 100 noise, with 20 sorts no duplicates
+        # "20240221_133106648415",  # rec-1,2,4,5,6,7_27-good-of-44-total_Th,[10,4],spkTh,-7.5_vanilla_KS
+        # "20240221_133118526648",  # rec-1,2,4,5,6,7_28-good-of-53-total_Th,[10,4],spkTh,-3_vanilla_KS $
+        # "20240221_133126855960",  # rec-1,2,4,5,6,7_24-good-of-47-total_Th,[7,3],spkTh,-9_vanilla_KS
+        # "20240221_133140954797",  # rec-1,2,4,5,6,7_20-good-of-45-total_Th,[5,2],spkTh,-9_vanilla_KS
+        # "20240221_133143129221",  # rec-1,2,4,5,6,7_23-good-of-43-total_Th,[7,3],spkTh,-4.5_vanilla_KS
+        # "20240221_133153354496",  # rec-1,2,4,5,6,7_22-good-of-44-total_Th,[5,2],spkTh,-6_vanilla_KS
+        # "20240221_133227043901",  # rec-1,2,4,5,6,7_29-good-of-47-total_Th,[2,1],spkTh,-7.5_vanilla_KS
+        # "20240221_133254567367",  # rec-1,2,4,5,6,7_14-good-of-29-total_Th,[2,1],spkTh,-4.5_vanilla_KS
+        # "20240221_133353695871",  # rec-1,2,4,5,6,7_19-good-of-34-total_Th,[10,4],spkTh,-9_vanilla_KS
+        # "20240221_133408445884",  # rec-1,2,4,5,6,7_28-good-of-44-total_Th,[10,4],spkTh,-4.5_vanilla_KS
+        # "20240221_133519836519",  # rec-1,2,4,5,6,7_23-good-of-53-total_Th,[7,3],spkTh,-6_vanilla_KS
+        # "20240221_133529995108",  # rec-1,2,4,5,6,7_33-good-of-69-total_Th,[5,2],spkTh,-7.5_vanilla_KS
+        # "20240221_133540841801",  # rec-1,2,4,5,6,7_32-good-of-61-total_Th,[5,2],spkTh,-3_vanilla_KS
+        # "20240221_133551915635",  # rec-1,2,4,5,6,7_19-good-of-28-total_Th,[2,1],spkTh,-9_vanilla_KS
+        # "20240221_133554800560",  # rec-1,2,4,5,6,7_17-good-of-30-total_Th,[2,1],spkTh,-3_vanilla_KS
+        # "20240221_133644738491",  # rec-1,2,4,5,6,7_23-good-of-46-total_Th,[10,4],spkTh,-6_vanilla_KS
+        # "20240221_133645961600",  # rec-1,2,4,5,6,7_18-good-of-37-total_Th,[2,1],spkTh,-6_vanilla_KS
+        # "20240221_133700081344",  # rec-1,2,4,5,6,7_26-good-of-58-total_Th,[7,3],spkTh,-3_vanilla_KS
+        # "20240221_133808858843",  # rec-1,2,4,5,6,7_32-good-of-65-total_Th,[7,3],spkTh,-7.5_vanilla_KS
+        # "20240221_133846416679",  # rec-1,2,4,5,6,7_33-good-of-67-total_Th,[5,2],spkTh,-4.5_vanilla_KS
+        # EMUsort 400 noise, with 20 sorts no duplicates
+        # "20240221_171027803868",  # rec-1,2,4,5,6,7_21-good-of-32-total_Th,[10,4],spkTh,[-3]_EMUsort
+        # "20240221_171136805684",  # rec-1,2,4,5,6,7_28-good-of-42-total_Th,[10,4],spkTh,[-3,-6]_EMUsort
+        # "20240221_171222698991",  # rec-1,2,4,5,6,7_25-good-of-37-total_Th,[7,3],spkTh,[-6]_EMUsort
+        # "20240221_171259584166",  # rec-1,2,4,5,6,7_14-good-of-25-total_Th,[7,3],spkTh,[-6,-9]_EMUsort
+        # "20240221_171450419366",  # rec-1,2,4,5,6,7_16-good-of-29-total_Th,[5,2],spkTh,[-6,-9]_EMUsort
+        # "20240221_171620122101",  # rec-1,2,4,5,6,7_22-good-of-37-total_Th,[10,4],spkTh,[-6]_EMUsort
+        # "20240221_171651647610",  # rec-1,2,4,5,6,7_17-good-of-33-total_Th,[5,2],spkTh,[-9]_EMUsort
+        # "20240221_171704540877",  # rec-1,2,4,5,6,7_17-good-of-32-total_Th,[10,4],spkTh,[-6,-9]_EMUsort
+        # "20240221_172017725527",  # rec-1,2,4,5,6,7_22-good-of-38-total_Th,[7,3],spkTh,[-9]_EMUsort
+        # "20240221_172101877604",  # rec-1,2,4,5,6,7_20-good-of-27-total_Th,[10,4],spkTh,[-9]_EMUsort
+        # "20240221_172339017124",  # rec-1,2,4,5,6,7_15-good-of-23-total_Th,[5,2],spkTh,[-3]_EMUsort
+        # "20240221_172421082703",  # rec-1,2,4,5,6,7_14-good-of-22-total_Th,[7,3],spkTh,[-3]_EMUsort
+        # "20240221_172759742267",  # rec-1,2,4,5,6,7_16-good-of-23-total_Th,[7,3],spkTh,[-3,-6]_EMUsort
+        # "20240221_172809998394",  # rec-1,2,4,5,6,7_15-good-of-30-total_Th,[5,2],spkTh,[-3,-6]_EMUsort
+        # "20240221_172944067983",  # rec-1,2,4,5,6,7_20-good-of-37-total_Th,[2,1],spkTh,[-3,-6]_EMUsort
+        # "20240221_173155880140",  # rec-1,2,4,5,6,7_17-good-of-25-total_Th,[5,2],spkTh,[-6]_EMUsort
+        # "20240221_173238936002",  # rec-1,2,4,5,6,7_18-good-of-39-total_Th,[2,1],spkTh,[-6]_EMUsort
+        # "20240221_173812058043",  # rec-1,2,4,5,6,7_11-good-of-19-total_Th,[2,1],spkTh,[-3]_EMUsort $
+        # "20240221_174620631295",  # rec-1,2,4,5,6,7_16-good-of-31-total_Th,[2,1],spkTh,[-9]_EMUsort
+        # "20240221_174659581116",  # rec-1,2,4,5,6,7_17-good-of-33-total_Th,[2,1],spkTh,[-6,-9]_EMUsort
+        # ## Kilosort 400 noise, with 20 sorts no duplicates
+        # "20240221_103958159298",  # rec-1,2,4,5,6,7_21-good-of-38-total_Th,[10,4],spkTh,-7.5_vanilla_KS
+        # "20240221_104007914622",  # rec-1,2,4,5,6,7_25-good-of-47-total_Th,[10,4],spkTh,-3_vanilla_KS $
+        # "20240221_104017456029",  # rec-1,2,4,5,6,7_22-good-of-33-total_Th,[7,3],spkTh,-9_vanilla_KS
+        # "20240221_104035971236",  # rec-1,2,4,5,6,7_13-good-of-33-total_Th,[5,2],spkTh,-9_vanilla_KS
+        # "20240221_104041899650",  # rec-1,2,4,5,6,7_27-good-of-48-total_Th,[7,3],spkTh,-4.5_vanilla_KS
+        # "20240221_104049587617",  # rec-1,2,4,5,6,7_22-good-of-44-total_Th,[5,2],spkTh,-6_vanilla_KS
+        # "20240221_104126252826",  # rec-1,2,4,5,6,7_23-good-of-50-total_Th,[2,1],spkTh,-7.5_vanilla_KS
+        # "20240221_104127451785",  # rec-1,2,4,5,6,7_22-good-of-33-total_Th,[2,1],spkTh,-4.5_vanilla_KS
+        # "20240221_104246971496",  # rec-1,2,4,5,6,7_15-good-of-35-total_Th,[10,4],spkTh,-9_vanilla_KS
+        # "20240221_104257899573",  # rec-1,2,4,5,6,7_26-good-of-48-total_Th,[10,4],spkTh,-4.5_vanilla_KS
+        # "20240221_104408745141",  # rec-1,2,4,5,6,7_31-good-of-52-total_Th,[5,2],spkTh,-7.5_vanilla_KS
+        # "20240221_104409350916",  # rec-1,2,4,5,6,7_17-good-of-45-total_Th,[7,3],spkTh,-6_vanilla_KS
+        # "20240221_104431623312",  # rec-1,2,4,5,6,7_35-good-of-66-total_Th,[5,2],spkTh,-3_vanilla_KS
+        # "20240221_104441875432",  # rec-1,2,4,5,6,7_14-good-of-25-total_Th,[2,1],spkTh,-3_vanilla_KS
+        # "20240221_104455027659",  # rec-1,2,4,5,6,7_17-good-of-30-total_Th,[2,1],spkTh,-9_vanilla_KS
+        # "20240221_104517281029",  # rec-1,2,4,5,6,7_18-good-of-37-total_Th,[2,1],spkTh,-6_vanilla_KS
+        # "20240221_104534228130",  # rec-1,2,4,5,6,7_23-good-of-46-total_Th,[10,4],spkTh,-6_vanilla_KS
+        # "20240221_104549369709",  # rec-1,2,4,5,6,7_28-good-of-58-total_Th,[7,3],spkTh,-3_vanilla_KS
+        # "20240221_104653189225",  # rec-1,2,4,5,6,7_32-good-of-56-total_Th,[7,3],spkTh,-7.5_vanilla_KS
+        # "20240221_104727901706",  # rec-1,2,4,5,6,7_29-good-of-55-total_Th,[5,2],spkTh,-4.5_vanilla_KS
+        ## EMUsort 700 noise, with 20 sorts no duplicates
+        # "20240221_182235280128",  # rec-1,2,4,5,6,7_12-good-of-21-total_Th,[10,4],spkTh,[-3]_EMUsort
+        # "20240221_182301041930",  # rec-1,2,4,5,6,7_15-good-of-22-total_Th,[7,3],spkTh,[-6]_EMUsort
+        # "20240221_182315124792",  # rec-1,2,4,5,6,7_15-good-of-21-total_Th,[7,3],spkTh,[-6,-9]_EMUsort
+        # "20240221_182351054068",  # rec-1,2,4,5,6,7_21-good-of-30-total_Th,[10,4],spkTh,[-3,-6]_EMUsort
+        # "20240221_182611169424",  # rec-1,2,4,5,6,7_16-good-of-21-total_Th,[10,4],spkTh,[-6]_EMUsort
+        # "20240221_182735082932",  # rec-1,2,4,5,6,7_15-good-of-26-total_Th,[10,4],spkTh,[-6,-9]_EMUsort
+        # "20240221_182746882583",  # rec-1,2,4,5,6,7_13-good-of-18-total_Th,[7,3],spkTh,[-9]_EMUsort
+        # "20240221_182930426009",  # rec-1,2,4,5,6,7_18-good-of-25-total_Th,[10,4],spkTh,[-9]_EMUsort
+        # "20240221_182930978830",  # rec-1,2,4,5,6,7_15-good-of-23-total_Th,[5,2],spkTh,[-6,-9]_EMUsort
+        # "20240221_183023601262",  # rec-1,2,4,5,6,7_11-good-of-21-total_Th,[5,2],spkTh,[-9]_EMUsort
+        # "20240221_183139584011",  # rec-1,2,4,5,6,7_11-good-of-18-total_Th,[2,1],spkTh,[-6]_EMUsort
+        # "20240221_183147976795",  # rec-1,2,4,5,6,7_18-good-of-24-total_Th,[2,1],spkTh,[-3,-6]_EMUsort
+        # "20240221_183343095915",  # rec-1,2,4,5,6,7_12-good-of-24-total_Th,[7,3],spkTh,[-3]_EMUsort
+        # "20240221_183451574702",  # rec-1,2,4,5,6,7_13-good-of-23-total_Th,[7,3],spkTh,[-3,-6]_EMUsort
+        # "20240221_183501976399",  # rec-1,2,4,5,6,7_11-good-of-24-total_Th,[5,2],spkTh,[-3]_EMUsort
+        # "20240221_184128661902",  # rec-1,2,4,5,6,7_9-good-of-13-total_Th,[2,1],spkTh,[-3]_EMUsort
+        # "20240221_184222639581",  # rec-1,2,4,5,6,7_12-good-of-22-total_Th,[5,2],spkTh,[-6]_EMUsort $
+        # "20240221_184259011511",  # rec-1,2,4,5,6,7_14-good-of-26-total_Th,[5,2],spkTh,[-3,-6]_EMUsort
+        # "20240221_184335330785",  # rec-1,2,4,5,6,7_11-good-of-18-total_Th,[2,1],spkTh,[-9]_EMUsort
+        # "20240221_185049475004",  # rec-1,2,4,5,6,7_9-good-of-13-total_Th,[2,1],spkTh,[-6,-9]_EMUsort
+        # # Kilosort 700 noise, with 20 sorts no duplicates, 4 with too few clusters
+        # "20240221_152943899395",  # rec-1,2,4,5,6,7_10-good-of-14-total_Th,[10,4],spkTh,-7.5_vanilla_KS
+        # "20240221_152946957426",  # rec-1,2,4,5,6,7_10-good-of-17-total_Th,[10,4],spkTh,-3_vanilla_KS
+        # "20240221_153002412013",  # rec-1,2,4,5,6,7_9-good-of-15-total_Th,[7,3],spkTh,-9_vanilla_KS
+        # "20240221_153004071743",  # rec-1,2,4,5,6,7_11-good-of-14-total_Th,[7,3],spkTh,-4.5_vanilla_KS
+        # # "NotEnough20240221_153022664090",  # rec-1,2,4,5,6,7_4-good-of-8-total_Th,[5,2],spkTh,-6_vanilla_KS
+        # "20240221_153037106638",  # rec-1,2,4,5,6,7_9-good-of-15-total_Th,[5,2],spkTh,-9_vanilla_KS
+        # # "20240221_153116024668",  # rec-1,2,4,5,6,7_8-good-of-10-total_Th,[10,4],spkTh,-9_vanilla_KS
+        # # "NotEnough20240221_153116696619",  # rec-1,2,4,5,6,7_3-good-of-5-total_Th,[10,4],spkTh,-4.5_vanilla_KS
+        # # "20240221_153142988388",  # rec-1,2,4,5,6,7_7-good-of-10-total_Th,[2,1],spkTh,-7.5_vanilla_KS
+        # # "20240221_153154984574",  # rec-1,2,4,5,6,7_6-good-of-10-total_Th,[2,1],spkTh,-4.5_vanilla_KS
+        # "20240221_153213996113",  # rec-1,2,4,5,6,7_9-good-of-16-total_Th,[7,3],spkTh,-6_vanilla_KS
+        # "20240221_153234926603",  # rec-1,2,4,5,6,7_6-good-of-11-total_Th,[5,2],spkTh,-3_vanilla_KS
+        # # "NotEnough20240221_153235047729",  # rec-1,2,4,5,6,7_4-good-of-7-total_Th,[5,2],spkTh,-7.5_vanilla_KS
+        # "20240221_153257482975",  # rec-1,2,4,5,6,7_14-good-of-19-total_Th,[10,4],spkTh,-6_vanilla_KS
+        # "20240221_153319191572",  # rec-1,2,4,5,6,7_11-good-of-18-total_Th,[7,3],spkTh,-3_vanilla_KS
+        # "20240221_153354547073",  # rec-1,2,4,5,6,7_7-good-of-14-total_Th,[7,3],spkTh,-7.5_vanilla_KS $
+        # "20240221_153419149885",  # rec-1,2,4,5,6,7_7-good-of-11-total_Th,[2,1],spkTh,-3_vanilla_KS
+        # # "20240221_153441540746",  # rec-1,2,4,5,6,7_4-good-of-10-total_Th,[5,2],spkTh,-4.5_vanilla_KS
+        # # "NotEnough20240221_153451938100",  # rec-1,2,4,5,6,7_3-good-of-8-total_Th,[2,1],spkTh,-9_vanilla_KS
+        # "20240221_153509208179",  # rec-1,2,4,5,6,7_7-good-of-13-total_Th,[2,1],spkTh,-6_vanilla_KS
+        ## EMUsort 1000 noise, with 18 sorts no duplicates, 4 with too few clusters
+        # "20240221_190427415412",  # rec-1,2,4,5,6,7_8-good-of-12-total_Th,[7,3],spkTh,[-6]_EMUsort
+        # "20240221_190524361270",  # rec-1,2,4,5,6,7_12-good-of-21-total_Th,[7,3],spkTh,[-6,-9]_EMUsort
+        # "20240221_190535330732",  # rec-1,2,4,5,6,7_6-good-of-12-total_Th,[10,4],spkTh,[-3]_EMUsort
+        # "20240221_190542336633",  # rec-1,2,4,5,6,7_9-good-of-11-total_Th,[10,4],spkTh,[-3,-6]_EMUsort
+        # "20240221_190550354473",  # rec-1,2,4,5,6,7_8-good-of-12-total_Th,[7,3],spkTh,[-9]_EMUsort
+        # "20240221_190806135165",  # rec-1,2,4,5,6,7_14-good-of-19-total_Th,[10,4],spkTh,[-6]_EMUsort
+        # "20240221_190813959298",  # rec-1,2,4,5,6,7_8-good-of-13-total_Th,[10,4],spkTh,[-6,-9]_EMUsort
+        # "20240221_190925173107",  # rec-1,2,4,5,6,7_6-good-of-11-total_Th,[5,2],spkTh,[-6,-9]_EMUsort
+        # "20240221_190930030474",  # rec-1,2,4,5,6,7_14-good-of-19-total_Th,[10,4],spkTh,[-9]_EMUsort
+        # # "NotEnough20240221_191056134089",  # rec-1,2,4,5,6,7_3-good-of-9-total_Th,[7,3],spkTh,[-3,-6]_EMUsort
+        # "20240221_191138302300",  # rec-1,2,4,5,6,7_7-good-of-12-total_Th,[2,1],spkTh,[-6]_EMUsort
+        # "20240221_191250203804",  # rec-1,2,4,5,6,7_3-good-of-10-total_Th,[5,2],spkTh,[-3]_EMUsort
+        # "20240221_191254400937",  # rec-1,2,4,5,6,7_7-good-of-12-total_Th,[2,1],spkTh,[-9]_EMUsort
+        # "20240221_191350956547",  # rec-1,2,4,5,6,7_5-good-of-17-total_Th,[7,3],spkTh,[-3]_EMUsort
+        # # "NotEnough20240221_191722925280",  # rec-1,2,4,5,6,7_1-good-of-6-total_Th,[2,1],spkTh,[-3,-6]_EMUsort
+        # "20240221_191826500790",  # rec-1,2,4,5,6,7_9-good-of-15-total_Th,[5,2],spkTh,[-6]_EMUsort
+        # # "NotEnough20240221_191829037276",  # rec-1,2,4,5,6,7_0-good-of-6-total_Th,[2,1],spkTh,[-3]_EMUsort
+        # # "NotEnough20240221_193034478126",  # rec-1,2,4,5,6,7_4-good-of-8-total_Th,[2,1],spkTh,[-6,-9]_EMUsort
+        # Kilosort 1000 noise, with ONLY 12 sorts no duplicates, 12 with too few clusters
+        # "20240221_121733467853",  # rec-1,2,4,5,6,7_6-good-of-9-total_Th,[10,4],spkTh,-3_vanilla_KS
+        # "20240221_121745273893",  # rec-1,2,4,5,6,7_2-good-of-9-total_Th,[7,3],spkTh,-4.5_vanilla_KS
+        # "20240221_121801927101",  # rec-1,2,4,5,6,7_0-good-of-5-total_Th,[5,2],spkTh,-6_vanilla_KS
+        # "20240221_121842577778",  # rec-1,2,4,5,6,7_0-good-of-2-total_Th,[10,4],spkTh,-4.5_vanilla_KS
+        # "20240221_121843270820",  # rec-1,2,4,5,6,7_0-good-of-2-total_Th,[2,1],spkTh,-7.5_vanilla_KS
+        # "20240221_121908243345",  # rec-1,2,4,5,6,7_2-good-of-6-total_Th,[2,1],spkTh,-4.5_vanilla_KS
+        # "20240221_121913497684",  # rec-1,2,4,5,6,7_2-good-of-8-total_Th,[7,3],spkTh,-6_vanilla_KS
+        # "20240221_121938746887",  # rec-1,2,4,5,6,7_0-good-of-2-total_Th,[2,1],spkTh,-9_vanilla_KS
+        # "20240221_121940413280",  # rec-1,2,4,5,6,7_0-good-of-3-total_Th,[5,2],spkTh,-7.5_vanilla_KS
+        # "20240221_121956906602",  # rec-1,2,4,5,6,7_2-good-of-4-total_Th,[10,4],spkTh,-6_vanilla_KS
+        # "20240221_122029787712",  # rec-1,2,4,5,6,7_0-good-of-4-total_Th,[7,3],spkTh,-7.5_vanilla_KS
+        # "20240221_122149446511",  # rec-1,2,4,5,6,7_1-good-of-5-total_Th,[2,1],spkTh,-6_vanilla_KS
+        ## >= 20240301, wave shape noise level comparison
+        # EMUsort 0 STD noise, with 20 sorts no duplicates
+        # "20240301_122312863983",  # rec-1,2,4,5,6,7_11-good-of-31-total_Th,[10,4],spkTh,[-3]_EMUsort
+        # "20240301_122538594125",  # rec-1,2,4,5,6,7_19-good-of-37-total_Th,[10,4],spkTh,[-3,-6]_EMUsort
+        # "20240301_122929618233",  # rec-1,2,4,5,6,7_12-good-of-28-total_Th,[7,3],spkTh,[-6]_EMUsort
+        # "20240301_122953329965",  # rec-1,2,4,5,6,7_27-good-of-55-total_Th,[5,2],spkTh,[-9]_EMUsort
+        # "20240301_123011211951",  # rec-1,2,4,5,6,7_19-good-of-35-total_Th,[2,1],spkTh,[-6]_EMUsort
+        # "20240301_123019528097",  # rec-1,2,4,5,6,7_18-good-of-31-total_Th,[5,2],spkTh,[-6,-9]_EMUsort
+        # "20240301_123020997903",  # rec-1,2,4,5,6,7_15-good-of-30-total_Th,[10,4],spkTh,[-6]_EMUsort
+        # "20240301_123203322699",  # rec-1,2,4,5,6,7_18-good-of-32-total_Th,[7,3],spkTh,[-6,-9]_EMUsort
+        # "20240301_123357378317",  # rec-1,2,4,5,6,7_19-good-of-52-total_Th,[2,1],spkTh,[-3,-6]_EMUsort
+        # "20240301_123428322868",  # rec-1,2,4,5,6,7_19-good-of-35-total_Th,[10,4],spkTh,[-6,-9]_EMUsort
+        # "20240301_123718010597",  # rec-1,2,4,5,6,7_18-good-of-27-total_Th,[10,4],spkTh,[-9]_EMUsort
+        # "20240301_124019204267",  # rec-1,2,4,5,6,7_18-good-of-26-total_Th,[7,3],spkTh,[-9]_EMUsort
+        # "20240301_124242793433",  # rec-1,2,4,5,6,7_25-good-of-48-total_Th,[5,2],spkTh,[-3,-6]_EMUsort
+        # "20240301_124308061052",  # rec-1,2,4,5,6,7_33-good-of-72-total_Th,[2,1],spkTh,[-3]_EMUsort
+        # "20240301_124329251534",  # rec-1,2,4,5,6,7_17-good-of-32-total_Th,[2,1],spkTh,[-9]_EMUsort
+        # "20240301_124439916219",  # rec-1,2,4,5,6,7_23-good-of-43-total_Th,[7,3],spkTh,[-3]_EMUsort
+        # "20240301_124440626058",  # rec-1,2,4,5,6,7_17-good-of-37-total_Th,[5,2],spkTh,[-3]_EMUsort
+        # "20240301_124533603518",  # rec-1,2,4,5,6,7_15-good-of-29-total_Th,[2,1],spkTh,[-6,-9]_EMUsort
+        # "20240301_124942622096",  # rec-1,2,4,5,6,7_23-good-of-41-total_Th,[7,3],spkTh,[-3,-6]_EMUsort
+        # "20240301_125210434668",  # rec-1,2,4,5,6,7_15-good-of-31-total_Th,[5,2],spkTh,[-6]_EMUsort
+        # Kilosort 0 STD noise, with 20 sorts no duplicates
+        # "20240301_113842282964",  # rec-1,2,4,5,6,7_22-good-of-34-total_Th,[10,4],spkTh,-7.5_vanilla_KS
+        # "20240301_113842843042",  # rec-1,2,4,5,6,7_22-good-of-51-total_Th,[10,4],spkTh,-3_vanilla_KS
+        # "20240301_113857970992",  # rec-1,2,4,5,6,7_31-good-of-57-total_Th,[5,2],spkTh,-6_vanilla_KS
+        # "20240301_113918890043",  # rec-1,2,4,5,6,7_30-good-of-67-total_Th,[7,3],spkTh,-9_vanilla_KS
+        # "20240301_113925436716",  # rec-1,2,4,5,6,7_37-good-of-69-total_Th,[7,3],spkTh,-4.5_vanilla_KS
+        # "20240301_113933011726",  # rec-1,2,4,5,6,7_27-good-of-50-total_Th,[2,1],spkTh,-7.5_vanilla_KS
+        # "20240301_113935059031",  # rec-1,2,4,5,6,7_39-good-of-66-total_Th,[2,1],spkTh,-4.5_vanilla_KS
+        # "20240301_114023655931",  # rec-1,2,4,5,6,7_36-good-of-75-total_Th,[5,2],spkTh,-9_vanilla_KS
+        # "20240301_114135306664",  # rec-1,2,4,5,6,7_41-good-of-70-total_Th,[10,4],spkTh,-4.5_vanilla_KS
+        # "20240301_114141502302",  # rec-1,2,4,5,6,7_28-good-of-48-total_Th,[10,4],spkTh,-9_vanilla_KS
+        # "20240301_114213728435",  # rec-1,2,4,5,6,7_20-good-of-30-total_Th,[7,3],spkTh,-6_vanilla_KS
+        # "20240301_114229999314",  # rec-1,2,4,5,6,7_20-good-of-44-total_Th,[5,2],spkTh,-3_vanilla_KS
+        # "20240301_114246903335",  # rec-1,2,4,5,6,7_33-good-of-56-total_Th,[2,1],spkTh,-6_vanilla_KS
+        # "20240301_114256225572",  # rec-1,2,4,5,6,7_23-good-of-48-total_Th,[5,2],spkTh,-7.5_vanilla_KS
+        # "20240301_114315026328",  # rec-1,2,4,5,6,7_28-good-of-47-total_Th,[2,1],spkTh,-3_vanilla_KS
+        # "20240301_114353330536",  # rec-1,2,4,5,6,7_30-good-of-47-total_Th,[2,1],spkTh,-9_vanilla_KS
+        # "20240301_114411210265",  # rec-1,2,4,5,6,7_30-good-of-54-total_Th,[10,4],spkTh,-6_vanilla_KS
+        # "20240301_114416319030",  # rec-1,2,4,5,6,7_27-good-of-57-total_Th,[7,3],spkTh,-3_vanilla_KS
+        # "20240301_114452842873",  # rec-1,2,4,5,6,7_39-good-of-81-total_Th,[7,3],spkTh,-7.5_vanilla_KS
+        # "20240301_114514444712",  # rec-1,2,4,5,6,7_39-good-of-78-total_Th,[5,2],spkTh,-4.5_vanilla_KS
+        # EMUsort 4 STD noise, with 20 sorts no duplicates
+        # "20240301_132434991522",  # rec-1,2,4,5,6,7_17-good-of-31-total_Th,[10,4],spkTh,[-3]_EMUsort
+        # "20240301_132705310036",  # rec-1,2,4,5,6,7_20-good-of-33-total_Th,[10,4],spkTh,[-3,-6]_EMUsort
+        # "20240301_132744061285",  # rec-1,2,4,5,6,7_15-good-of-30-total_Th,[7,3],spkTh,[-6]_EMUsort
+        # "20240301_132830121945",  # rec-1,2,4,5,6,7_14-good-of-29-total_Th,[5,2],spkTh,[-9]_EMUsort
+        # "20240301_132921725780",  # rec-1,2,4,5,6,7_8-good-of-17-total_Th,[2,1],spkTh,[-3,-6]_EMUsort
+        # "20240301_132930335594",  # rec-1,2,4,5,6,7_11-good-of-19-total_Th,[5,2],spkTh,[-6,-9]_EMUsort
+        # "20240301_133054912884",  # rec-1,2,4,5,6,7_12-good-of-21-total_Th,[7,3],spkTh,[-6,-9]_EMUsort
+        # "20240301_133110233706",  # rec-1,2,4,5,6,7_22-good-of-52-total_Th,[2,1],spkTh,[-6]_EMUsort $$$
+        # "20240301_133132179288",  # rec-1,2,4,5,6,7_23-good-of-35-total_Th,[10,4],spkTh,[-6]_EMUsort
+        # "20240301_133630583455",  # rec-1,2,4,5,6,7_13-good-of-27-total_Th,[10,4],spkTh,[-6,-9]_EMUsort
+        # "20240301_133756748613",  # rec-1,2,4,5,6,7_14-good-of-24-total_Th,[7,3],spkTh,[-9]_EMUsort
+        # "20240301_133818723699",  # rec-1,2,4,5,6,7_14-good-of-30-total_Th,[10,4],spkTh,[-9]_EMUsort
+        # "20240301_134038235279",  # rec-1,2,4,5,6,7_15-good-of-23-total_Th,[2,1],spkTh,[-6,-9]_EMUsort
+        # "20240301_134107303908",  # rec-1,2,4,5,6,7_15-good-of-25-total_Th,[2,1],spkTh,[-3]_EMUsort
+        # "20240301_134109442962",  # rec-1,2,4,5,6,7_14-good-of-31-total_Th,[5,2],spkTh,[-3,-6]_EMUsort
+        # "20240301_134130019011",  # rec-1,2,4,5,6,7_12-good-of-21-total_Th,[5,2],spkTh,[-3]_EMUsort
+        # "20240301_134253515838",  # rec-1,2,4,5,6,7_18-good-of-39-total_Th,[2,1],spkTh,[-9]_EMUsort
+        # "20240301_134418703906",  # rec-1,2,4,5,6,7_12-good-of-22-total_Th,[7,3],spkTh,[-3]_EMUsort
+        # "20240301_134606685159",  # rec-1,2,4,5,6,7_19-good-of-39-total_Th,[7,3],spkTh,[-3,-6]_EMUsort
+        # "20240301_134923569673",  # rec-1,2,4,5,6,7_18-good-of-45-total_Th,[5,2],spkTh,[-6]_EMUsort
+        # # Kilosort 4 STD noise, with 20 sorts no duplicates
+        # "20240301_115337058337",  # rec-1,2,4,5,6,7_25-good-of-49-total_Th,[10,4],spkTh,-7.5_vanilla_KS
+        # "20240301_115351211877",  # rec-1,2,4,5,6,7_27-good-of-44-total_Th,[2,1],spkTh,-7.5_vanilla_KS
+        # "20240301_115351271071",  # rec-1,2,4,5,6,7_24-good-of-46-total_Th,[7,3],spkTh,-4.5_vanilla_KS
+        # "20240301_115359551091",  # rec-1,2,4,5,6,7_30-good-of-46-total_Th,[7,3],spkTh,-9_vanilla_KS
+        # "20240301_115402220013",  # rec-1,2,4,5,6,7_37-good-of-68-total_Th,[10,4],spkTh,-3_vanilla_KS
+        # "20240301_115405777742",  # rec-1,2,4,5,6,7_16-good-of-31-total_Th,[5,2],spkTh,-6_vanilla_KS
+        # "20240301_115508833978",  # rec-1,2,4,5,6,7_37-good-of-84-total_Th,[5,2],spkTh,-9_vanilla_KS
+        # "20240301_115516319850",  # rec-1,2,4,5,6,7_28-good-of-60-total_Th,[2,1],spkTh,-4.5_vanilla_KS
+        # "20240301_115617904756",  # rec-1,2,4,5,6,7_25-good-of-49-total_Th,[10,4],spkTh,-9_vanilla_KS
+        # "20240301_115629846826",  # rec-1,2,4,5,6,7_15-good-of-24-total_Th,[7,3],spkTh,-6_vanilla_KS
+        # "20240301_115653576343",  # rec-1,2,4,5,6,7_22-good-of-42-total_Th,[10,4],spkTh,-4.5_vanilla_KS
+        # "20240301_115700367145",  # rec-1,2,4,5,6,7_21-good-of-27-total_Th,[2,1],spkTh,-9_vanilla_KS
+        # "20240301_115713962466",  # rec-1,2,4,5,6,7_26-good-of-53-total_Th,[5,2],spkTh,-7.5_vanilla_KS
+        # "20240301_115747240342",  # rec-1,2,4,5,6,7_28-good-of-38-total_Th,[2,1],spkTh,-6_vanilla_KS $$$
+        # "20240301_115814659680",  # rec-1,2,4,5,6,7_40-good-of-82-total_Th,[5,2],spkTh,-3_vanilla_KS
+        # "20240301_115831978837",  # rec-1,2,4,5,6,7_17-good-of-33-total_Th,[7,3],spkTh,-3_vanilla_KS
+        # "20240301_115834981387",  # rec-1,2,4,5,6,7_31-good-of-56-total_Th,[2,1],spkTh,-3_vanilla_KS
+        # "20240301_115846151964",  # rec-1,2,4,5,6,7_26-good-of-46-total_Th,[7,3],spkTh,-7.5_vanilla_KS
+        # "20240301_115856230111",  # rec-1,2,4,5,6,7_20-good-of-34-total_Th,[10,4],spkTh,-6_vanilla_KS
+        # "20240301_120015026330",  # rec-1,2,4,5,6,7_26-good-of-41-total_Th,[5,2],spkTh,-4.5_vanilla_KS
+        # # EMUsort 8 STD noise, with 20 sorts no duplicates
+        # "20240301_141319996376",  # rec-1,2,4,5,6,7_16-good-of-28-total_Th,[10,4],spkTh,[-3]_EMUsort
+        # "20240301_141400483806",  # rec-1,2,4,5,6,7_11-good-of-22-total_Th,[10,4],spkTh,[-3,-6]_EMUsort
+        # "20240301_141452929209",  # rec-1,2,4,5,6,7_12-good-of-24-total_Th,[2,1],spkTh,[-6]_EMUsort $$$
+        # "20240301_141546426474",  # rec-1,2,4,5,6,7_10-good-of-22-total_Th,[7,3],spkTh,[-6,-9]_EMUsort
+        # "20240301_141703230392",  # rec-1,2,4,5,6,7_18-good-of-28-total_Th,[5,2],spkTh,[-9]_EMUsort
+        # "20240301_141739817508",  # rec-1,2,4,5,6,7_21-good-of-32-total_Th,[7,3],spkTh,[-6]_EMUsort
+        # "20240301_141745897621",  # rec-1,2,4,5,6,7_16-good-of-34-total_Th,[2,1],spkTh,[-3,-6]_EMUsort
+        # "20240301_141758038505",  # rec-1,2,4,5,6,7_17-good-of-28-total_Th,[5,2],spkTh,[-6,-9]_EMUsort
+        # "20240301_142144149370",  # rec-1,2,4,5,6,7_18-good-of-36-total_Th,[10,4],spkTh,[-6,-9]_EMUsort
+        # "20240301_142203248993",  # rec-1,2,4,5,6,7_21-good-of-35-total_Th,[10,4],spkTh,[-6]_EMUsort
+        # "20240301_142357295835",  # rec-1,2,4,5,6,7_13-good-of-22-total_Th,[2,1],spkTh,[-9]_EMUsort
+        # "20240301_142555300616",  # rec-1,2,4,5,6,7_17-good-of-26-total_Th,[5,2],spkTh,[-3]_EMUsort
+        # "20240301_142622444864",  # rec-1,2,4,5,6,7_10-good-of-20-total_Th,[7,3],spkTh,[-9]_EMUsort
+        # "20240301_142740496091",  # rec-1,2,4,5,6,7_15-good-of-24-total_Th,[5,2],spkTh,[-3,-6]_EMUsort
+        # "20240301_142750318231",  # rec-1,2,4,5,6,7_15-good-of-25-total_Th,[2,1],spkTh,[-3]_EMUsort
+        # "20240301_142758435169",  # rec-1,2,4,5,6,7_15-good-of-29-total_Th,[10,4],spkTh,[-9]_EMUsort
+        # "20240301_142810752158",  # rec-1,2,4,5,6,7_17-good-of-26-total_Th,[2,1],spkTh,[-6,-9]_EMUsort
+        # "20240301_143046339605",  # rec-1,2,4,5,6,7_12-good-of-20-total_Th,[7,3],spkTh,[-3]_EMUsort
+        # "20240301_143342883293",  # rec-1,2,4,5,6,7_17-good-of-32-total_Th,[7,3],spkTh,[-3,-6]_EMUsort
+        # "20240301_143347022692",  # rec-1,2,4,5,6,7_20-good-of-34-total_Th,[5,2],spkTh,[-6]_EMUsort
+        # # Kilosort 8 STD noise, with 20 sorts no duplicates
+        # "20240301_120712311011",  # rec-1,2,4,5,6,7_14-good-of-28-total_Th,[10,4],spkTh,-3_vanilla_KS
+        # "20240301_120719121278",  # rec-1,2,4,5,6,7_19-good-of-31-total_Th,[10,4],spkTh,-7.5_vanilla_KS
+        # "20240301_120739497754",  # rec-1,2,4,5,6,7_25-good-of-44-total_Th,[7,3],spkTh,-4.5_vanilla_KS
+        # "20240301_120740044454",  # rec-1,2,4,5,6,7_27-good-of-42-total_Th,[7,3],spkTh,-9_vanilla_KS
+        # "20240301_120741522617",  # rec-1,2,4,5,6,7_20-good-of-38-total_Th,[2,1],spkTh,-7.5_vanilla_KS
+        # "20240301_120742255011",  # rec-1,2,4,5,6,7_24-good-of-40-total_Th,[5,2],spkTh,-9_vanilla_KS $$$
+        # "20240301_120801940277",  # rec-1,2,4,5,6,7_28-good-of-44-total_Th,[5,2],spkTh,-6_vanilla_KS
+        # "20240301_120822929452",  # rec-1,2,4,5,6,7_25-good-of-40-total_Th,[2,1],spkTh,-4.5_vanilla_KS
+        # "20240301_120927758674",  # rec-1,2,4,5,6,7_20-good-of-30-total_Th,[10,4],spkTh,-4.5_vanilla_KS
+        # "20240301_120958769658",  # rec-1,2,4,5,6,7_23-good-of-40-total_Th,[10,4],spkTh,-9_vanilla_KS
+        # "20240301_121036967635",  # rec-1,2,4,5,6,7_18-good-of-31-total_Th,[2,1],spkTh,-9_vanilla_KS
+        # "20240301_121043260029",  # rec-1,2,4,5,6,7_25-good-of-43-total_Th,[5,2],spkTh,-3_vanilla_KS
+        # "20240301_121043822784",  # rec-1,2,4,5,6,7_17-good-of-37-total_Th,[7,3],spkTh,-6_vanilla_KS
+        # "20240301_121056507565",  # rec-1,2,4,5,6,7_19-good-of-40-total_Th,[5,2],spkTh,-7.5_vanilla_KS
+        # "20240301_121103898879",  # rec-1,2,4,5,6,7_32-good-of-54-total_Th,[2,1],spkTh,-3_vanilla_KS
+        # "20240301_121130778317",  # rec-1,2,4,5,6,7_18-good-of-32-total_Th,[10,4],spkTh,-6_vanilla_KS
+        # "20240301_121140397332",  # rec-1,2,4,5,6,7_35-good-of-65-total_Th,[2,1],spkTh,-6_vanilla_KS
+        # "20240301_121214614314",  # rec-1,2,4,5,6,7_36-good-of-53-total_Th,[7,3],spkTh,-3_vanilla_KS
+        # "20240301_121246595172",  # rec-1,2,4,5,6,7_25-good-of-45-total_Th,[7,3],spkTh,-7.5_vanilla_KS
+        # "20240301_121303961042",  # rec-1,2,4,5,6,7_34-good-of-56-total_Th,[5,2],spkTh,-4.5_vanilla_KS
+        # # EMUsort 16 STD noise, with 20 sorts no duplicates
+        # "20240302_112702002964",  # rec-1,2,4,5,6,7_13-good-of-16-total_Th,[10,4],spkTh,[-3]_EMUsort
+        # "20240302_112803188533",  # rec-1,2,4,5,6,7_11-good-of-21-total_Th,[10,4],spkTh,[-3,-6]_EMUsort
+        # "20240302_113052102055",  # rec-1,2,4,5,6,7_20-good-of-30-total_Th,[7,3],spkTh,[-6,-9]_EMUsort
+        # "20240302_113100156017",  # rec-1,2,4,5,6,7_22-good-of-46-total_Th,[5,2],spkTh,[-9]_EMUsort
+        # "20240302_113108763570",  # rec-1,2,4,5,6,7_20-good-of-32-total_Th,[2,1],spkTh,[-3,-6]_EMUsort
+        # "20240302_113115083892",  # rec-1,2,4,5,6,7_20-good-of-31-total_Th,[7,3],spkTh,[-6]_EMUsort
+        # "20240302_113235066750",  # rec-1,2,4,5,6,7_20-good-of-39-total_Th,[2,1],spkTh,[-6]_EMUsort
+        # "20240302_113239839208",  # rec-1,2,4,5,6,7_19-good-of-35-total_Th,[5,2],spkTh,[-6,-9]_EMUsort
+        # "20240302_113340469772",  # rec-1,2,4,5,6,7_16-good-of-23-total_Th,[10,4],spkTh,[-6]_EMUsort
+        # "20240302_113531500337",  # rec-1,2,4,5,6,7_14-good-of-25-total_Th,[10,4],spkTh,[-6,-9]_EMUsort
+        # "20240302_113920671723",  # rec-1,2,4,5,6,7_17-good-of-30-total_Th,[10,4],spkTh,[-9]_EMUsort
+        # "20240302_113930237690",  # rec-1,2,4,5,6,7_14-good-of-30-total_Th,[5,2],spkTh,[-3]_EMUsort
+        # "20240302_113956559443",  # rec-1,2,4,5,6,7_20-good-of-36-total_Th,[7,3],spkTh,[-9]_EMUsort
+        # "20240302_114000257286",  # rec-1,2,4,5,6,7_17-good-of-27-total_Th,[5,2],spkTh,[-3,-6]_EMUsort
+        # "20240302_114114545473",  # rec-1,2,4,5,6,7_16-good-of-27-total_Th,[2,1],spkTh,[-3]_EMUsort
+        # "20240302_114147865626",  # rec-1,2,4,5,6,7_20-good-of-37-total_Th,[2,1],spkTh,[-6,-9]_EMUsort
+        # "20240302_114215528817",  # rec-1,2,4,5,6,7_21-good-of-36-total_Th,[7,3],spkTh,[-3]_EMUsort $$$
+        # "20240302_114240957772",  # rec-1,2,4,5,6,7_19-good-of-34-total_Th,[2,1],spkTh,[-9]_EMUsort
+        # "20240302_114436468337",  # rec-1,2,4,5,6,7_15-good-of-26-total_Th,[5,2],spkTh,[-6]_EMUsort
+        # "20240302_114510985387",  # rec-1,2,4,5,6,7_18-good-of-34-total_Th,[7,3],spkTh,[-3,-6]_EMUsort
+        # # Kilosort 16 STD noise, with 20 sorts no duplicates
+        # "20240302_110113407629",  # rec-1,2,4,5,6,7_12-good-of-19-total_Th,[10,4],spkTh,-7.5_vanilla_KS
+        # "20240302_110134852106",  # rec-1,2,4,5,6,7_18-good-of-33-total_Th,[10,4],spkTh,-3_vanilla_KS
+        # "20240302_110157204706",  # rec-1,2,4,5,6,7_22-good-of-36-total_Th,[7,3],spkTh,-9_vanilla_KS
+        # "20240302_110157818862",  # rec-1,2,4,5,6,7_24-good-of-39-total_Th,[7,3],spkTh,-4.5_vanilla_KS
+        # "20240302_110201325581",  # rec-1,2,4,5,6,7_23-good-of-34-total_Th,[5,2],spkTh,-9_vanilla_KS
+        # "20240302_110201471445",  # rec-1,2,4,5,6,7_20-good-of-25-total_Th,[2,1],spkTh,-4.5_vanilla_KS
+        # "20240302_110223918284",  # rec-1,2,4,5,6,7_22-good-of-38-total_Th,[5,2],spkTh,-6_vanilla_KS
+        # "20240302_110232775545",  # rec-1,2,4,5,6,7_19-good-of-40-total_Th,[2,1],spkTh,-7.5_vanilla_KS
+        # "20240302_110324070063",  # rec-1,2,4,5,6,7_16-good-of-25-total_Th,[10,4],spkTh,-9_vanilla_KS
+        # "20240302_110356512941",  # rec-1,2,4,5,6,7_19-good-of-28-total_Th,[10,4],spkTh,-4.5_vanilla_KS
+        # "20240302_110446463905",  # rec-1,2,4,5,6,7_22-good-of-34-total_Th,[7,3],spkTh,-6_vanilla_KS
+        # "20240302_110454493915",  # rec-1,2,4,5,6,7_16-good-of-26-total_Th,[2,1],spkTh,-3_vanilla_KS
+        # "20240302_110454795089",  # rec-1,2,4,5,6,7_17-good-of-27-total_Th,[5,2],spkTh,-3_vanilla_KS
+        # "20240302_110506073784",  # rec-1,2,4,5,6,7_22-good-of-35-total_Th,[5,2],spkTh,-7.5_vanilla_KS
+        # "20240302_110523397034",  # rec-1,2,4,5,6,7_18-good-of-25-total_Th,[2,1],spkTh,-6_vanilla_KS
+        # "20240302_110526749376",  # rec-1,2,4,5,6,7_22-good-of-37-total_Th,[2,1],spkTh,-9_vanilla_KS
+        # "20240302_110535665413",  # rec-1,2,4,5,6,7_24-good-of-33-total_Th,[7,3],spkTh,-3_vanilla_KS
+        # "20240302_110559659069",  # rec-1,2,4,5,6,7_22-good-of-34-total_Th,[10,4],spkTh,-6_vanilla_KS $$$
+        # "20240302_110642581922",  # rec-1,2,4,5,6,7_17-good-of-26-total_Th,[5,2],spkTh,-4.5_vanilla_KS
+        # "20240302_110643165194",  # rec-1,2,4,5,6,7_24-good-of-41-total_Th,[7,3],spkTh,-7.5_vanilla_KS
+        # # EMUsort 32 STD noise, with 20 sorts no duplicates
+        # ## "TooFew_20240302_122050506516",  # rec-1,2,4,5,6,7_2-good-of-7-total_Th,[10,4],spkTh,[-3,-6]_EMUsort
+        # "20240302_122105112048",  # rec-1,2,4,5,6,7_7-good-of-13-total_Th,[10,4],spkTh,[-3]_EMUsort
+        # ## "TooFew_20240302_122124709200",  # rec-1,2,4,5,6,7_4-good-of-7-total_Th,[5,2],spkTh,[-9]_EMUsort
+        # "20240302_122228405573",  # rec-1,2,4,5,6,7_9-good-of-17-total_Th,[7,3],spkTh,[-6]_EMUsort
+        # ## "TooFew_20240302_122228522631",  # rec-1,2,4,5,6,7_4-good-of-9-total_Th,[7,3],spkTh,[-6,-9]_EMUsort
+        # "20240302_122307404512",  # rec-1,2,4,5,6,7_6-good-of-16-total_Th,[5,2],spkTh,[-6,-9]_EMUsort
+        # "20240302_122316621141",  # rec-1,2,4,5,6,7_7-good-of-15-total_Th,[2,1],spkTh,[-6]_EMUsort
+        # "20240302_122414910693",  # rec-1,2,4,5,6,7_6-good-of-17-total_Th,[2,1],spkTh,[-3,-6]_EMUsort
+        # "20240302_122624894941",  # rec-1,2,4,5,6,7_5-good-of-14-total_Th,[10,4],spkTh,[-6,-9]_EMUsort
+        # ## "TooFew_20240302_122634992494",  # rec-1,2,4,5,6,7_4-good-of-9-total_Th,[5,2],spkTh,[-3]_EMUsort
+        # ## "TooFew_20240302_122646828158",  # rec-1,2,4,5,6,7_2-good-of-6-total_Th,[2,1],spkTh,[-3]_EMUsort
+        # "20240302_122658762478",  # rec-1,2,4,5,6,7_3-good-of-12-total_Th,[5,2],spkTh,[-3,-6]_EMUsort
+        # "20240302_122705882104",  # rec-1,2,4,5,6,7_7-good-of-19-total_Th,[10,4],spkTh,[-6]_EMUsort
+        # "20240302_122709729708",  # rec-1,2,4,5,6,7_6-good-of-12-total_Th,[7,3],spkTh,[-9]_EMUsort
+        # ## "TooFew_20240302_122747883648",  # rec-1,2,4,5,6,7_2-good-of-6-total_Th,[2,1],spkTh,[-9]_EMUsort
+        # ## "TooFew_20240302_122918633973",  # rec-1,2,4,5,6,7_3-good-of-6-total_Th,[7,3],spkTh,[-3]_EMUsort
+        # "20240302_122925229679",  # rec-1,2,4,5,6,7_5-good-of-19-total_Th,[2,1],spkTh,[-6,-9]_EMUsort
+        # "20240302_123035464951",  # rec-1,2,4,5,6,7_5-good-of-14-total_Th,[5,2],spkTh,[-6]_EMUsort
+        # "20240302_123049010200",  # rec-1,2,4,5,6,7_8-good-of-14-total_Th,[10,4],spkTh,[-9]_EMUsort
+        # "20240302_123117787026",  # rec-1,2,4,5,6,7_5-good-of-13-total_Th,[7,3],spkTh,[-3,-6]"_EMUsort
+        # # # Kilosort 32 STD noise, with 20 sorts no duplicates
+        # ## "TooFew_20240302_120939352682",  # rec-1,2,4,5,6,7_0-good-of-3-total_Th,[5,2],spkTh,-9_vanilla_KS
+        # ## "TooFew_20240302_120939491097",  # rec-1,2,4,5,6,7_4-good-of-9-total_Th,[10,4],spkTh,-3_vanilla_KS
+        # ## "TooFew_20240302_120939955560",  # rec-1,2,4,5,6,7_4-good-of-9-total_Th,[10,4],spkTh,-7.5_vanilla_KS
+        # ## "TooFew_20240302_120941163246",  # rec-1,2,4,5,6,7_2-good-of-6-total_Th,[7,3],spkTh,-4.5_vanilla_KS
+        # ## "TooFew_20240302_120945737221",  # rec-1,2,4,5,6,7_0-good-of-7-total_Th,[2,1],spkTh,-7.5_vanilla_KS
+        # ## "TooFew_20240302_120946268209",  # rec-1,2,4,5,6,7_2-good-of-8-total_Th,[7,3],spkTh,-9_vanilla_KS
+        # ## "TooFew_20240302_120946271887",  # rec-1,2,4,5,6,7_2-good-of-6-total_Th,[2,1],spkTh,-4.5_vanilla_KS
+        # ## "TooFew_20240302_120947444159",  # rec-1,2,4,5,6,7_4-good-of-8-total_Th,[5,2],spkTh,-6_vanilla_KS
+        # ## "TooFew_20240302_121121351437",  # rec-1,2,4,5,6,7_0-good-of-3-total_Th,[10,4],spkTh,-9_vanilla_KS
+        # ## "TooFew_20240302_121127271809",  # rec-1,2,4,5,6,7_5-good-of-8-total_Th,[10,4],spkTh,-4.5_vanilla_KS
+        # ## "TooFew_20240302_121129703127",  # rec-1,2,4,5,6,7_0-good-of-6-total_Th,[7,3],spkTh,-6_vanilla_KS
+        # ## "TooFew_20240302_121134652070",  # rec-1,2,4,5,6,7_0-good-of-3-total_Th,[2,1],spkTh,-9_vanilla_KS
+        # ## "TooFew_20240302_121137225230",  # rec-1,2,4,5,6,7_1-good-of-4-total_Th,[5,2],spkTh,-7.5_vanilla_KS
+        # ## "TooFew_20240302_121140700946",  # rec-1,2,4,5,6,7_3-good-of-7-total_Th,[5,2],spkTh,-3_vanilla_KS
+        # "20240302_121142925661",  # rec-1,2,4,5,6,7_3-good-of-11-total_Th,[2,1],spkTh,-6_vanilla_KS
+        # ## "TooFew_20240302_121226554550",  # rec-1,2,4,5,6,7_0-good-of-3-total_Th,[2,1],spkTh,-3_vanilla_KS
+        # "20240302_121246276326",  # rec-1,2,4,5,6,7_5-good-of-10-total_Th,[10,4],spkTh,-6_vanilla_KS
+        # ## "TooFew_20240302_121246849496",  # rec-1,2,4,5,6,7_0-good-of-4-total_Th,[7,3],spkTh,-3_vanilla_KS
+        # ## "TooFew_20240302_121251662558",  # rec-1,2,4,5,6,7_0-good-of-4-total_Th,[7,3],spkTh,-7.5_vanilla_KS
+        # ## "TooFew_20240302_121305322001",  # rec-1,2,4,5,6,7_2-good-of-5-total_Th,[5,2],spkTh,-4.5_vanilla_KS
+        # >###########################################################################################
+        ### # EMUsort, Konstantin 2020 simulation 10/18 MUs detectable reconstruction
+        "20240314_133031478643",  # rec-1_23-good-of-44-total_Th,[7,3],spkTh,[-6,-9]_EMUsort
+        "20240314_133037442256",  # rec-1_31-good-of-63-total_Th,[10,4],spkTh,[-3]_EMUsort
+        "20240314_133043455404",  # rec-1_28-good-of-51-total_Th,[7,3],spkTh,[-6]_EMUsort
+        "20240314_133050202064",  # rec-1_35-good-of-62-total_Th,[10,4],spkTh,[-3,-6]_EMUsort
+        "20240314_133056657041",  # rec-1_40-good-of-80-total_Th,[5,2],spkTh,[-9]_EMUsort
+        "20240314_133218549973",  # rec-1_55-good-of-87-total_Th,[2,1],spkTh,[-3,-6]_EMUsort
+        "20240314_133242957398",  # rec-1_65-good-of-116-total_Th,[2,1],spkTh,[-3]_EMUsort
+        "20240314_133421858859",  # rec-1_27-good-of-52-total_Th,[7,3],spkTh,[-9]_EMUsort
+        "20240314_133441670071",  # rec-1_27-good-of-54-total_Th,[10,4],spkTh,[-6]_EMUsort
+        "20240314_133442683512",  # rec-1_26-good-of-47-total_Th,[10,4],spkTh,[-6,-9]_EMUsort
+        "20240314_133535163377",  # rec-1_55-good-of-93-total_Th,[5,2],spkTh,[-3]_EMUsort
+        "20240314_133620578243",  # rec-1_35-good-of-80-total_Th,[5,2],spkTh,[-3,-6]_EMUsort
+        "20240314_133719454359",  # rec-1_36-good-of-70-total_Th,[2,1],spkTh,[-6,-9]_EMUsort
+        "20240314_133815205560",  # rec-1_20-good-of-46-total_Th,[10,4],spkTh,[-9]_EMUsort
+        "20240314_133850117335",  # rec-1_25-good-of-60-total_Th,[7,3],spkTh,[-3]_EMUsort
+        "20240314_133852009547",  # rec-1_28-good-of-57-total_Th,[7,3],spkTh,[-3,-6]_EMUsort
+        "20240314_133941186486",  # rec-1_72-good-of-112-total_Th,[2,1],spkTh,[-6]_EMUsort
+        "20240314_134036123142",  # rec-1_54-good-of-90-total_Th,[5,2],spkTh,[-6]_EMUsort
+        "20240314_134104220405",  # rec-1_41-good-of-79-total_Th,[5,2],spkTh,[-6,-9]_EMUsort
+        "20240314_134431073784",  # rec-1_52-good-of-105-total_Th,[2,1],spkTh,[-9]_EMUsort
+        ### # Kilosort, Konstantin 2020 simulation 10/18 MUs detectable reconstruction
+        "20240314_130436324157",  # rec-1_45-good-of-82-total_Th,[10,4],spkTh,-7.5_vanilla_KS
+        "20240314_130436535281",  # rec-1_53-good-of-93-total_Th,[7,3],spkTh,-9_vanilla_KS
+        "20240314_130439530174",  # rec-1_48-good-of-82-total_Th,[10,4],spkTh,-3_vanilla_KS
+        "20240314_130441924825",  # rec-1_61-good-of-104-total_Th,[7,3],spkTh,-4.5_vanilla_KS
+        "20240314_130515824181",  # rec-1_76-good-of-148-total_Th,[5,2],spkTh,-6_vanilla_KS
+        "20240314_130637016676",  # rec-1_30-good-of-57-total_Th,[10,4],spkTh,-9_vanilla_KS
+        "20240314_130640813332",  # rec-1_109-good-of-224-total_Th,[2,1],spkTh,-3_vanilla_KS
+        "20240314_130657414489",  # rec-1_59-good-of-85-total_Th,[10,4],spkTh,-4.5_vanilla_KS
+        "20240314_130700582218",  # rec-1_109-good-of-206-total_Th,[2,1],spkTh,-7.5_vanilla_KS
+        "20240314_130709080675",  # rec-1_55-good-of-102-total_Th,[7,3],spkTh,-6_vanilla_KS
+        "20240314_130732540178",  # rec-1_70-good-of-135-total_Th,[5,2],spkTh,-3_vanilla_KS
+        "20240314_130750627529",  # rec-1_69-good-of-113-total_Th,[5,2],spkTh,-7.5_vanilla_KS
+        "20240314_130850692336",  # rec-1_36-good-of-56-total_Th,[10,4],spkTh,-6_vanilla_KS
+        "20240314_130859228057",  # rec-1_63-good-of-103-total_Th,[7,3],spkTh,-3_vanilla_KS
+        "20240314_130920017501",  # rec-1_52-good-of-90-total_Th,[7,3],spkTh,-7.5_vanilla_KS
+        "20240314_130953221015",  # rec-1_59-good-of-100-total_Th,[5,2],spkTh,-4.5_vanilla_KS
+        "20240314_131022913817",  # rec-1_68-good-of-125-total_Th,[5,2],spkTh,-9_vanilla_KS
+        "20240314_131059650387",  # rec-1_99-good-of-228-total_Th,[2,1],spkTh,-9_vanilla_KS
+        "20240314_131106869584",  # rec-1_120-good-of-233-total_Th,[2,1],spkTh,-4.5_vanilla_KS
+        "20240314_131445242868",  # rec-1_115-good-of-241-total_Th,[2,1],spkTh,-6_vanilla_KS
+        # # EMUsort, Konstantin 2020 simulation 10/18 MUs detectable, full emg
+        # # Kilosort, Konstantin 2020 simulation 10/18 MUs detectable, full emg
+        # # EMUsort, Konstantin 2020 simulation 10/18 MUs detectable, full emg with Gaussian noise
+        # # Kilosort, Konstantin 2020 simulation 10/18 MUs detectable, full emg with Gaussian noise
+        ############################################################################################
         #### Below are with new 16 channel, triple rat dataset
         # simulated20231219:
         # "20231220_180513756759"  # SNR-400-constant_jitter-0std_files-11, vanilla Kilosort, Th=[10,4], spkTh=[-6]
         # "20231220_172352030313"  # SNR-400-constant_jitter-0std_files-11, EMUsort, Th=[5,2], spkTh=[-3,-6]
+        ############################################################################################
         #### Below are for the monkey dataset (8CH)
         # EMU=[0.675, 0.868, 0.817, 0.357, 0.813, 0.818,0.726,0.882,0.793] # mean accuracies, grand mean: 0.74989
         # KS=[0.688,0.652,0.833,0.811,0.810,0.764,0.830,0.616,0.878,0.763,0.804,0.890] # mean accuracies, grand mean: 0.77825
         # EMUsort with comparable grid search, with sgolay filter to align templates (makes performance worse)
-        # "20240206_180600872332"  # rec-1_2-good-of-3-total_Th,[10,4],spkTh,[-6]_EMUsort # too few
-        # "20240206_180621637339"  # rec-1_3-good-of-3-total_Th,[10,4],spkTh,[-6,-9]_EMUsort # too few
-        # "20240206_180658042556"  # rec-1_10-good-of-16-total_Th,[7,3],spkTh,[-3,-6]_EMUsort # Average accuracy: 0.675 +/- 0.354
-        # "20240206_180802824443"  # rec-1_25-good-of-44-total_Th,[5,2],spkTh,[-6]_EMUsort # Average accuracy: 0.868 +/- 0.094
-        # "20240206_180806779104"  # rec-1_25-good-of-42-total_Th,[5,2],spkTh,[-6,-9]_EMUsort # Average accuracy: 0.817 +/- 0.160
-        # "20240206_180856961919"  # rec-1_5-good-of-6-total_Th,[10,4],spkTh,[-3,-6]_EMUsort # Average accuracy: 0.357 +/- 0.395
-        # "20240206_180954426237"  # rec-1_23-good-of-38-total_Th,[2,1],spkTh,[-3,-6]_EMUsort # Average accuracy: 0.813 +/- 0.126
-        # "20240206_181007303651"  # rec-1_9-good-of-10-total_Th,[7,3],spkTh,[-6,-9]_EMUsort # Average accuracy: 0.818 +/- 0.176
-        # "20240206_181234362303"  # rec-1_25-good-of-41-total_Th,[5,2],spkTh,[-3,-6]_EMUsort # Average accuracy: 0.726 +/- 0.173
-        # "20240206_181342142506"  # rec-1_23-good-of-35-total_Th,[2,1],spkTh,[-6]_EMUsort # Average accuracy: 0.882 +/- 0.101 ### BEST EMU
-        # "20240206_181510823697"  # rec-1_30-good-of-56-total_Th,[2,1],spkTh,[-6,-9]_EMUsort # Average accuracy: 0.793 +/- 0.187
+        # "20240206_180600872332",  # rec-1_2-good-of-3-total_Th,[10,4],spkTh,[-6]_EMUsort # too few
+        # "20240206_180621637339",  # rec-1_3-good-of-3-total_Th,[10,4],spkTh,[-6,-9]_EMUsort # too few
+        # "20240206_180658042556",  # rec-1_10-good-of-16-total_Th,[7,3],spkTh,[-3,-6]_EMUsort # Average accuracy: 0.675 +/- 0.354
+        # "20240206_180802824443",  # rec-1_25-good-of-44-total_Th,[5,2],spkTh,[-6]_EMUsort # Average accuracy: 0.868 +/- 0.094
+        # "20240206_180806779104",  # rec-1_25-good-of-42-total_Th,[5,2],spkTh,[-6,-9]_EMUsort # Average accuracy: 0.817 +/- 0.160
+        # "20240206_180856961919",  # rec-1_5-good-of-6-total_Th,[10,4],spkTh,[-3,-6]_EMUsort # Average accuracy: 0.357 +/- 0.395
+        # "20240206_180954426237",  # rec-1_23-good-of-38-total_Th,[2,1],spkTh,[-3,-6]_EMUsort # Average accuracy: 0.813 +/- 0.126
+        # "20240206_181007303651",  # rec-1_9-good-of-10-total_Th,[7,3],spkTh,[-6,-9]_EMUsort # Average accuracy: 0.818 +/- 0.176
+        # "20240206_181234362303",  # rec-1_25-good-of-41-total_Th,[5,2],spkTh,[-3,-6]_EMUsort # Average accuracy: 0.726 +/- 0.173
+        # "20240206_181342142506",  # rec-1_23-good-of-35-total_Th,[2,1],spkTh,[-6]_EMUsort # Average accuracy: 0.882 +/- 0.101 ### BEST EMU
+        # "20240206_181510823697",  # rec-1_30-good-of-56-total_Th,[2,1],spkTh,[-6,-9]_EMUsort # Average accuracy: 0.793 +/- 0.187
         # ## Kilosort with comparable grid search, original dataset
         # "20240207_164752921257",  # rec-1_11-good-of-16-total_Th,[10,4],spkTh,-9_vanilla_KS # Average accuracy: 0.688 +/- 0.375
         # "20240207_164803728144",  # rec-1_16-good-of-24-total_Th,[10,4],spkTh,-3_vanilla_KS # Average accuracy: 0.652 +/- 0.473
@@ -2228,9 +2783,6 @@ if __name__ == "__main__":
         import multiprocessing as mp
         from concurrent.futures import ProcessPoolExecutor, as_completed
 
-    true_spike_counts_for_each_cluster = np.load(
-        str(ground_truth_path), mmap_mode="r"
-    ).sum(axis=0)
     # find the folder name which ends in _myo and append to the paths_to_session_folders
     paths_to_each_myo_folder = []
     for iDir in paths_to_KS_session_folders:
@@ -2266,6 +2818,7 @@ if __name__ == "__main__":
             list_of_paths_to_sorted_folders.append(matches)
 
     if automatically_assign_cluster_mapping:
+        # tracemalloc.start()
         # automatically assign cluster mapping by extracting the waves at the spike times for all
         # clusters, getting the median waveform for each cluster using both groundtruth and the sort
         # by using the respective spike times, then computing the correlation between each cluster's
@@ -2323,11 +2876,12 @@ if __name__ == "__main__":
         # which are 1's and 0's, where 1's indicate a spike and 0's indicate no spike
         # each column is a different unit, and row is a different time point in the recording
         # use np.where to get the spike times for each cluster
-        ground_truth_spike_times = np.load(str(ground_truth_path), mmap_mode="r")
-        GT_spike_times_for_each_cluster = [
-            np.where(ground_truth_spike_times[:, iCluster] == 1)[0]
-            for iCluster in GT_clusters_to_use
-        ]
+        if method_for_automatic_cluster_mapping != "accuracies":
+            ground_truth_spike_times = np.load(str(ground_truth_path), mmap_mode="r")
+            GT_spike_times_for_each_cluster = [
+                np.where(ground_truth_spike_times[:, iCluster] == 1)[0]
+                for iCluster in GT_clusters_to_use
+            ]
 
         # now use the metric of choice to map the clusters according to best
         # correlation score across all pairs of clusters and time lags
@@ -2341,7 +2895,9 @@ if __name__ == "__main__":
                 ephys_fs,
                 time_frame,
                 path_to_sorted_folder,
+                simulation_method,
             ):
+
                 # use MUsim object to load and rebin ground truth data
                 mu_GT = MUsim(random_seed_entropy)
                 mu_GT.sample_rate = 1 / ephys_fs
@@ -2351,8 +2907,27 @@ if __name__ == "__main__":
                     1 / ephys_fs,
                     load_as="trial",
                     slice=time_frame,
-                    load_type="MUsim",
+                    load_type=simulation_method,
                 )
+                if simulation_method == "konstantin":
+                    # load the .mat variables from the ground truth path:
+                    # amplititude_sorted_idxs.mat, detectable_ind.mat
+                    # then use amplititude_sorted_idxs[detectable_ind] indexes to slice the
+                    # mu_GT.spikes[-1] entry to get the detectable MUs, sorted by amplitude
+                    amplitude_sorted_idxs = (
+                        loadmat(
+                            ground_truth_path.joinpath("amplitude_sorted_idxs.mat")
+                        )["amplitude_sorted_idxs"].astype(int)
+                        - 1
+                    )  # subtract 1 to use 0 indexing
+                    detectable_ind = (
+                        loadmat(ground_truth_path.joinpath("detectable_ind.mat"))[
+                            "detectable_ind"
+                        ].astype(int)
+                        - 1
+                    )  # subtract 1 to use 0 indexing
+                    detectable_MU_idxs = amplitude_sorted_idxs[detectable_ind]
+                    mu_GT.spikes[-1] = mu_GT.spikes[-1][:, detectable_MU_idxs]
 
                 # use MUsim object to load and rebin Kilosort data
                 mu_KS = MUsim(random_seed_entropy)
@@ -2385,7 +2960,8 @@ if __name__ == "__main__":
                             ),
                         )
                     )
-                    # compute the correlation between the two spike trains for each unit
+
+                # compute the correlation between the two spike trains for each unit
                 # use the correlation to determine the shift for each unit
                 # use the shift to align the spike trains
                 # use the aligned spike trains to compute the metrics
@@ -2608,6 +3184,7 @@ if __name__ == "__main__":
                                 ephys_fs,
                                 time_frame,
                                 list_of_paths_to_sorted_folders[0][iSort],
+                                simulation_method,
                             )
                             for jCluster_GT in range(len(GT_clusters_to_use))
                         ]
@@ -2650,9 +3227,10 @@ if __name__ == "__main__":
                             ephys_fs,
                             time_frame,
                             list_of_paths_to_sorted_folders[0][iSort],
+                            simulation_method,
                         )
                         print(
-                            f"Done computing accuracies for GT cluster {jCluster_GT} in sort {sort_dstr} ({iSort}/{len(sorts_from_each_path_to_load)} sorts"
+                            f"Done computing accuracies for GT cluster {jCluster_GT} in sort {sort_dstr} ({iSort+1}/{len(sorts_from_each_path_to_load)} sorts)"
                         )
                         # append the results into each corresponding output list
                         _ = [
@@ -2695,6 +3273,9 @@ if __name__ == "__main__":
                 ground_truth_spikes_list.append(ground_truth_spikes)
                 sort_dstr_list.append(sort_dstr)
 
+                # collect garbage to free up memory from the previous iteration
+                gc.collect()
+
             # now rename the lists to the original variable names
             precisions = precisions_list
             recalls = recalls_list
@@ -2711,6 +3292,9 @@ if __name__ == "__main__":
 
             correlations = accuracies  # use accuracies as the metric for matching
         elif method_for_automatic_cluster_mapping == "waves":
+            true_spike_counts_for_each_cluster = np.load(
+                str(ground_truth_path), mmap_mode="r"
+            ).sum(axis=0)
             # load and reshape into numchans x whatever (2d array) the data.bin file
             sim_ephys_data = np.memmap(
                 str(path_to_sim_dat), dtype="int16", mode="r"
@@ -3212,9 +3796,10 @@ if __name__ == "__main__":
                         ][1]
                         break
                 else:
-                    raise Exception(
-                        f"No unique cluster match was found for ground truth cluster {iGT_clust_idx}!"
+                    print(
+                        f"WARNING: GT cluster {iGT_clust_idx} was not matched to any KS cluster"
                     )
+                    set_trace()
 
             best_uniq_pair_idxs = best_uniq_pair_idxs.astype(int)
             GT_mapped_idxs = GT_mapped_idxs[best_uniq_pair_idxs]
@@ -3469,7 +4054,8 @@ if __name__ == "__main__":
         #     ground_truth_spikes = [ground_truth_spikes]
         # else:
         #     raise Exception("Unexpected error")
-
+    # snapshot = tracemalloc.take_snapshot()
+    # display_top(snapshot)
     if (
         show_plot1a
         or save_png_plot1a

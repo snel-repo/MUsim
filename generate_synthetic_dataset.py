@@ -134,13 +134,18 @@ session_name = (
 )
 show_plotly_figures = False
 show_matplotlib_figures = False
-show_final_plotly_figure = True
+show_final_plotly_figure = False
 save_final_plotly_figure = False
-show_waveform_graph = True
-save_simulated_spikes = False
-save_continuous_dat = False
+show_waveform_graph = False
+save_simulated_spikes = True
+save_continuous_dat = True
 # multiprocess = False  # deprecated setting, now multithreading in MUsim to avoid refractory period violations
-use_KS_templates = False  # set to True to use Kilosort templates to create waveform shapes, else load open ephys data, and use spike times to extract median waveform shapes for each unit
+use_KS_templates = True  # set to True to use Kilosort templates to create waveform shapes, else load open ephys data, and use spike times to extract median waveform shapes for each unit
+num_duplicate_kinematics_to_add = 2  # number of duplicate kinematics files to add to the list, for generating longer simulations
+kinematics_shuffle_N = 2  # number of times to shuffle the kinematics files list, 0 for no shuffling (rat=0, monkey=1, konstantin=2)
+write_kinematics_to_mat = (
+    True  # set to True to write the kinematics array to a .mat file
+)
 shift_MU_templates_along_channels = False
 kinematics_fs = 125
 ephys_fs = 30000
@@ -149,11 +154,11 @@ SVD_dim = 9  # number of SVD components than were used in KiloSort
 num_chans_in_recording = 9  # number of channels in the recording
 num_chans_in_output = 8  # desired real number of channels in the output data
 # number determines noise power added to channels (e.g. 50), or set None to disable
-SNR_mode = "constant"  # 'power' to compute desired SNR with power,'from_data' simulates from the real data values, or 'constant' to add a constant amount of noise to all channels
+SNR_mode = "from_data"  # 'power' to compute desired SNR with power,'from_data' simulates from the real data values, or 'constant' to add a constant amount of noise to all channels
 # target SNR value if "power", or factor to adjust SNR by if "from_data", or set None to disable
-adjust_SNR = 200  # None
+adjust_SNR = 1  # None
 # set 0 for no shape jitter, or a positive number for standard deviations of additive shape jitter
-shape_jitter_amount = 0
+shape_jitter_amount = 32
 # set None for random behavior, or a previous entropy int value to reproduce
 random_seed_entropy = 17750944332329041344095472642137516706  # 218530072159092100005306709809425040261  # 75092699954400878964964014863999053929  # None
 if random_seed_entropy is None:
@@ -206,7 +211,7 @@ MU_colors = [
 ]
 
 # set plotting parameters
-time_frame = [0, 0.01]  # time frame to plot, fractional bounds of 0 to 1
+time_frame = [0, 1]  # time frame to plot, fractional bounds of 0 to 1
 if time_frame[1] > 0.1:
     # disable the final plotly figure if the time frame is too long
     print(
@@ -265,13 +270,17 @@ if "monkey" not in session_name:
     kinematic_csv_file_paths = [
         f for f in files if any(s in f.name for s in anipose_sessions_to_load)
     ]
-    # add duplicates to make sure the array is at least 10min long
-    random_duplicate_paths = RNG.choice(kinematic_csv_file_paths, 2).tolist()
-    kinematic_csv_file_paths = kinematic_csv_file_paths + random_duplicate_paths
+    # add duplicates to make sure the array is at least 10min long, will trim later to 10min
+    if num_duplicate_kinematics_to_add:
+        random_duplicate_paths = RNG.choice(
+            kinematic_csv_file_paths, num_duplicate_kinematics_to_add
+        ).tolist()
+        kinematic_csv_file_paths = kinematic_csv_file_paths + random_duplicate_paths
     # shuffle the list of paths to load so different simulations have different "kinematics"
-    # RNG.shuffle(
-    #     kinematic_csv_file_paths
-    # )  # rat was not shuffled, monkey was shuffled once, any other should be shuffled N times
+    for _ in range(kinematics_shuffle_N):
+        RNG.shuffle(
+            kinematic_csv_file_paths
+        )  # rat was not shuffled, monkey was shuffled once, any other should be shuffled N times
 
     print(f"Taking kinematic data from: \n{[f.name for f in kinematic_csv_file_paths]}")
     kinematic_dataframes = [pd.read_csv(f) for f in kinematic_csv_file_paths]
@@ -382,6 +391,26 @@ if "monkey" not in session_name:
         blended_chosen_array,
         round(len(blended_chosen_array) * (ephys_fs / kinematics_fs)),
     )
+    interp_final_force_array = interp_final_force_array[
+        : 10 * 60 * ephys_fs
+    ]  # trim to max 10 minutes
+    blended_chosen_array = blended_chosen_array[
+        : 10 * 60 * kinematics_fs
+    ]  # trim to max 10 minutes
+    # norm_blended_chosen_array = blended_chosen_array / np.max(
+    #     blended_chosen_array
+    # )  # normalize the array
+
+    # write the normalized force array to a .mat file
+    # save the force profile to a .mat file
+    if write_kinematics_to_mat:
+        from scipy.io import savemat
+
+        savemat(
+            f"force_array_{datetime.now().strftime('%Y%m%d-%H%M%S')}_shuffled_{kinematics_shuffle_N}_times.mat",
+            {"force_array": interp_final_force_array},
+        )
+        exit()
 
 # if monkey, replace with a ramp up to max force, constant hold, and ramp down, then another hold,
 # then 1 Hz sine wave then repeat until 10 minutes
@@ -668,6 +697,9 @@ if False:  # multiprocess:
 else:
     mu = batch_run_MUsim(mu, interp_final_force_array, 0)
 
+# print number of spikes in each unit
+print(f"Number of spikes in each unit:\n {mu.spikes[-1].sum(axis=0)}")
+
 if show_matplotlib_figures:
     mu.see("force")  # plot the force profile
     mu.see("curves")  # plot the unit response curves
@@ -711,6 +743,7 @@ if use_KS_templates:
     num_dummy_chans = chan_map_adj_list[0]["numDummy"][0][0]
     num_chans_with_data = int(num_chans_in_recording - num_dummy_chans)
 else:
+    num_dummy_chans = 0
     num_chans_with_data = num_chans_in_recording
 
 
@@ -734,7 +767,6 @@ if use_KS_templates:
         # take mean and std of all elements in U_good
         U_mean.append(np.mean(U_good[ii]))
         U_std.append(np.std(U_good[ii]))
-
     # extrapolate the U_std matrix to have num_chans columns, by taking mean and STD of all rows,
     # and Gaussian sampling with that mean and STD to fill in the rest of the new columns, using the
     # statistics found for each row of the original U_std matrix
@@ -750,33 +782,38 @@ if use_KS_templates:
 
     # now create slightly jittered (by 20% of std) of waveform shapes for each MU, for each spike time in the simulation
     # first, create a new array of zeros to hold the new multichannel waveform shapes
-    spike_snippets_to_place = np.zeros(
+    spike_snippets_to_place = np.nan * np.ones(
         (mu.num_units, np.max(spike_counts_for_each_unit), nt0, num_chans_in_recording)
     )
-    for iUnit, iCount in enumerate(spike_counts_for_each_unit):
+    for iUnit in range(mu.num_units):
         # add the jitter to each U_good element, and create a new waveform shape for each spike time
         # use jittermat to change the waveform shape slightly for each spike example (at each time)
-        jitter_mat = np.zeros((iCount, num_chans_in_recording, SVD_dim))
+        jitter_mat = np.zeros(
+            (np.max(spike_counts_for_each_unit), num_chans_in_recording, SVD_dim)
+        )
         jitter_mat_to_chans_with_data = RNG.normal(
             0,
             shape_jitter_amount * U_std[0],
-            (iCount, num_chans_with_data, SVD_dim),
+            (np.max(spike_counts_for_each_unit), num_chans_with_data, SVD_dim),
         )
         jitter_mat[:, :num_chans_with_data, :] = jitter_mat_to_chans_with_data
         # jitter and scale by amplitude for this unit
         iUnit_U = np.tile(
-            U_good[0][:, iUnit, :], (iCount, 1, 1)
+            U_good[0][:, iUnit, :], (np.max(spike_counts_for_each_unit), 1, 1)
         ) * amplitudes_df_list.loc[clusters_to_take_from[0][iUnit]].Amplitude + (
             jitter_mat if shape_jitter_amount else 0
         )  # additive shape jitter
-        for iSpike in range(iCount):
+        for iSpike in range(np.max(spike_counts_for_each_unit)):
             iSpike_U = iUnit_U[
                 iSpike, :, :
             ]  # get the weights for each channel for this spike
             # now project from the templates to create the waveform shape for each spike time
-            spike_snippets_to_place[iUnit, iSpike, :, :] = np.dot(
+            # multiply by 200 to convert from mV to uV
+            spike_snippets_to_place[iUnit, iSpike, :, :] = 200 * np.dot(
                 W_good[0][:, iUnit, :], iSpike_U.T
-            )
+            )  # shape is (num_units, num_spikes, nt0, num_chans_in_recording)
+    median_spikes_array = np.median(spike_snippets_to_place, axis=1)
+    order_by_amplitude = np.max(np.abs(median_spikes_array), axis=(1, 2)).argsort()
 else:  # this chunk uses the real data from proc.dat to create waveform shapes for each spike time,
     # use spike times for each cluster to extract median waveform shape, with -nt0//2 and +nt0//2 + 1
     ## first, extract all spikes at each corresponding spike time from each proc.dat file, and place them in a combined array
@@ -843,10 +880,12 @@ else:  # this chunk uses the real data from proc.dat to create waveform shapes f
             unit_counter += 1
         unit_start_offset += len(np.unique(clusters_to_take_from[ii]))
 
-median_spikes_array = np.concatenate(
-    median_spikes_list
-)  # new shape is (num_units, nt0, num_chans_in_recording)
-order_by_amplitude = np.max(np.abs(median_spikes_array), axis=(1, 2)).argsort()
+    median_spikes_array = np.concatenate(
+        median_spikes_list
+    )  # new shape is (num_units, nt0, num_chans_in_recording)
+    order_by_amplitude = np.max(np.abs(median_spikes_array), axis=(1, 2)).argsort()
+    waveforms_to_plot_in_graph = median_spikes_array[order_by_amplitude, :, :]
+
 if show_waveform_graph:
     # plot the median waveform shape for each cluster in a different subplot, which is channel x unit
     # plot the unit by color
@@ -855,7 +894,6 @@ if show_waveform_graph:
     # plot the unit by color
     # concatenate the median waveform shapes for each cluster into a single array
     # sort the median_spikes_array in order of lowest unit amplitude to highest
-    median_spikes_array = median_spikes_array[order_by_amplitude, :, :]
 
     fig = subplots.make_subplots(
         rows=num_chans_in_recording,
@@ -868,18 +906,35 @@ if show_waveform_graph:
         shared_xaxes=True,
         shared_yaxes=True,
     )
-    for iChan in range(num_chans_in_recording):
-        for iUnit in range(num_motor_units):
-            fig.add_trace(
-                go.Scatter(
-                    x=np.arange(nt0) / ephys_fs * 1000,
-                    y=median_spikes_array[iUnit][:, iChan],
-                    name=f"Unit {iUnit}",
-                    marker_color=MU_colors[iUnit],
-                ),
-                row=iChan + 1,
-                col=iUnit + 1,
-            )
+    if not use_KS_templates:
+        for iChan in range(num_chans_in_recording):
+            for iUnit in range(num_motor_units):
+                fig.add_trace(
+                    go.Scatter(
+                        x=np.arange(nt0) / ephys_fs * 1000,
+                        y=waveforms_to_plot_in_graph[iUnit, :, iChan],
+                        name=f"Unit {iUnit}",
+                        marker_color=MU_colors[iUnit],
+                    ),
+                    row=iChan + 1,
+                    col=iUnit + 1,
+                )
+    else:
+        for iChan in range(num_chans_in_recording):
+            for iUnit in range(num_motor_units):
+                for iSpike in range(0, spike_snippets_to_place.shape[1], 10):
+                    fig.add_trace(
+                        go.Scatter(
+                            x=np.arange(nt0) / ephys_fs * 1000,
+                            y=spike_snippets_to_place[iUnit, iSpike, :, iChan],
+                            name=f"Unit {iUnit}",
+                            marker_color=MU_colors[iUnit],
+                            line=dict(width=0.5),
+                            opacity=0.5,
+                        ),
+                        row=iChan + 1,
+                        col=iUnit + 1,
+                    )
     # add title and axis labels
     fig.update_layout(
         title="<b>Median Waveform Shapes for Each Cluster</b>",
@@ -890,8 +945,6 @@ if show_waveform_graph:
     # make y-axis range shared across all voltage subplots
     fig.update_yaxes(matches="y")
     fig.show()
-
-# set_trace()
 
 # multiply all waveforms by a Tukey window to make the edges go to zero
 tukey_window = signal.windows.tukey(nt0, 0.25)
@@ -1000,7 +1053,9 @@ if adjust_SNR is not None:
             axis=0,
         )
         # get the Gaussian noise standard deviation of the data
-        Gaussian_STDs_of_sim = MAD_k.values / 0.6745
+        Gaussian_STDs_of_sim = (
+            MAD_k.values / 0.6745 / 200
+        )  # 200 to scale into Kilosort internal units
 
         # make this shape of torch_continuous_dat
         new_noise_STD = torch.tensor(
@@ -1022,11 +1077,13 @@ if adjust_SNR is not None:
                 axis=0,
             )
             # get the Gaussian noise standard deviation of the data
-            Gaussian_STDs_of_sim = MAD_k.values / 0.6745
+            Gaussian_STDs_of_sim = (
+                MAD_k.values / 0.6745 / 200
+            )  # 200 to scale into Kilosort internal units
             return Gaussian_STDs_of_sim, torch_continuous_dat_out
 
         def criterion(Gaussian_STDs_of_sim, Gaussian_STDs_of_data):
-            return torch.mean(torch.abs(Gaussian_STDs_of_sim - Gaussian_STDs_of_data))
+            return torch.mean((Gaussian_STDs_of_sim - Gaussian_STDs_of_data) ** 2)
 
         # back calculate the additional noise needed to make Gaussian_STDs_of_sim equal to
         # Gaussian_STDs_of_data
@@ -1034,10 +1091,10 @@ if adjust_SNR is not None:
         # goal is to make Gaussian_STDs_of_sim within 1% of Gaussian_STDs_of_data for all channels
         # now use optimizer to change learning rate
         print(f"Target Noise STD: {Gaussian_STDs_of_data}")
-        optimizer = torch.optim.Adam([new_noise_STD], lr=0.001)
+        optimizer = torch.optim.Adam([new_noise_STD], lr=0.03)
         loss_BGD = []
 
-        for i in range(1000):
+        for i in range(3000):
             Gaussian_STDs_of_sim, torch_continuous_dat_out = forward(
                 torch_continuous_dat
             )
@@ -1142,8 +1199,8 @@ for iChan in range(num_chans_with_data):
     continuous_dat[:, iChan] = np.roll(
         continuous_dat[:, iChan], -channel_delays_to_apply[iChan]
     )
-if use_KS_templates:
-    continuous_dat *= 200  # scale for Kilosort
+# if use_KS_templates:
+#     continuous_dat *= 200  # scale for Kilosort
 
 if show_final_plotly_figure or save_final_plotly_figure:
     import colorlover as cl
