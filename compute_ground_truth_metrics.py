@@ -1906,7 +1906,7 @@ if __name__ == "__main__":
     automatically_assign_cluster_mapping = True
     method_for_automatic_cluster_mapping = "accuracies"  # can be "accuracies", "waves", "times", or "trains"  what the correlation is computed on to map clusters
     simulation_method = "MUsim"  # can be "MUsim" or "konstantin"
-    time_frame = [0, 0.1]  # must be between 0 and 1
+    time_frame = [0, 1]  # must be between 0 and 1
     ephys_fs = 30000  # Hz
     xstart = np.log2(
         0.125
@@ -1921,7 +1921,7 @@ if __name__ == "__main__":
     plot_template = "plotly_white"  # ['ggplot2', 'seaborn', 'simple_white', 'plotly', 'plotly_white', 'plotly_dark', 'presentation', 'xgridoff', 'ygridoff', 'gridon', 'none']
     plot1_bar_type = "percent"  # totals / percent
     plot1_ylim = [0, 135]
-    plot2_xlim = [0, 0.1]
+    plot2_xlim = [0, 0.01]
     show_plot1a = False
     show_plot1b = False
     show_plot2 = True
@@ -1990,7 +1990,7 @@ if __name__ == "__main__":
     )  # spikes_20221116_godzilla_SNR-None_jitter-0std_files-1.npy
 
     # set which ground truth clusters to compare with (a range from 0 to num_motor_units)
-    GT_clusters_to_use = list(range(0, 2))
+    GT_clusters_to_use = list(range(0, 10))
     num_motor_units = len(GT_clusters_to_use)
 
     ## load Kilosort data
@@ -3519,9 +3519,9 @@ if __name__ == "__main__":
             # only do correlation alignment during 2nd pass
             correlation_alignment = [False, True]
             precorrelation_rebin_width = [None, 1]
-            preaccuracy_rebin_width = [1, 1]
+            preaccuracy_rebin_width = [10, 1]
             # repeat twice to only compute the correlation alignment once
-            for iRepeat in range(1):
+            for iRepeat in range(2):
                 # make lists to house the results from each iSort iteration
                 precisions_list = []
                 recalls_list = []
