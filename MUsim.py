@@ -515,6 +515,8 @@ class MUsim:
 
         Returns: nothing.
         """
+        if new_bin_width == self.bin_width:
+            return  # no need to rebin if bin width is the same
         if target == "trial":
             spikes = self.spikes[index]
             new_num_bins = int(
