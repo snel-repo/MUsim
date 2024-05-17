@@ -10,8 +10,10 @@ dependencies:
   - pandas
   - pip
   - plotly
-  - python=3.11
+  - python=3.12
   - pytorch-gpu
   - scikit-learn
   - scipy
   - python-kaleido
+  pip:
+    - git+https://github.com/skjerns/mat7.3.git

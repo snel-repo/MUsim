@@ -1,4 +1,5 @@
 # IMPORT packages
+import gc
 from datetime import datetime
 from pathlib import Path
 from pdb import set_trace
@@ -7,17 +8,17 @@ import colorlover as cl
 import numpy as np
 import plotly.graph_objects as go
 import plotly.subplots as subplots
+from mat73 import loadmat
 from pandas import DataFrame as df
 from scipy.signal import correlate, correlation_lags
-from mat73 import loadmat
-import gc
+
+from MUsim import MUsim
 
 # import tracemalloc
 # from collections import Counter
 # import linecache
 # import os
 
-from MUsim import MUsim
 
 start_time = datetime.now()  # begin timer for script execution time
 
@@ -754,7 +755,7 @@ def plot1(
     for iSort in range(len(sorts_from_each_path_to_load)):
         # get suffix after the KS folder name, which is the repo branch name for that sort
         # PPP_branch_name = list_of_paths_to_sorted_folders[0][iSort].name.split("_")[-1]
-        # sort_type = "Kilosort" if PPP_branch_name == "KS" else "EMUsort"
+        # sort_type = "Kilosort" if "KS" in PPP_branch_name else "EMUsort"
 
         if show_plot1a or save_png_plot1a or save_svg_plot1a or save_html_plot1a:
             fig1a = go.Figure()
@@ -935,19 +936,19 @@ def plot1(
 
         if save_png_plot1a:
             fig1a.write_image(
-                f"Fig1a_KS_vs_GT_performance_metrics_{bin_width_for_comparison}ms_{sorts_from_each_path_to_load[iSort]}_{sort_types}.png",
+                f"plot1/plot1a_KS_vs_GT_performance_metrics_{bin_width_for_comparison}ms_{sorts_from_each_path_to_load[iSort]}_{sort_types}.png",
                 width=figsize[0],
                 height=figsize[1],
             )
         if save_svg_plot1a:
             fig1a.write_image(
-                f"Fig1a_KS_vs_GT_performance_metrics_{bin_width_for_comparison}ms_{sorts_from_each_path_to_load[iSort]}_{sort_types}.svg",
+                f"plot1/plot1a_KS_vs_GT_performance_metrics_{bin_width_for_comparison}ms_{sorts_from_each_path_to_load[iSort]}_{sort_types}.svg",
                 width=figsize[0],
                 height=figsize[1],
             )
         if save_html_plot1a:
             fig1a.write_html(
-                f"Fig1a_KS_vs_GT_performance_metrics_{bin_width_for_comparison}ms_{sorts_from_each_path_to_load[iSort]}_{sort_types}.html",
+                f"plot1/plot1a_KS_vs_GT_performance_metrics_{bin_width_for_comparison}ms_{sorts_from_each_path_to_load[iSort]}_{sort_types}.html",
                 include_plotlyjs="cdn",
                 full_html=False,
             )
@@ -956,19 +957,19 @@ def plot1(
 
         if save_png_plot1b:
             fig1b.write_image(
-                f"Fig1b_KS_vs_GT_performance_metrics_{bin_width_for_comparison}ms_{sorts_from_each_path_to_load[iSort]}_{sort_types}.png",
+                f"plot1/plot1b_KS_vs_GT_performance_metrics_{bin_width_for_comparison}ms_{sorts_from_each_path_to_load[iSort]}_{sort_types}.png",
                 width=figsize[0],
                 height=figsize[1],
             )
         if save_svg_plot1b:
             fig1b.write_image(
-                f"Fig1b_KS_vs_GT_performance_metrics_{bin_width_for_comparison}ms_{sorts_from_each_path_to_load[iSort]}_{sort_types}.svg",
+                f"plot1/plot1b_KS_vs_GT_performance_metrics_{bin_width_for_comparison}ms_{sorts_from_each_path_to_load[iSort]}_{sort_types}.svg",
                 width=figsize[0],
                 height=figsize[1],
             )
         if save_html_plot1b:
             fig1b.write_html(
-                f"Fig1b_KS_vs_GT_performance_metrics_{bin_width_for_comparison}ms_{sorts_from_each_path_to_load[iSort]}_{sort_types}.html",
+                f"plot1/plot1b_KS_vs_GT_performance_metrics_{bin_width_for_comparison}ms_{sorts_from_each_path_to_load[iSort]}_{sort_types}.html",
                 include_plotlyjs="cdn",
                 full_html=False,
             )
@@ -996,7 +997,7 @@ def plot2(
 ):
     # get suffix after the KS folder name, which is the repo branch name for that sort
     PPP_branch_name = list_of_paths_to_sorted_folders[0][iSort].name.split("_")[-1]
-    sort_type = "Kilosort" if PPP_branch_name == "KS" else "EMUsort"
+    sort_type = "Kilosort" if "KS" in PPP_branch_name else "EMUsort"
     # make a subplot for each unit
     subtitles = [
         f"Unit {GT_clusters_to_use[iUnit]}" for iUnit in range(num_motor_units)
@@ -1136,19 +1137,19 @@ def plot2(
     # append sort name instead of time stamp
     if save_png_plot2:
         fig.write_image(
-            f"KS_vs_GT_spike_trains_{bin_width_for_comparison}ms_{sort_from_each_path_to_load}_{PPP_branch_name}.png",
+            f"plot2/plot2_KS_vs_GT_spike_trains_{bin_width_for_comparison}ms_{sort_from_each_path_to_load}_{PPP_branch_name}.png",
             width=figsize[0],
             height=figsize[1],
         )
     if save_svg_plot2:
         fig.write_image(
-            f"KS_vs_GT_spike_trains_{bin_width_for_comparison}ms_{sort_from_each_path_to_load}_{PPP_branch_name}.svg",
+            f"plot2/plot2_KS_vs_GT_spike_trains_{bin_width_for_comparison}ms_{sort_from_each_path_to_load}_{PPP_branch_name}.svg",
             width=figsize[0],
             height=figsize[1],
         )
     if save_html_plot2:
         fig.write_html(
-            f"KS_vs_GT_spike_trains_{bin_width_for_comparison}ms_{sort_from_each_path_to_load}_{PPP_branch_name}.html",
+            f"plot2/plot2_KS_vs_GT_spike_trains_{bin_width_for_comparison}ms_{sort_from_each_path_to_load}_{PPP_branch_name}.html",
         )
     if show_plot2:
         fig.show()
@@ -1172,7 +1173,7 @@ def plot3(
 ):
     # get suffix after the KS folder name, which is the repo branch name for that sort
     PPP_branch_name = list_of_paths_to_sorted_folders[0][iSort].name.split("_")[-1]
-    sort_type = "Kilosort" if PPP_branch_name == "KS" else "EMUsort"
+    sort_type = "Kilosort" if "KS" in PPP_branch_name else "EMUsort"
     # this plot shows the performance of MUsort across different bin widths, with 1 trace per motor unit
     # put a subplot for each metric, but give a different color range for each metric. Make it flexible
     # to the number of motor units, then interpolate the color for each motor unit
@@ -1247,19 +1248,19 @@ def plot3(
 
     if save_png_plot3:
         fig.write_image(
-            f"KS_vs_GT_bin_width_comparison_{sort_from_each_path_to_load}_{PPP_branch_name}.png",
+            f"plot3/plot3_KS_vs_GT_bin_width_comparison_{sort_from_each_path_to_load}_{PPP_branch_name}.png",
             width=figsize[0],
             height=figsize[1],
         )
     if save_svg_plot3:
         fig.write_image(
-            f"KS_vs_GT_bin_width_comparison_{sort_from_each_path_to_load}_{PPP_branch_name}.svg",
+            f"plot3/plot3_KS_vs_GT_bin_width_comparison_{sort_from_each_path_to_load}_{PPP_branch_name}.svg",
             width=figsize[0],
             height=figsize[1],
         )
     if save_html_plot3:
         fig.write_html(
-            f"KS_vs_GT_bin_width_comparison_{sort_from_each_path_to_load}_{PPP_branch_name}.html",
+            f"plot3/plot3_KS_vs_GT_bin_width_comparison_{sort_from_each_path_to_load}_{PPP_branch_name}.html",
             include_plotlyjs="cdn",
             full_html=False,
         )
@@ -1312,12 +1313,18 @@ def plot4(
                 sorts_from_each_path_to_load[iSort]
                 in list_of_paths_to_sorted_folders[0][iPath].name
             ):
-                sort_types[iSort] = (
-                    "Kilosort"
-                    if list_of_paths_to_sorted_folders[0][iPath].name.split("_")[-1]
-                    == "KS"
-                    else "EMUsort"
-                )
+                if (
+                    "KS"
+                    == list_of_paths_to_sorted_folders[0][iPath].name.split("_")[-1]
+                ):
+                    sort_types[iSort] = "Kilosort3"
+                elif (
+                    "KS4"
+                    == list_of_paths_to_sorted_folders[0][iPath].name.split("_")[-1]
+                ):
+                    sort_types[iSort] = "Kilosort4"
+                else:
+                    sort_types[iSort] = "EMUsort"
                 break
     # make sure all sort_types were found
     assert None not in sort_types, "Not all sort_types were found"
@@ -1334,9 +1341,9 @@ def plot4(
 
         # interpolate within darker half the color map to get as many colors as there are motor units
         N_colors = 10
-        precision_color_map = cl.interp(cl.scales["9"]["seq"]["Greens"][4:9], N_colors)
-        recall_color_map = cl.interp(cl.scales["9"]["seq"]["Oranges"][4:9], N_colors)
-        accuracy_color_map = cl.interp(cl.scales["9"]["seq"]["Blues"][4:9], N_colors)
+        precision_color_map = cl.interp(cl.scales["9"]["seq"]["Greens"][2:9], N_colors)
+        recall_color_map = cl.interp(cl.scales["9"]["seq"]["Oranges"][2:9], N_colors)
+        accuracy_color_map = cl.interp(cl.scales["9"]["seq"]["Blues"][2:9], N_colors)
 
         metric_color_maps = [
             precision_color_map,
@@ -1420,39 +1427,46 @@ def plot4(
                             mode="markers+lines",
                             name=sort_type,
                             marker=dict(
-                                color=(metric_color_maps[iMetric][0]),
-                                size=2,
+                                color=(
+                                    metric_color_maps[iMetric][-1]
+                                ),  # make EMUsort darkest color
+                                size=8,
                             ),
                             line=dict(
-                                width=4,
-                                color=(metric_color_maps[iMetric][0]),
+                                width=6,
+                                color=(metric_color_maps[iMetric][-1]),
                             ),
                             # add the standard deviation as a +/- error bars around the mean
                             error_y=dict(
                                 type="data",
                                 array=metric_stds_EMU,
                                 visible=True,
-                                color=(metric_color_maps[iMetric][0]),
-                                thickness=2,
-                                width=2,
+                                color=(metric_color_maps[iMetric][-1]),
+                                thickness=4,
+                                width=4,
                             ),
-                            opacity=0.6,
+                            opacity=1,
                         ),
                         row=iMetric + 1,
                         col=1,
                     )
-                elif sort_type == "Kilosort":
+                elif "Kilosort" in sort_type:
+                    if sort_type == "Kilosort3":
+                        color_idx = 0
+                    elif sort_type == "Kilosort4":  # make Kilosort4 slightly darker
+                        color_idx = len(accuracy_color_map) // 2
+
                     # add the standard deviation as a +/- error bars around the mean
                     # make opacity of the fill 0.6
                     metric_means_KS = np.mean(
                         metric_values[iMetric][
-                            np.where([int(i == "Kilosort") for i in sort_types])
+                            np.where([int(i == sort_type) for i in sort_types])
                         ],
                         axis=0,
                     )
                     metric_stds_KS = np.std(
                         metric_values[iMetric][
-                            np.where([int(i == "Kilosort") for i in sort_types])
+                            np.where([int(i == sort_type) for i in sort_types])
                         ],
                         axis=0,
                     )
@@ -1486,23 +1500,23 @@ def plot4(
                             name=sort_type,
                             marker=dict(
                                 # color="black",
-                                color=(metric_color_maps[iMetric][-1]),
-                                size=2,
+                                color=(metric_color_maps[iMetric][color_idx]),
+                                size=8,
                             ),
                             line=dict(
-                                width=4,
-                                color=(metric_color_maps[iMetric][-1]),
+                                width=6,
+                                color=(metric_color_maps[iMetric][color_idx]),
                             ),
                             # add the standard deviation as a +/- error bars around the mean
                             error_y=dict(
                                 type="data",
                                 array=metric_stds_KS,
                                 visible=True,
-                                color=(metric_color_maps[iMetric][-1]),
-                                thickness=2,
-                                width=2,
+                                color=(metric_color_maps[iMetric][color_idx]),
+                                thickness=4,
+                                width=4,
                             ),
-                            opacity=0.6,
+                            opacity=1,
                         ),
                         row=iMetric + 1,
                         col=1,
@@ -1537,25 +1551,25 @@ def plot4(
 
         if save_png_plot4:
             fig.write_image(  # add datestr
-                f"plot4_KS_vs_GT_performance_comparison_{datetime.now().strftime('%Y%m%d-%H%M%S')}_{','.join(unique_sort_types)}_{','.join([str(i) for i in num_each_sort_type])}.png",
+                f"plot4/plot4_KS_vs_GT_performance_comparison_{datetime.now().strftime('%Y%m%d-%H%M%S')}_{','.join(unique_sort_types)}_{','.join([str(i) for i in num_each_sort_type])}.png",
                 width=figsize[0],
                 height=figsize[1],
             )
         if save_svg_plot4:
             fig.write_image(
-                f"plot4_KS_vs_GT_performance_comparison_{datetime.now().strftime('%Y%m%d-%H%M%S')}_{','.join(unique_sort_types)}_{','.join([str(i) for i in num_each_sort_type])}.svg",
+                f"plot4/plot4_KS_vs_GT_performance_comparison_{datetime.now().strftime('%Y%m%d-%H%M%S')}_{','.join(unique_sort_types)}_{','.join([str(i) for i in num_each_sort_type])}.svg",
                 width=figsize[0],
                 height=figsize[1],
             )
         if save_html_plot4:
             fig.write_html(
-                f"plot4_KS_vs_GT_performance_comparison_{datetime.now().strftime('%Y%m%d-%H%M%S')}_{','.join(unique_sort_types)}_{','.join([str(i) for i in num_each_sort_type])}.html",
+                f"plot4/plot4_KS_vs_GT_performance_comparison_{datetime.now().strftime('%Y%m%d-%H%M%S')}_{','.join(unique_sort_types)}_{','.join([str(i) for i in num_each_sort_type])}.html",
                 include_plotlyjs="cdn",
                 full_html=False,
             )
         if save_plot4_df_as_pickle:
             metrics_df.to_pickle(
-                f"plot4_KS_vs_GT_performance_comparison_{datetime.now().strftime('%Y%m%d-%H%M%S')}_{','.join(unique_sort_types)}_{','.join([str(i) for i in num_each_sort_type])}.pkl"
+                f"plot4/plot4_KS_vs_GT_performance_comparison_{datetime.now().strftime('%Y%m%d-%H%M%S')}_{','.join(unique_sort_types)}_{','.join([str(i) for i in num_each_sort_type])}.pkl"
             )
 
 
@@ -1921,10 +1935,10 @@ if __name__ == "__main__":
     plot_template = "plotly_white"  # ['ggplot2', 'seaborn', 'simple_white', 'plotly', 'plotly_white', 'plotly_dark', 'presentation', 'xgridoff', 'ygridoff', 'gridon', 'none']
     plot1_bar_type = "percent"  # totals / percent
     plot1_ylim = [0, 135]
-    plot2_xlim = [0, 0.01]
+    plot2_xlim = [0, 0.006]
     show_plot1a = False
     show_plot1b = False
-    show_plot2 = True
+    show_plot2 = False
     show_plot3 = False
     show_plot4 = True
     show_plot5 = False
@@ -1932,13 +1946,13 @@ if __name__ == "__main__":
     save_png_plot1b = False
     save_png_plot2 = False
     save_png_plot3 = False
-    save_png_plot4 = False
+    save_png_plot4 = True
     save_png_plot5 = False
     save_svg_plot1a = False
     save_svg_plot1b = False
     save_svg_plot2 = False
     save_svg_plot3 = False
-    save_svg_plot4 = False
+    save_svg_plot4 = True
     save_svg_plot5 = False
     save_html_plot1a = False
     save_html_plot1b = False
@@ -1961,7 +1975,7 @@ if __name__ == "__main__":
     ground_truth_path = Path(
         # "spikes_20221117_godzilla_SNR-100-constant_jitter-0std_files-14_20240206-160539.npy"  # monkey
         # "spikes_20221117_godzilla_SNR-400-constant_jitter-0std_files-11.npy"  # triple rat
-        "spikes_20221117_godzilla_SNR-1-from_data_jitter-4std_files-11.npy"  # godzilla only, old
+        # "spikes_20221117_godzilla_SNR-1-from_data_jitter-4std_files-11.npy"  # godzilla only, old
         # "spikes_20240217-185626_godzilla_20221117_10MU_SNR-None-constant_jitter-0std_method-median_waves_12-files.npy"  # godzilla only, None
         # "spikes_20240217-185448_godzilla_20221117_10MU_SNR-100-constant_jitter-0std_method-median_waves_12-files.npy"  # godzilla only, 100
         # "spikes_20240217-185509_godzilla_20221117_10MU_SNR-200-constant_jitter-0std_method-median_waves_12-files.npy"  # godzilla only, 200
@@ -1975,7 +1989,7 @@ if __name__ == "__main__":
         # "spikes_20240221-132651_godzilla_20221117_10MU_SNR-700-constant_jitter-0std_method-median_waves_12-files.npy"
         # "spikes_20240220-213138_godzilla_20221117_10MU_SNR-1000-constant_jitter-0std_method-median_waves_12-files.npy"
         ## >= 20240301, godzilla shape noise
-        # "spikes_20240229-200231_godzilla_20221117_10MU_SNR-1-from_data_jitter-0std_method-KS_templates_12-files.npy"
+        "spikes_20240229-200231_godzilla_20221117_10MU_SNR-1-from_data_jitter-0std_method-KS_templates_12-files.npy"
         ##
         # "spikes_20240217-221958_monkey_20221202_6MU_SNR-None-constant_jitter-0std_method-median_waves_1-files.npy" # monkey, None
         # "spikes_20240217-221838_monkey_20221202_6MU_SNR-100-constant_jitter-0std_method-median_waves_1-files.npy" # monkey, 100
@@ -1987,8 +2001,13 @@ if __name__ == "__main__":
         ## for konstantin simulated data, use the path to the simulation folder
         # "/home/smoconn/git/iemg_simulator/simulation_output/vector_100%MVC_600sec_17p_array_18_MUs_2/"
         # "/home/smoconn/git/iemg_simulator/simulation_output/vector_100%MVC_600sec_17p_array_18_MUs_4/"
+        # "/home/smoconn/git/iemg_simulator/simulation_output/vector_100%MVC_600sec_17p_array_9_MUs_1/"
     )  # spikes_20221116_godzilla_SNR-None_jitter-0std_files-1.npy
-
+    ground_truth_path = Path().joinpath("spikes_files", ground_truth_path)
+    if ".npy" not in ground_truth_path.name:
+        assert (
+            simulation_method == "konstantin"
+        ), "simulation_method must be 'konstantin' if ground_truth_path is not an .npy file"
     # set which ground truth clusters to compare with (a range from 0 to num_motor_units)
     GT_clusters_to_use = list(range(0, 10))
     num_motor_units = len(GT_clusters_to_use)
@@ -2017,7 +2036,7 @@ if __name__ == "__main__":
         ## old godzilla only dataset
         # {
         # "20231027_183121"  # 1 std, 4 jitter, all MUsort options ON
-        "20231031_141254"  # 1 std, 4 jitter, all MUsort options ON, slightly better
+        # "20231031_141254"  # 1 std, 4 jitter, all MUsort options ON, slightly better
         # "20231103_160031096827"  # 1 std, 4 jitter, all MUsort options ON, ?
         # "20231103_175840215876",  # 2 std, 8 jitter, all MUsort options ON, ?
         # "20231103_164647242198",  # 2 std, 4 jitter, all MUsort options ON, custom_merge
@@ -2799,7 +2818,7 @@ if __name__ == "__main__":
         # "20240301_121246595172",  # rec-1,2,4,5,6,7_25-good-of-45-total_Th,[7,3],spkTh,-7.5_vanilla_KS
         # "20240301_121303961042",  # rec-1,2,4,5,6,7_34-good-of-56-total_Th,[5,2],spkTh,-4.5_vanilla_KS
         # # EMUsort 16 STD noise, with 20 sorts no duplicates
-        # "20240302_112702002964",  # rec-1,2,4,5,6,7_13-good-of-16-total_Th,[10,4],spkTh,[-3]_EMUsort
+        "20240302_112702002964",  # rec-1,2,4,5,6,7_13-good-of-16-total_Th,[10,4],spkTh,[-3]_EMUsort $$$
         # "20240302_112803188533",  # rec-1,2,4,5,6,7_11-good-of-21-total_Th,[10,4],spkTh,[-3,-6]_EMUsort
         # "20240302_113052102055",  # rec-1,2,4,5,6,7_20-good-of-30-total_Th,[7,3],spkTh,[-6,-9]_EMUsort
         # "20240302_113100156017",  # rec-1,2,4,5,6,7_22-good-of-46-total_Th,[5,2],spkTh,[-9]_EMUsort
@@ -2815,7 +2834,7 @@ if __name__ == "__main__":
         # "20240302_114000257286",  # rec-1,2,4,5,6,7_17-good-of-27-total_Th,[5,2],spkTh,[-3,-6]_EMUsort
         # "20240302_114114545473",  # rec-1,2,4,5,6,7_16-good-of-27-total_Th,[2,1],spkTh,[-3]_EMUsort
         # "20240302_114147865626",  # rec-1,2,4,5,6,7_20-good-of-37-total_Th,[2,1],spkTh,[-6,-9]_EMUsort
-        # "20240302_114215528817",  # rec-1,2,4,5,6,7_21-good-of-36-total_Th,[7,3],spkTh,[-3]_EMUsort $$$
+        # "20240302_114215528817",  # rec-1,2,4,5,6,7_21-good-of-36-total_Th,[7,3],spkTh,[-3]_EMUsort
         # "20240302_114240957772",  # rec-1,2,4,5,6,7_19-good-of-34-total_Th,[2,1],spkTh,[-9]_EMUsort
         # "20240302_114436468337",  # rec-1,2,4,5,6,7_15-good-of-26-total_Th,[5,2],spkTh,[-6]_EMUsort
         # "20240302_114510985387",  # rec-1,2,4,5,6,7_18-good-of-34-total_Th,[7,3],spkTh,[-3,-6]_EMUsort
@@ -2837,7 +2856,7 @@ if __name__ == "__main__":
         # "20240302_110523397034",  # rec-1,2,4,5,6,7_18-good-of-25-total_Th,[2,1],spkTh,-6_vanilla_KS
         # "20240302_110526749376",  # rec-1,2,4,5,6,7_22-good-of-37-total_Th,[2,1],spkTh,-9_vanilla_KS
         # "20240302_110535665413",  # rec-1,2,4,5,6,7_24-good-of-33-total_Th,[7,3],spkTh,-3_vanilla_KS
-        # "20240302_110559659069",  # rec-1,2,4,5,6,7_22-good-of-34-total_Th,[10,4],spkTh,-6_vanilla_KS $$$
+        "20240302_110559659069",  # rec-1,2,4,5,6,7_22-good-of-34-total_Th,[10,4],spkTh,-6_vanilla_KS $$$
         # "20240302_110642581922",  # rec-1,2,4,5,6,7_17-good-of-26-total_Th,[5,2],spkTh,-4.5_vanilla_KS
         # "20240302_110643165194",  # rec-1,2,4,5,6,7_24-good-of-41-total_Th,[7,3],spkTh,-7.5_vanilla_KS
         # # EMUsort 32 STD noise, with 20 sorts no duplicates
@@ -2967,6 +2986,69 @@ if __name__ == "__main__":
         # "20240321_134204300555",  # rec-1_87-good-of-186-total_Th,[5,2],spkTh,-4.5_vanilla_KS
         # "20240321_134253644348",  # rec-1_150-good-of-342-total_Th,[2,1],spkTh,-9_vanilla_KS
         # "20240321_134308362350",  # rec-1_146-good-of-363-total_Th,[2,1],spkTh,-6_vanilla_KS
+        # # # EMUsort, Konstantin 2020 simulation 8/9 MUs detectable, detectable reconstruction, 08CH
+        # "20240401_143451686926",  # rec-1_18-good-of-27-total_Th,[7,3],spkTh,[-6,-9]_EMUsort
+        # "20240401_143454991388",  # rec-1_13-good-of-26-total_Th,[7,3],spkTh,[-6]_EMUsort
+        # "20240401_143501570809",  # rec-1_14-good-of-25-total_Th,[10,4],spkTh,[-3,-6]_EMUsort
+        # "20240401_143527052851",  # rec-1_23-good-of-37-total_Th,[10,4],spkTh,[-3]_EMUsort
+        # "20240401_143546714288",  # rec-1_26-good-of-47-total_Th,[5,2],spkTh,[-9]_EMUsort
+        # "20240401_143824317076",  # rec-1_14-good-of-21-total_Th,[10,4],spkTh,[-6,-9]_EMUsort
+        # "20240401_143838536818",  # rec-1_64-good-of-117-total_Th,[2,1],spkTh,[-3,-6]_EMUsort
+        # "20240401_143845329427",  # rec-1_16-good-of-35-total_Th,[10,4],spkTh,[-6]_EMUsort
+        # "20240401_143919097698",  # rec-1_19-good-of-43-total_Th,[7,3],spkTh,[-9]_EMUsort
+        # "20240401_143926410519",  # rec-1_19-good-of-33-total_Th,[5,2],spkTh,[-3]_EMUsort
+        # "20240401_143947277034",  # rec-1_19-good-of-35-total_Th,[5,2],spkTh,[-3,-6]_EMUsort
+        # "20240401_144240331885",  # rec-1_21-good-of-39-total_Th,[10,4],spkTh,[-9]_EMUsort
+        # "20240401_144240342857",  # rec-1_23-good-of-37-total_Th,[7,3],spkTh,[-3]_EMUsort
+        # "20240401_144249514326",  # rec-1_21-good-of-46-total_Th,[2,1],spkTh,[-6,-9]_EMUsort
+        # "20240401_144255771593",  # rec-1_13-good-of-27-total_Th,[5,2],spkTh,[-6]_EMUsort
+        # "20240401_144306570488",  # rec-1_18-good-of-30-total_Th,[5,2],spkTh,[-6,-9]_EMUsort
+        # "20240401_144316446726",  # rec-1_14-good-of-25-total_Th,[7,3],spkTh,[-3,-6]_EMUsort
+        # "20240401_144332718017",  # rec-1_77-good-of-216-total_Th,[2,1],spkTh,[-3]_EMUsort
+        # "20240401_144801044062",  # rec-1_34-good-of-62-total_Th,[2,1],spkTh,[-6]_EMUsort
+        # "20240401_145556888106",  # rec-1_41-good-of-84-total_Th,[2,1],spkTh,[-9]_EMUsort
+        # # # EMUsort, Konstantin 2020 simulation 8/9 MUs detectable, detectable reconstruction, 16CH
+        # "20240327_202524918615",  # rec-1_16-good-of-24-total_Th,[7,3],spkTh,[-6]_EMUsort
+        # "20240327_202534934565",  # rec-1_16-good-of-32-total_Th,[10,4],spkTh,[-3]_EMUsort
+        # "20240327_202538819805",  # rec-1_17-good-of-29-total_Th,[10,4],spkTh,[-3,-6]_EMUsort
+        # "20240327_202538954207",  # rec-1_16-good-of-28-total_Th,[7,3],spkTh,[-6,-9]_EMUsort
+        # "20240327_202551304503",  # rec-1_18-good-of-27-total_Th,[5,2],spkTh,[-9]_EMUsort
+        # "20240327_202818195257",  # rec-1_10-good-of-19-total_Th,[10,4],spkTh,[-6]_EMUsort
+        # "20240327_202857555716",  # rec-1_17-good-of-28-total_Th,[7,3],spkTh,[-9]_EMUsort
+        # "20240327_202921488830",  # rec-1_28-good-of-35-total_Th,[10,4],spkTh,[-6,-9]_EMUsort
+        # "20240327_203059286948",  # rec-1_46-good-of-77-total_Th,[5,2],spkTh,[-3]_EMUsort
+        # "20240327_203129813399",  # rec-1_52-good-of-91-total_Th,[5,2],spkTh,[-3,-6]_EMUsort
+        # "20240327_203135535338",  # rec-1_15-good-of-26-total_Th,[10,4],spkTh,[-9]_EMUsort
+        # "20240327_203241326354",  # rec-1_25-good-of-42-total_Th,[7,3],spkTh,[-3,-6]_EMUsort
+        # "20240327_203318218134",  # rec-1_30-good-of-45-total_Th,[7,3],spkTh,[-3]_EMUsort
+        # "20240327_203508156240",  # rec-1_31-good-of-47-total_Th,[5,2],spkTh,[-6,-9]_EMUsort
+        # "20240327_203543388847",  # rec-1_48-good-of-82-total_Th,[5,2],spkTh,[-6]_EMUsort
+        # "20240327_203730973208",  # rec-1_95-good-of-180-total_Th,[2,1],spkTh,[-3]_EMUsort
+        # "20240327_203942197910",  # rec-1_108-good-of-241-total_Th,[2,1],spkTh,[-3,-6]_EMUsort
+        # "20240327_205742347003",  # rec-1_124-good-of-250-total_Th,[2,1],spkTh,[-6,-9]_EMUsort
+        # "20240327_205841679532",  # rec-1_117-good-of-258-total_Th,[2,1],spkTh,[-6]_EMUsort
+        # "20240327_211546636381",  # rec-1_112-good-of-230-total_Th,[2,1],spkTh,[-9]_EMUsort
+        # # Kilosort, Konstantin 2020 simulation 8/9 MUs detectable, detectable reconstruction, 16CH
+        # "20240327_165217236323",  # rec-1_50-good-of-86-total_Th,[10,4],spkTh,-7.5_vanilla_KS
+        # "20240327_165258391997",  # rec-1_73-good-of-129-total_Th,[7,3],spkTh,-9_vanilla_KS
+        # "20240327_165307736652",  # rec-1_71-good-of-145-total_Th,[10,4],spkTh,-3_vanilla_KS
+        # "20240327_165315704587",  # rec-1_74-good-of-145-total_Th,[7,3],spkTh,-4.5_vanilla_KS
+        # "20240327_165334240992",  # rec-1_81-good-of-162-total_Th,[5,2],spkTh,-6_vanilla_KS
+        # "20240327_165439325375",  # rec-1_45-good-of-91-total_Th,[10,4],spkTh,-9_vanilla_KS
+        # "20240327_165538286205",  # rec-1_64-good-of-99-total_Th,[10,4],spkTh,-4.5_vanilla_KS
+        # "20240327_165550206411",  # rec-1_65-good-of-120-total_Th,[7,3],spkTh,-6_vanilla_KS
+        # # "20240327_165553696807",  # rec-1_106-good-of-228-total_Th,[2,1],spkTh,-7.5_vanilla_KS
+        # "20240327_165715859555",  # rec-1_77-good-of-172-total_Th,[5,2],spkTh,-7.5_vanilla_KS
+        # # "20240327_165718744046",  # rec-1_95-good-of-214-total_Th,[5,2],spkTh,-3_vanilla_KS
+        # # "20240327_165738255526",  # rec-1_148-good-of-337-total_Th,[2,1],spkTh,-3_vanilla_KS
+        # "20240327_165754033485",  # rec-1_50-good-of-86-total_Th,[10,4],spkTh,-6_vanilla_KS
+        # "20240327_165807022550",  # rec-1_83-good-of-167-total_Th,[7,3],spkTh,-3_vanilla_KS
+        # "20240327_165840929214",  # rec-1_69-good-of-127-total_Th,[7,3],spkTh,-7.5_vanilla_KS
+        # "20240327_170052113611",  # rec-1_99-good-of-181-total_Th,[5,2],spkTh,-9_vanilla_KS
+        # # "20240327_170125444286",  # rec-1_111-good-of-213-total_Th,[5,2],spkTh,-4.5_vanilla_KS
+        # # "20240327_170151247601",  # rec-1_127-good-of-304-total_Th,[2,1],spkTh,-9_vanilla_KS
+        # # "20240327_170431682694",  # rec-1_124-good-of-325-total_Th,[2,1],spkTh,-4.5_vanilla_KS
+        # # "20240327_171000259112",  # rec-1_125-good-of-288-total_Th,[2,1],spkTh,-6_vanilla_KS
         ############################################################################################
         #### Below are with new 16 channel, triple rat dataset
         # simulated20231219:
@@ -3043,6 +3125,23 @@ if __name__ == "__main__":
         # "20240216_193932148031",  # rec-1_24-good-of-39-total_Th,[2,1],spkTh,[-6,-9]_EMUsort
         # "20240216_194008953376",  # rec-1_28-good-of-43-total_Th,[5,2],spkTh,[-6]_EMUsort
         # "20240216_194021792336",  # rec-1_26-good-of-46-total_Th,[2,1],spkTh,[-9]_EMUsort
+        ## Kilosort4 testing with 8 channel dataset
+        # "20240506_180000000000",  # default settings
+        "20240508_201259971096",  # rec-1,2,4,5,6,7_Th,[9,8],spkTh,[6]_KS4
+        # "20240508_201319874725",  # rec-1,2,4,5,6,7_Th,[9,8],spkTh,[3]_KS4
+        # "20240508_201339072807",  # rec-1,2,4,5,6,7_Th,[9,8],spkTh,[9]_KS4
+        # "20240508_201412820291",  # rec-1,2,4,5,6,7_Th,[10,4],spkTh,[6]_KS4
+        # "20240508_201449760292",  # rec-1,2,4,5,6,7_Th,[10,4],spkTh,[3]_KS4
+        # "20240508_201523962938",  # rec-1,2,4,5,6,7_Th,[10,4],spkTh,[9]_KS4
+        # "20240508_201610602826",  # rec-1,2,4,5,6,7_Th,[7,3],spkTh,[6]_KS4
+        # "20240508_201700527644",  # rec-1,2,4,5,6,7_Th,[7,3],spkTh,[3]_KS4
+        # "20240508_201747653121",  # rec-1,2,4,5,6,7_Th,[7,3],spkTh,[9]_KS4
+        # "20240508_201904901109",  # rec-1,2,4,5,6,7_Th,[5,2],spkTh,[6]_KS4
+        # "20240508_202027853995",  # rec-1,2,4,5,6,7_Th,[5,2],spkTh,[3]_KS4
+        # "20240508_202145893192",  # rec-1,2,4,5,6,7_Th,[5,2],spkTh,[9]_KS4
+        # "20240508_202400082406",  # rec-1,2,4,5,6,7_Th,[2,1],spkTh,[6]_KS4
+        # "20240508_202626611651",  # rec-1,2,4,5,6,7_Th,[2,1],spkTh,[3]_KS4
+        # "20240508_202849312799",  # rec-1,2,4,5,6,7_Th,[2,1],spkTh,[9]_KS4
     ]
     clusters_to_take_from = {
         # {
@@ -3419,6 +3518,14 @@ if __name__ == "__main__":
 
                 kilosort_spikes = mu_KS.spikes[-1]  # shape is (num_bins, num_units)
                 ground_truth_spikes = mu_GT.spikes[-1]  # shape is (num_bins, num_units)
+
+                # if kilosort spike length is greater, trim it to match GT
+                if kilosort_spikes.shape[0] > ground_truth_spikes.shape[0]:
+                    print(
+                        f"Shape mismatch after rebinning, trimming KS spikes time dimension down to {ground_truth_spikes.shape[0]}"
+                    )
+                    kilosort_spikes = kilosort_spikes[: ground_truth_spikes.shape[0]]
+
                 ground_truth_spikes_this_clust_repeat = np.tile(
                     ground_truth_spikes[:, jCluster_GT], (kilosort_spikes.shape[1], 1)
                 ).T
@@ -3518,7 +3625,7 @@ if __name__ == "__main__":
             # parameters for different settings across repeats
             # only do correlation alignment during 2nd pass
             correlation_alignment = [False, True]
-            precorrelation_rebin_width = [None, 1]
+            precorrelation_rebin_width = [None, 0.1]
             preaccuracy_rebin_width = [10, 1]
             # repeat twice to only compute the correlation alignment once
             for iRepeat in range(2):
@@ -4473,7 +4580,7 @@ if __name__ == "__main__":
                 save_svg_plot4,
                 save_html_plot4,
                 # make figsize 1080p
-                figsize=(1920, 1080),
+                figsize=(1080, 1080),
             )
 
     if show_plot5 or save_png_plot5 or save_html_plot5 or save_svg_plot5:
