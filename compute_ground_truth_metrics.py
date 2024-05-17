@@ -1,4 +1,5 @@
 # IMPORT packages
+import gc
 from datetime import datetime
 from pathlib import Path
 from pdb import set_trace
@@ -7,17 +8,17 @@ import colorlover as cl
 import numpy as np
 import plotly.graph_objects as go
 import plotly.subplots as subplots
+from mat73 import loadmat
 from pandas import DataFrame as df
 from scipy.signal import correlate, correlation_lags
-from mat73 import loadmat
-import gc
+
+from MUsim import MUsim
 
 # import tracemalloc
 # from collections import Counter
 # import linecache
 # import os
 
-from MUsim import MUsim
 
 start_time = datetime.now()  # begin timer for script execution time
 
@@ -402,6 +403,314 @@ def compare_spike_trains(
     )
 
 
+def find_best_cluster_matches(
+    correlations,
+    precisions,
+    recalls,
+    accuracies,
+    num_matches,
+    num_kilosort_spikes,
+    num_ground_truth_spikes,
+    true_positive_spikes,
+    false_positive_spikes,
+    false_negative_spikes,
+    kilosort_spikes,
+    ground_truth_spikes,
+    method_for_automatic_cluster_mapping,
+    KS_clusters_to_consider=None,
+):
+    # loop through each correlations list element, which house scores for all GT clusters in each sort
+    # GT_mapped_corrs_list = []
+    # precisions_list = []
+    # recalls_list = []
+    # accuracies_list = []
+    # num_matches_list = []
+    # num_kilosort_spikes_list = []
+    # num_ground_truth_spikes_list = []
+    # true_positive_spikes_list = []
+    # false_positive_spikes_list = []
+    # false_negative_spikes_list = []
+    # kilosort_spikes_list = []
+    # ground_truth_spikes_list = []
+    if KS_clusters_to_consider is None:
+        clusters_in_sort_to_use_list = []
+    else:
+        clusters_in_sort_to_use_list = KS_clusters_to_consider
+
+    for iSort in range(len(correlations)):
+        if KS_clusters_to_consider is None:
+            # now find the cluster with the highest correlation
+            sorted_cluster_pair_corr_idx = np.unravel_index(
+                np.argsort(correlations[iSort].ravel()), correlations[iSort].shape
+            )
+
+            # make sure to slice off coordinate pairs with a nan result
+            num_nan_pairs = np.isnan(np.sort(correlations[iSort].ravel())).sum()
+            sorted_GT_cluster_match_idxs = np.flip(sorted_cluster_pair_corr_idx[0])[
+                num_nan_pairs:
+            ]
+            sorted_KS_cluster_match_idxs = np.flip(sorted_cluster_pair_corr_idx[1])[
+                num_nan_pairs:
+            ]
+
+            GT_mapped_idxs = np.nan * np.ones((len(sorted_GT_cluster_match_idxs), 2))
+            GT_mapped_idxs[:, 0] = sorted_GT_cluster_match_idxs
+            GT_mapped_idxs[:, 1] = sorted_KS_cluster_match_idxs
+            GT_mapped_idxs = GT_mapped_idxs.astype(int)
+
+            # now extract only non-repeated rows from the first column
+            # (so there's only one match per GT cluster, in order)
+            [uniq_GT, uniq_GT_idx, uniq_GT_inv_idx] = np.unique(
+                GT_mapped_idxs[:, 0], return_index=True, return_inverse=True
+            )
+            [uniq_KS, uniq_KS_idx, uniq_KS_inv_idx] = np.unique(
+                GT_mapped_idxs[:, 1], return_index=True, return_inverse=True
+            )
+
+            # find the ordering of which GT clusters have the highest score
+            sorted_by_corr_uniq_GT = get_unique_N(uniq_GT_inv_idx, len(uniq_GT))
+            best_uniq_pair_idxs = np.nan * np.ones_like(uniq_GT_idx)
+            claimed_KS_idxs = np.nan * np.ones_like(uniq_GT_idx)
+            for iGT_clust_idx in sorted_by_corr_uniq_GT:
+                best_corr_clust_match_idxs = np.where(uniq_GT_inv_idx == iGT_clust_idx)
+                for iBest_corr_match in best_corr_clust_match_idxs[0]:
+                    if GT_mapped_idxs[iBest_corr_match][1] not in claimed_KS_idxs:
+                        best_uniq_pair_idxs[iGT_clust_idx] = iBest_corr_match
+                        claimed_KS_idxs[iGT_clust_idx] = GT_mapped_idxs[
+                            iBest_corr_match
+                        ][1]
+                        break
+                else:
+                    print(
+                        f"WARNING: GT cluster {iGT_clust_idx} was not matched to any KS cluster"
+                    )
+                    set_trace()
+
+            best_uniq_pair_idxs = best_uniq_pair_idxs.astype(int)
+            GT_mapped_idxs = GT_mapped_idxs[best_uniq_pair_idxs]
+            GT_mapped_corrs = [
+                correlations[iSort][idx_pair[0], idx_pair[1]]
+                for idx_pair in GT_mapped_idxs
+            ]
+
+            if method_for_automatic_cluster_mapping == "accuracies":
+                GT_mapped_precisions = [
+                    precisions[iSort][idx_pair[0], idx_pair[1]]
+                    for idx_pair in GT_mapped_idxs
+                ]
+                GT_mapped_recalls = [
+                    recalls[iSort][idx_pair[0], idx_pair[1]]
+                    for idx_pair in GT_mapped_idxs
+                ]
+                GT_mapped_accuracies = [
+                    accuracies[iSort][idx_pair[0], idx_pair[1]]
+                    for idx_pair in GT_mapped_idxs
+                ]
+                if (
+                    num_matches[iSort].shape[1] == 1
+                    and num_kilosort_spikes[iSort].shape[1] == 1
+                ):
+                    GT_mapped_num_matches = num_matches[iSort].flatten().tolist()
+                    GT_mapped_num_KS_spikes = (
+                        num_kilosort_spikes[iSort].flatten().tolist()
+                    )
+                else:
+                    GT_mapped_num_matches = [
+                        num_matches[iSort][idx_pair[0], idx_pair[1]]
+                        for idx_pair in GT_mapped_idxs
+                    ]
+                    GT_mapped_num_KS_spikes = [
+                        num_kilosort_spikes[iSort][idx_pair[0], idx_pair[1]]
+                        for idx_pair in GT_mapped_idxs
+                    ]
+
+                # shape of metrics is (num_GT_clusters, num_KS_clusters), but KS clusters were
+                # pared down to only the ones that matched to a GT cluster, so the shape of the
+                # metrics will effectively be (num_GT_clusters, num_GT_clusters)
+                accuracies[iSort] = np.array(GT_mapped_accuracies)
+                precisions[iSort] = np.array(GT_mapped_precisions)
+                recalls[iSort] = np.array(GT_mapped_recalls)
+                num_matches[iSort] = np.array(GT_mapped_num_matches)
+                num_kilosort_spikes[iSort] = np.array(GT_mapped_num_KS_spikes).astype(
+                    int
+                )
+                # they are copies, so just take the first one
+                num_ground_truth_spikes[iSort] = num_ground_truth_spikes[iSort][0]
+                ground_truth_spikes[iSort] = np.array(ground_truth_spikes[iSort])[0]
+
+                if (
+                    true_positive_spikes[iSort].shape[2] == 1
+                    and false_positive_spikes[iSort].shape[2] == 1
+                    and false_negative_spikes[iSort].shape[2] == 1
+                    and kilosort_spikes[iSort].shape[2] == 1
+                ):
+                    true_positive_spikes[iSort] = (
+                        true_positive_spikes[iSort].squeeze().T
+                    )
+                    false_positive_spikes[iSort] = (
+                        false_positive_spikes[iSort].squeeze().T
+                    )
+                    false_negative_spikes[iSort] = (
+                        false_negative_spikes[iSort].squeeze().T
+                    )
+                    kilosort_spikes[iSort] = kilosort_spikes[iSort].squeeze().T
+                else:
+                    true_positive_spikes[iSort] = true_positive_spikes[iSort][
+                        GT_mapped_idxs[:, 0], :, GT_mapped_idxs[:, 1]
+                    ].T
+                    false_positive_spikes[iSort] = false_positive_spikes[iSort][
+                        GT_mapped_idxs[:, 0], :, GT_mapped_idxs[:, 1]
+                    ].T
+                    false_negative_spikes[iSort] = false_negative_spikes[iSort][
+                        GT_mapped_idxs[:, 0], :, GT_mapped_idxs[:, 1]
+                    ].T
+                    kilosort_spikes[iSort] = kilosort_spikes[iSort][
+                        GT_mapped_idxs[:, 0], :, GT_mapped_idxs[:, 1]
+                    ].T
+
+                    # true_positive_spikes[iSort] = true_positive_spikes[iSort][
+                    #     :, GT_mapped_idxs[:, 1]
+                    # ]
+                    # false_positive_spikes[iSort] = false_positive_spikes[iSort][
+                    #     :, GT_mapped_idxs[:, 1]
+                    # ]
+                    # false_negative_spikes[iSort] = false_negative_spikes[iSort][
+                    #     :, GT_mapped_idxs[:, 1]
+                    # ]
+                    # kilosort_spikes[iSort] = kilosort_spikes[iSort][:, GT_mapped_idxs[:, 1]]
+                clusters_in_sort_to_use = GT_mapped_idxs[:, 1]
+
+                # append each stacked array to each corresponding list
+                # accuracies_list.append(accuracies)
+                # precisions_list.append(precisions)
+                # recalls_list.append(recalls)
+                # num_matches_list.append(num_matches)
+                # num_kilosort_spikes_list.append(num_kilosort_spikes)
+                # num_ground_truth_spikes_list.append(num_ground_truth_spikes)
+                # true_positive_spikes_list.append(true_positive_spikes)
+                # false_positive_spikes_list.append(false_positive_spikes)
+                # false_negative_spikes_list.append(false_negative_spikes)
+                # kilosort_spikes_list.append(kilosort_spikes)
+                # ground_truth_spikes_list.append(ground_truth_spikes)
+                clusters_in_sort_to_use_list.append(clusters_in_sort_to_use)
+
+                metrics_df = df(
+                    GT_clusters_to_use,  # GT_mapped_idxs[:, 0],
+                    columns=["GT Unit"],
+                    index=clusters_in_sort_to_use,
+                )
+                metrics_df.index.name = "KS Unit"
+                metrics_df["Precision"] = np.array(GT_mapped_precisions)
+                metrics_df["Recall"] = np.array(GT_mapped_recalls)
+                metrics_df["Accuracy"] = np.array(GT_mapped_accuracies)
+                print(metrics_df)
+            else:
+                clusters_in_sort_to_use = [
+                    clusters_in_sort_to_use[idx] for idx in GT_mapped_idxs[:, 1]
+                ]
+            score_df = df(
+                GT_clusters_to_use,  # GT_mapped_idxs[:, 0],
+                columns=["GT Unit"],
+                index=clusters_in_sort_to_use,
+            )
+            score_df.index.name = "KS Unit"
+            score_df["Match Score"] = np.array(GT_mapped_corrs)
+            print(score_df)
+        else:
+            # get first elements across all GT clusters, since they are all identical
+            # because KS clusters were already specified with KS_clusters_to_consider
+            accuracies[iSort] = np.array(
+                [
+                    accuracies[iSort][ii, iKS]
+                    for ii, iKS in enumerate(KS_clusters_to_consider[iSort])
+                ]
+            ).flatten()
+            precisions[iSort] = np.array(
+                [
+                    precisions[iSort][ii, iKS]
+                    for ii, iKS in enumerate(KS_clusters_to_consider[iSort])
+                ]
+            ).flatten()
+            recalls[iSort] = np.array(
+                [
+                    recalls[iSort][ii, iKS]
+                    for ii, iKS in enumerate(KS_clusters_to_consider[iSort])
+                ]
+            ).flatten()
+            num_matches[iSort] = np.array(num_matches[iSort]).flatten()
+            num_kilosort_spikes[iSort] = np.array(num_kilosort_spikes[iSort]).flatten()
+
+            num_ground_truth_spikes[iSort] = num_ground_truth_spikes[iSort][0]
+            ground_truth_spikes[iSort] = np.array(ground_truth_spikes[iSort])[0]
+
+            # ensure proper shaping of the *_spikes variables
+            if (
+                true_positive_spikes[iSort].shape[2] == 1
+                and false_positive_spikes[iSort].shape[2] == 1
+                and false_negative_spikes[iSort].shape[2] == 1
+                and kilosort_spikes[iSort].shape[2] == 1
+            ):
+                true_positive_spikes[iSort] = true_positive_spikes[iSort].squeeze().T
+                false_positive_spikes[iSort] = false_positive_spikes[iSort].squeeze().T
+                false_negative_spikes[iSort] = false_negative_spikes[iSort].squeeze().T
+                kilosort_spikes[iSort] = kilosort_spikes[iSort].squeeze().T
+        # print metrics for each unit
+        print("\n")  # add a newline for readability
+        print("Sort: ", sorts_from_each_path_to_load[iSort])
+
+        unit_df = df()
+        unit_df["Unit"] = np.array(clusters_in_sort_to_use_list[iSort]).astype(int)
+        unit_df["True Count"] = num_ground_truth_spikes[iSort][GT_clusters_to_use]
+        unit_df["KS Count"] = num_kilosort_spikes[iSort]
+        unit_df["Precision"] = precisions[iSort]
+        unit_df["Recall"] = recalls[iSort]
+        unit_df["Accuracy"] = accuracies[iSort]
+        # unit_df["Unit"].astype(int)
+        unit_df.set_index("Unit", inplace=True)
+        print(unit_df)
+        print("\n")  # add a newline for readability
+        # print lowest and highest accuracies, limit to 3 decimal places
+        print(
+            f"Lowest accuracy: {unit_df['Accuracy'].min():.3f}, Unit {unit_df['Accuracy'].idxmin()}"
+        )
+        print(
+            f"Highest accuracy: {unit_df['Accuracy'].max():.3f}, Unit {unit_df['Accuracy'].idxmax()}"
+        )
+
+        # print average accuracy plus or minus standard deviation
+        print(
+            f"Average accuracy: {unit_df['Accuracy'].mean():.3f} +/- {unit_df['Accuracy'].std():.3f}"
+        )
+        # print average accuracy weighted by number of spikes in each unit
+        print(
+            f"Weighted average accuracy: {np.average(unit_df['Accuracy'], weights=unit_df['True Count']):.3f}"
+        )
+        # print average precision plus or minus standard deviation
+        print(
+            f"Average precision: {unit_df['Precision'].mean():.3f} +/- {unit_df['Precision'].std():.3f}"
+        )
+        # print average recall plus or minus standard deviation
+        print(
+            f"Average recall: {unit_df['Recall'].mean():.3f} +/- {unit_df['Recall'].std():.3f}"
+        )
+
+        print("\n")  # add a newline for readability
+    return (
+        precisions,
+        recalls,
+        accuracies,
+        num_matches,
+        num_kilosort_spikes,
+        num_ground_truth_spikes,
+        true_positive_spikes,
+        false_positive_spikes,
+        false_negative_spikes,
+        kilosort_spikes,
+        ground_truth_spikes,
+        clusters_in_sort_to_use_list,  # one list per sort, of KS cluster IDs paired to GT clusters
+    )
+
+
 def plot1(
     num_ground_truth_spikes,
     num_kilosort_spikes,
@@ -446,7 +755,7 @@ def plot1(
     for iSort in range(len(sorts_from_each_path_to_load)):
         # get suffix after the KS folder name, which is the repo branch name for that sort
         # PPP_branch_name = list_of_paths_to_sorted_folders[0][iSort].name.split("_")[-1]
-        # sort_type = "Kilosort" if PPP_branch_name == "KS" else "EMUsort"
+        # sort_type = "Kilosort" if "KS" in PPP_branch_name else "EMUsort"
 
         if show_plot1a or save_png_plot1a or save_svg_plot1a or save_html_plot1a:
             fig1a = go.Figure()
@@ -627,19 +936,19 @@ def plot1(
 
         if save_png_plot1a:
             fig1a.write_image(
-                f"Fig1a_KS_vs_GT_performance_metrics_{bin_width_for_comparison}ms_{sorts_from_each_path_to_load[iSort]}_{sort_types}.png",
+                f"plot1/plot1a_KS_vs_GT_performance_metrics_{bin_width_for_comparison}ms_{sorts_from_each_path_to_load[iSort]}_{sort_types}.png",
                 width=figsize[0],
                 height=figsize[1],
             )
         if save_svg_plot1a:
             fig1a.write_image(
-                f"Fig1a_KS_vs_GT_performance_metrics_{bin_width_for_comparison}ms_{sorts_from_each_path_to_load[iSort]}_{sort_types}.svg",
+                f"plot1/plot1a_KS_vs_GT_performance_metrics_{bin_width_for_comparison}ms_{sorts_from_each_path_to_load[iSort]}_{sort_types}.svg",
                 width=figsize[0],
                 height=figsize[1],
             )
         if save_html_plot1a:
             fig1a.write_html(
-                f"Fig1a_KS_vs_GT_performance_metrics_{bin_width_for_comparison}ms_{sorts_from_each_path_to_load[iSort]}_{sort_types}.html",
+                f"plot1/plot1a_KS_vs_GT_performance_metrics_{bin_width_for_comparison}ms_{sorts_from_each_path_to_load[iSort]}_{sort_types}.html",
                 include_plotlyjs="cdn",
                 full_html=False,
             )
@@ -648,19 +957,19 @@ def plot1(
 
         if save_png_plot1b:
             fig1b.write_image(
-                f"Fig1b_KS_vs_GT_performance_metrics_{bin_width_for_comparison}ms_{sorts_from_each_path_to_load[iSort]}_{sort_types}.png",
+                f"plot1/plot1b_KS_vs_GT_performance_metrics_{bin_width_for_comparison}ms_{sorts_from_each_path_to_load[iSort]}_{sort_types}.png",
                 width=figsize[0],
                 height=figsize[1],
             )
         if save_svg_plot1b:
             fig1b.write_image(
-                f"Fig1b_KS_vs_GT_performance_metrics_{bin_width_for_comparison}ms_{sorts_from_each_path_to_load[iSort]}_{sort_types}.svg",
+                f"plot1/plot1b_KS_vs_GT_performance_metrics_{bin_width_for_comparison}ms_{sorts_from_each_path_to_load[iSort]}_{sort_types}.svg",
                 width=figsize[0],
                 height=figsize[1],
             )
         if save_html_plot1b:
             fig1b.write_html(
-                f"Fig1b_KS_vs_GT_performance_metrics_{bin_width_for_comparison}ms_{sorts_from_each_path_to_load[iSort]}_{sort_types}.html",
+                f"plot1/plot1b_KS_vs_GT_performance_metrics_{bin_width_for_comparison}ms_{sorts_from_each_path_to_load[iSort]}_{sort_types}.html",
                 include_plotlyjs="cdn",
                 full_html=False,
             )
@@ -688,7 +997,7 @@ def plot2(
 ):
     # get suffix after the KS folder name, which is the repo branch name for that sort
     PPP_branch_name = list_of_paths_to_sorted_folders[0][iSort].name.split("_")[-1]
-    sort_type = "Kilosort" if PPP_branch_name == "KS" else "EMUsort"
+    sort_type = "Kilosort" if "KS" in PPP_branch_name else "EMUsort"
     # make a subplot for each unit
     subtitles = [
         f"Unit {GT_clusters_to_use[iUnit]}" for iUnit in range(num_motor_units)
@@ -706,8 +1015,8 @@ def plot2(
     )
 
     # cut all arrays short by the factor of plot2_xlim, all arrays are zeros and ones
-    left_bound = int(round(plot2_xlim[0] * len(kilosort_spikes)))
-    right_bound = int(round(plot2_xlim[1] * len(kilosort_spikes)))
+    left_bound = int(round(plot2_xlim[0] * kilosort_spikes.shape[0]))
+    right_bound = int(round(plot2_xlim[1] * kilosort_spikes.shape[0]))
     kilosort_spikes_cut = kilosort_spikes[left_bound:right_bound, :]
     ground_truth_spikes_cut = ground_truth_spikes[left_bound:right_bound, :]
     false_positive_spikes_cut = false_positive_spikes[left_bound:right_bound, :]
@@ -828,19 +1137,19 @@ def plot2(
     # append sort name instead of time stamp
     if save_png_plot2:
         fig.write_image(
-            f"KS_vs_GT_spike_trains_{bin_width_for_comparison}ms_{sort_from_each_path_to_load}_{PPP_branch_name}.png",
+            f"plot2/plot2_KS_vs_GT_spike_trains_{bin_width_for_comparison}ms_{sort_from_each_path_to_load}_{PPP_branch_name}.png",
             width=figsize[0],
             height=figsize[1],
         )
     if save_svg_plot2:
         fig.write_image(
-            f"KS_vs_GT_spike_trains_{bin_width_for_comparison}ms_{sort_from_each_path_to_load}_{PPP_branch_name}.svg",
+            f"plot2/plot2_KS_vs_GT_spike_trains_{bin_width_for_comparison}ms_{sort_from_each_path_to_load}_{PPP_branch_name}.svg",
             width=figsize[0],
             height=figsize[1],
         )
     if save_html_plot2:
         fig.write_html(
-            f"KS_vs_GT_spike_trains_{bin_width_for_comparison}ms_{sort_from_each_path_to_load}_{PPP_branch_name}.html",
+            f"plot2/plot2_KS_vs_GT_spike_trains_{bin_width_for_comparison}ms_{sort_from_each_path_to_load}_{PPP_branch_name}.html",
         )
     if show_plot2:
         fig.show()
@@ -864,7 +1173,7 @@ def plot3(
 ):
     # get suffix after the KS folder name, which is the repo branch name for that sort
     PPP_branch_name = list_of_paths_to_sorted_folders[0][iSort].name.split("_")[-1]
-    sort_type = "Kilosort" if PPP_branch_name == "KS" else "EMUsort"
+    sort_type = "Kilosort" if "KS" in PPP_branch_name else "EMUsort"
     # this plot shows the performance of MUsort across different bin widths, with 1 trace per motor unit
     # put a subplot for each metric, but give a different color range for each metric. Make it flexible
     # to the number of motor units, then interpolate the color for each motor unit
@@ -939,19 +1248,19 @@ def plot3(
 
     if save_png_plot3:
         fig.write_image(
-            f"KS_vs_GT_bin_width_comparison_{sort_from_each_path_to_load}_{PPP_branch_name}.png",
+            f"plot3/plot3_KS_vs_GT_bin_width_comparison_{sort_from_each_path_to_load}_{PPP_branch_name}.png",
             width=figsize[0],
             height=figsize[1],
         )
     if save_svg_plot3:
         fig.write_image(
-            f"KS_vs_GT_bin_width_comparison_{sort_from_each_path_to_load}_{PPP_branch_name}.svg",
+            f"plot3/plot3_KS_vs_GT_bin_width_comparison_{sort_from_each_path_to_load}_{PPP_branch_name}.svg",
             width=figsize[0],
             height=figsize[1],
         )
     if save_html_plot3:
         fig.write_html(
-            f"KS_vs_GT_bin_width_comparison_{sort_from_each_path_to_load}_{PPP_branch_name}.html",
+            f"plot3/plot3_KS_vs_GT_bin_width_comparison_{sort_from_each_path_to_load}_{PPP_branch_name}.html",
             include_plotlyjs="cdn",
             full_html=False,
         )
@@ -1004,12 +1313,18 @@ def plot4(
                 sorts_from_each_path_to_load[iSort]
                 in list_of_paths_to_sorted_folders[0][iPath].name
             ):
-                sort_types[iSort] = (
-                    "Kilosort"
-                    if list_of_paths_to_sorted_folders[0][iPath].name.split("_")[-1]
-                    == "KS"
-                    else "EMUsort"
-                )
+                if (
+                    "KS"
+                    == list_of_paths_to_sorted_folders[0][iPath].name.split("_")[-1]
+                ):
+                    sort_types[iSort] = "Kilosort3"
+                elif (
+                    "KS4"
+                    == list_of_paths_to_sorted_folders[0][iPath].name.split("_")[-1]
+                ):
+                    sort_types[iSort] = "Kilosort4"
+                else:
+                    sort_types[iSort] = "EMUsort"
                 break
     # make sure all sort_types were found
     assert None not in sort_types, "Not all sort_types were found"
@@ -1026,9 +1341,9 @@ def plot4(
 
         # interpolate within darker half the color map to get as many colors as there are motor units
         N_colors = 10
-        precision_color_map = cl.interp(cl.scales["9"]["seq"]["Greens"][4:9], N_colors)
-        recall_color_map = cl.interp(cl.scales["9"]["seq"]["Oranges"][4:9], N_colors)
-        accuracy_color_map = cl.interp(cl.scales["9"]["seq"]["Blues"][4:9], N_colors)
+        precision_color_map = cl.interp(cl.scales["9"]["seq"]["Greens"][2:9], N_colors)
+        recall_color_map = cl.interp(cl.scales["9"]["seq"]["Oranges"][2:9], N_colors)
+        accuracy_color_map = cl.interp(cl.scales["9"]["seq"]["Blues"][2:9], N_colors)
 
         metric_color_maps = [
             precision_color_map,
@@ -1112,39 +1427,46 @@ def plot4(
                             mode="markers+lines",
                             name=sort_type,
                             marker=dict(
-                                color=(metric_color_maps[iMetric][0]),
-                                size=2,
+                                color=(
+                                    metric_color_maps[iMetric][-1]
+                                ),  # make EMUsort darkest color
+                                size=8,
                             ),
                             line=dict(
-                                width=4,
-                                color=(metric_color_maps[iMetric][0]),
+                                width=6,
+                                color=(metric_color_maps[iMetric][-1]),
                             ),
                             # add the standard deviation as a +/- error bars around the mean
                             error_y=dict(
                                 type="data",
                                 array=metric_stds_EMU,
                                 visible=True,
-                                color=(metric_color_maps[iMetric][0]),
-                                thickness=2,
-                                width=2,
+                                color=(metric_color_maps[iMetric][-1]),
+                                thickness=4,
+                                width=4,
                             ),
-                            opacity=0.6,
+                            opacity=1,
                         ),
                         row=iMetric + 1,
                         col=1,
                     )
-                elif sort_type == "Kilosort":
+                elif "Kilosort" in sort_type:
+                    if sort_type == "Kilosort3":
+                        color_idx = 0
+                    elif sort_type == "Kilosort4":  # make Kilosort4 slightly darker
+                        color_idx = len(accuracy_color_map) // 2
+
                     # add the standard deviation as a +/- error bars around the mean
                     # make opacity of the fill 0.6
                     metric_means_KS = np.mean(
                         metric_values[iMetric][
-                            np.where([int(i == "Kilosort") for i in sort_types])
+                            np.where([int(i == sort_type) for i in sort_types])
                         ],
                         axis=0,
                     )
                     metric_stds_KS = np.std(
                         metric_values[iMetric][
-                            np.where([int(i == "Kilosort") for i in sort_types])
+                            np.where([int(i == sort_type) for i in sort_types])
                         ],
                         axis=0,
                     )
@@ -1178,23 +1500,23 @@ def plot4(
                             name=sort_type,
                             marker=dict(
                                 # color="black",
-                                color=(metric_color_maps[iMetric][-1]),
-                                size=2,
+                                color=(metric_color_maps[iMetric][color_idx]),
+                                size=8,
                             ),
                             line=dict(
-                                width=4,
-                                color=(metric_color_maps[iMetric][-1]),
+                                width=6,
+                                color=(metric_color_maps[iMetric][color_idx]),
                             ),
                             # add the standard deviation as a +/- error bars around the mean
                             error_y=dict(
                                 type="data",
                                 array=metric_stds_KS,
                                 visible=True,
-                                color=(metric_color_maps[iMetric][-1]),
-                                thickness=2,
-                                width=2,
+                                color=(metric_color_maps[iMetric][color_idx]),
+                                thickness=4,
+                                width=4,
                             ),
-                            opacity=0.6,
+                            opacity=1,
                         ),
                         row=iMetric + 1,
                         col=1,
@@ -1229,25 +1551,25 @@ def plot4(
 
         if save_png_plot4:
             fig.write_image(  # add datestr
-                f"plot4_KS_vs_GT_performance_comparison_{datetime.now().strftime('%Y%m%d-%H%M%S')}_{','.join(unique_sort_types)}_{','.join([str(i) for i in num_each_sort_type])}.png",
+                f"plot4/plot4_KS_vs_GT_performance_comparison_{datetime.now().strftime('%Y%m%d-%H%M%S')}_{','.join(unique_sort_types)}_{','.join([str(i) for i in num_each_sort_type])}.png",
                 width=figsize[0],
                 height=figsize[1],
             )
         if save_svg_plot4:
             fig.write_image(
-                f"plot4_KS_vs_GT_performance_comparison_{datetime.now().strftime('%Y%m%d-%H%M%S')}_{','.join(unique_sort_types)}_{','.join([str(i) for i in num_each_sort_type])}.svg",
+                f"plot4/plot4_KS_vs_GT_performance_comparison_{datetime.now().strftime('%Y%m%d-%H%M%S')}_{','.join(unique_sort_types)}_{','.join([str(i) for i in num_each_sort_type])}.svg",
                 width=figsize[0],
                 height=figsize[1],
             )
         if save_html_plot4:
             fig.write_html(
-                f"plot4_KS_vs_GT_performance_comparison_{datetime.now().strftime('%Y%m%d-%H%M%S')}_{','.join(unique_sort_types)}_{','.join([str(i) for i in num_each_sort_type])}.html",
+                f"plot4/plot4_KS_vs_GT_performance_comparison_{datetime.now().strftime('%Y%m%d-%H%M%S')}_{','.join(unique_sort_types)}_{','.join([str(i) for i in num_each_sort_type])}.html",
                 include_plotlyjs="cdn",
                 full_html=False,
             )
         if save_plot4_df_as_pickle:
             metrics_df.to_pickle(
-                f"plot4_KS_vs_GT_performance_comparison_{datetime.now().strftime('%Y%m%d-%H%M%S')}_{','.join(unique_sort_types)}_{','.join([str(i) for i in num_each_sort_type])}.pkl"
+                f"plot4/plot4_KS_vs_GT_performance_comparison_{datetime.now().strftime('%Y%m%d-%H%M%S')}_{','.join(unique_sort_types)}_{','.join([str(i) for i in num_each_sort_type])}.pkl"
             )
 
 
@@ -1597,7 +1919,7 @@ if __name__ == "__main__":
     use_custom_merge_clusters = False
     automatically_assign_cluster_mapping = True
     method_for_automatic_cluster_mapping = "accuracies"  # can be "accuracies", "waves", "times", or "trains"  what the correlation is computed on to map clusters
-    simulation_method = "konstantin"  # can be "MUsim" or "konstantin"
+    simulation_method = "MUsim"  # can be "MUsim" or "konstantin"
     time_frame = [0, 1]  # must be between 0 and 1
     ephys_fs = 30000  # Hz
     xstart = np.log2(
@@ -1613,12 +1935,12 @@ if __name__ == "__main__":
     plot_template = "plotly_white"  # ['ggplot2', 'seaborn', 'simple_white', 'plotly', 'plotly_white', 'plotly_dark', 'presentation', 'xgridoff', 'ygridoff', 'gridon', 'none']
     plot1_bar_type = "percent"  # totals / percent
     plot1_ylim = [0, 135]
-    plot2_xlim = [0, 1]
+    plot2_xlim = [0, 0.006]
     show_plot1a = False
     show_plot1b = False
     show_plot2 = False
     show_plot3 = False
-    show_plot4 = False
+    show_plot4 = True
     show_plot5 = False
     save_png_plot1a = False
     save_png_plot1b = False
@@ -1638,7 +1960,7 @@ if __name__ == "__main__":
     save_html_plot3 = False
     save_html_plot4 = False
     save_html_plot5 = False
-    save_plot4_df_as_pickle = True
+    save_plot4_df_as_pickle = False
 
     ## TBD: NEED TO ADD FLAG FOR DATASET CHOICE, to flip all related variables
     ## paths with simulated data
@@ -1667,7 +1989,7 @@ if __name__ == "__main__":
         # "spikes_20240221-132651_godzilla_20221117_10MU_SNR-700-constant_jitter-0std_method-median_waves_12-files.npy"
         # "spikes_20240220-213138_godzilla_20221117_10MU_SNR-1000-constant_jitter-0std_method-median_waves_12-files.npy"
         ## >= 20240301, godzilla shape noise
-        # "spikes_20240229-200231_godzilla_20221117_10MU_SNR-1-from_data_jitter-0std_method-KS_templates_12-files.npy"
+        "spikes_20240229-200231_godzilla_20221117_10MU_SNR-1-from_data_jitter-0std_method-KS_templates_12-files.npy"
         ##
         # "spikes_20240217-221958_monkey_20221202_6MU_SNR-None-constant_jitter-0std_method-median_waves_1-files.npy" # monkey, None
         # "spikes_20240217-221838_monkey_20221202_6MU_SNR-100-constant_jitter-0std_method-median_waves_1-files.npy" # monkey, 100
@@ -1677,9 +1999,15 @@ if __name__ == "__main__":
         # "spikes_20221117_godzilla_SNR-1-from_data_jitter-1std_files-5.npy"
         # "spikes_20221116_godzilla_SNR-8-from_data_jitter-4std_files-1.npy"
         ## for konstantin simulated data, use the path to the simulation folder
-        "/home/smoconn/git/iemg_simulator/simulation_output/vector_100%MVC_600sec_17p_array_18_MUs_2/"
+        # "/home/smoconn/git/iemg_simulator/simulation_output/vector_100%MVC_600sec_17p_array_18_MUs_2/"
+        # "/home/smoconn/git/iemg_simulator/simulation_output/vector_100%MVC_600sec_17p_array_18_MUs_4/"
+        # "/home/smoconn/git/iemg_simulator/simulation_output/vector_100%MVC_600sec_17p_array_9_MUs_1/"
     )  # spikes_20221116_godzilla_SNR-None_jitter-0std_files-1.npy
-
+    ground_truth_path = Path().joinpath("spikes_files", ground_truth_path)
+    if ".npy" not in ground_truth_path.name:
+        assert (
+            simulation_method == "konstantin"
+        ), "simulation_method must be 'konstantin' if ground_truth_path is not an .npy file"
     # set which ground truth clusters to compare with (a range from 0 to num_motor_units)
     GT_clusters_to_use = list(range(0, 10))
     num_motor_units = len(GT_clusters_to_use)
@@ -1691,8 +2019,8 @@ if __name__ == "__main__":
             # "/snel/share/data/rodent-ephys/open-ephys/monkey/sean-pipeline/simulated20240206"
             # "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/triple/simulated20231219/"
             # "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/godzilla/simulated20221116/"
-            # "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/godzilla/simulated20221117/"
-            "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/konstantin/simulated20240307/"
+            "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/godzilla/simulated20221117/"
+            # "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/konstantin/simulated20240307/"
         ),
     ]
     sorts_from_each_path_to_load = [
@@ -2490,7 +2818,7 @@ if __name__ == "__main__":
         # "20240301_121246595172",  # rec-1,2,4,5,6,7_25-good-of-45-total_Th,[7,3],spkTh,-7.5_vanilla_KS
         # "20240301_121303961042",  # rec-1,2,4,5,6,7_34-good-of-56-total_Th,[5,2],spkTh,-4.5_vanilla_KS
         # # EMUsort 16 STD noise, with 20 sorts no duplicates
-        # "20240302_112702002964",  # rec-1,2,4,5,6,7_13-good-of-16-total_Th,[10,4],spkTh,[-3]_EMUsort
+        "20240302_112702002964",  # rec-1,2,4,5,6,7_13-good-of-16-total_Th,[10,4],spkTh,[-3]_EMUsort $$$
         # "20240302_112803188533",  # rec-1,2,4,5,6,7_11-good-of-21-total_Th,[10,4],spkTh,[-3,-6]_EMUsort
         # "20240302_113052102055",  # rec-1,2,4,5,6,7_20-good-of-30-total_Th,[7,3],spkTh,[-6,-9]_EMUsort
         # "20240302_113100156017",  # rec-1,2,4,5,6,7_22-good-of-46-total_Th,[5,2],spkTh,[-9]_EMUsort
@@ -2506,7 +2834,7 @@ if __name__ == "__main__":
         # "20240302_114000257286",  # rec-1,2,4,5,6,7_17-good-of-27-total_Th,[5,2],spkTh,[-3,-6]_EMUsort
         # "20240302_114114545473",  # rec-1,2,4,5,6,7_16-good-of-27-total_Th,[2,1],spkTh,[-3]_EMUsort
         # "20240302_114147865626",  # rec-1,2,4,5,6,7_20-good-of-37-total_Th,[2,1],spkTh,[-6,-9]_EMUsort
-        # "20240302_114215528817",  # rec-1,2,4,5,6,7_21-good-of-36-total_Th,[7,3],spkTh,[-3]_EMUsort $$$
+        # "20240302_114215528817",  # rec-1,2,4,5,6,7_21-good-of-36-total_Th,[7,3],spkTh,[-3]_EMUsort
         # "20240302_114240957772",  # rec-1,2,4,5,6,7_19-good-of-34-total_Th,[2,1],spkTh,[-9]_EMUsort
         # "20240302_114436468337",  # rec-1,2,4,5,6,7_15-good-of-26-total_Th,[5,2],spkTh,[-6]_EMUsort
         # "20240302_114510985387",  # rec-1,2,4,5,6,7_18-good-of-34-total_Th,[7,3],spkTh,[-3,-6]_EMUsort
@@ -2528,7 +2856,7 @@ if __name__ == "__main__":
         # "20240302_110523397034",  # rec-1,2,4,5,6,7_18-good-of-25-total_Th,[2,1],spkTh,-6_vanilla_KS
         # "20240302_110526749376",  # rec-1,2,4,5,6,7_22-good-of-37-total_Th,[2,1],spkTh,-9_vanilla_KS
         # "20240302_110535665413",  # rec-1,2,4,5,6,7_24-good-of-33-total_Th,[7,3],spkTh,-3_vanilla_KS
-        # "20240302_110559659069",  # rec-1,2,4,5,6,7_22-good-of-34-total_Th,[10,4],spkTh,-6_vanilla_KS $$$
+        "20240302_110559659069",  # rec-1,2,4,5,6,7_22-good-of-34-total_Th,[10,4],spkTh,-6_vanilla_KS $$$
         # "20240302_110642581922",  # rec-1,2,4,5,6,7_17-good-of-26-total_Th,[5,2],spkTh,-4.5_vanilla_KS
         # "20240302_110643165194",  # rec-1,2,4,5,6,7_24-good-of-41-total_Th,[7,3],spkTh,-7.5_vanilla_KS
         # # EMUsort 32 STD noise, with 20 sorts no duplicates
@@ -2575,51 +2903,152 @@ if __name__ == "__main__":
         # ## "TooFew_20240302_121305322001",  # rec-1,2,4,5,6,7_2-good-of-5-total_Th,[5,2],spkTh,-4.5_vanilla_KS
         # >###########################################################################################
         ### # EMUsort, Konstantin 2020 simulation 10/18 MUs detectable reconstruction
-        "20240314_133031478643",  # rec-1_23-good-of-44-total_Th,[7,3],spkTh,[-6,-9]_EMUsort
-        "20240314_133037442256",  # rec-1_31-good-of-63-total_Th,[10,4],spkTh,[-3]_EMUsort
-        "20240314_133043455404",  # rec-1_28-good-of-51-total_Th,[7,3],spkTh,[-6]_EMUsort
-        "20240314_133050202064",  # rec-1_35-good-of-62-total_Th,[10,4],spkTh,[-3,-6]_EMUsort
-        "20240314_133056657041",  # rec-1_40-good-of-80-total_Th,[5,2],spkTh,[-9]_EMUsort
-        "20240314_133218549973",  # rec-1_55-good-of-87-total_Th,[2,1],spkTh,[-3,-6]_EMUsort
-        "20240314_133242957398",  # rec-1_65-good-of-116-total_Th,[2,1],spkTh,[-3]_EMUsort
-        "20240314_133421858859",  # rec-1_27-good-of-52-total_Th,[7,3],spkTh,[-9]_EMUsort
-        "20240314_133441670071",  # rec-1_27-good-of-54-total_Th,[10,4],spkTh,[-6]_EMUsort
-        "20240314_133442683512",  # rec-1_26-good-of-47-total_Th,[10,4],spkTh,[-6,-9]_EMUsort
-        "20240314_133535163377",  # rec-1_55-good-of-93-total_Th,[5,2],spkTh,[-3]_EMUsort
-        "20240314_133620578243",  # rec-1_35-good-of-80-total_Th,[5,2],spkTh,[-3,-6]_EMUsort
-        "20240314_133719454359",  # rec-1_36-good-of-70-total_Th,[2,1],spkTh,[-6,-9]_EMUsort
-        "20240314_133815205560",  # rec-1_20-good-of-46-total_Th,[10,4],spkTh,[-9]_EMUsort
-        "20240314_133850117335",  # rec-1_25-good-of-60-total_Th,[7,3],spkTh,[-3]_EMUsort
-        "20240314_133852009547",  # rec-1_28-good-of-57-total_Th,[7,3],spkTh,[-3,-6]_EMUsort
-        "20240314_133941186486",  # rec-1_72-good-of-112-total_Th,[2,1],spkTh,[-6]_EMUsort
-        "20240314_134036123142",  # rec-1_54-good-of-90-total_Th,[5,2],spkTh,[-6]_EMUsort
-        "20240314_134104220405",  # rec-1_41-good-of-79-total_Th,[5,2],spkTh,[-6,-9]_EMUsort
-        "20240314_134431073784",  # rec-1_52-good-of-105-total_Th,[2,1],spkTh,[-9]_EMUsort
+        # "20240314_133031478643",  # rec-1_23-good-of-44-total_Th,[7,3],spkTh,[-6,-9]_EMUsort
+        # "20240314_133037442256",  # rec-1_31-good-of-63-total_Th,[10,4],spkTh,[-3]_EMUsort
+        # "20240314_133043455404",  # rec-1_28-good-of-51-total_Th,[7,3],spkTh,[-6]_EMUsort
+        # "20240314_133050202064",  # rec-1_35-good-of-62-total_Th,[10,4],spkTh,[-3,-6]_EMUsort
+        # "20240314_133056657041",  # rec-1_40-good-of-80-total_Th,[5,2],spkTh,[-9]_EMUsort
+        # "20240314_133218549973",  # rec-1_55-good-of-87-total_Th,[2,1],spkTh,[-3,-6]_EMUsort
+        # "20240314_133242957398",  # rec-1_65-good-of-116-total_Th,[2,1],spkTh,[-3]_EMUsort
+        # "20240314_133421858859",  # rec-1_27-good-of-52-total_Th,[7,3],spkTh,[-9]_EMUsort
+        # "20240314_133441670071",  # rec-1_27-good-of-54-total_Th,[10,4],spkTh,[-6]_EMUsort
+        # "20240314_133442683512",  # rec-1_26-good-of-47-total_Th,[10,4],spkTh,[-6,-9]_EMUsort
+        # "20240314_133535163377",  # rec-1_55-good-of-93-total_Th,[5,2],spkTh,[-3]_EMUsort
+        # "20240314_133620578243",  # rec-1_35-good-of-80-total_Th,[5,2],spkTh,[-3,-6]_EMUsort
+        # "20240314_133719454359",  # rec-1_36-good-of-70-total_Th,[2,1],spkTh,[-6,-9]_EMUsort
+        # "20240314_133815205560",  # rec-1_20-good-of-46-total_Th,[10,4],spkTh,[-9]_EMUsort
+        # "20240314_133850117335",  # rec-1_25-good-of-60-total_Th,[7,3],spkTh,[-3]_EMUsort
+        # "20240314_133852009547",  # rec-1_28-good-of-57-total_Th,[7,3],spkTh,[-3,-6]_EMUsort
+        # "20240314_133941186486",  # rec-1_72-good-of-112-total_Th,[2,1],spkTh,[-6]_EMUsort
+        # "20240314_134036123142",  # rec-1_54-good-of-90-total_Th,[5,2],spkTh,[-6]_EMUsort
+        # "20240314_134104220405",  # rec-1_41-good-of-79-total_Th,[5,2],spkTh,[-6,-9]_EMUsort
+        # "20240314_134431073784",  # rec-1_52-good-of-105-total_Th,[2,1],spkTh,[-9]_EMUsort
         ### # Kilosort, Konstantin 2020 simulation 10/18 MUs detectable reconstruction
-        "20240314_130436324157",  # rec-1_45-good-of-82-total_Th,[10,4],spkTh,-7.5_vanilla_KS
-        "20240314_130436535281",  # rec-1_53-good-of-93-total_Th,[7,3],spkTh,-9_vanilla_KS
-        "20240314_130439530174",  # rec-1_48-good-of-82-total_Th,[10,4],spkTh,-3_vanilla_KS
-        "20240314_130441924825",  # rec-1_61-good-of-104-total_Th,[7,3],spkTh,-4.5_vanilla_KS
-        "20240314_130515824181",  # rec-1_76-good-of-148-total_Th,[5,2],spkTh,-6_vanilla_KS
-        "20240314_130637016676",  # rec-1_30-good-of-57-total_Th,[10,4],spkTh,-9_vanilla_KS
-        "20240314_130640813332",  # rec-1_109-good-of-224-total_Th,[2,1],spkTh,-3_vanilla_KS
-        "20240314_130657414489",  # rec-1_59-good-of-85-total_Th,[10,4],spkTh,-4.5_vanilla_KS
-        "20240314_130700582218",  # rec-1_109-good-of-206-total_Th,[2,1],spkTh,-7.5_vanilla_KS
-        "20240314_130709080675",  # rec-1_55-good-of-102-total_Th,[7,3],spkTh,-6_vanilla_KS
-        "20240314_130732540178",  # rec-1_70-good-of-135-total_Th,[5,2],spkTh,-3_vanilla_KS
-        "20240314_130750627529",  # rec-1_69-good-of-113-total_Th,[5,2],spkTh,-7.5_vanilla_KS
-        "20240314_130850692336",  # rec-1_36-good-of-56-total_Th,[10,4],spkTh,-6_vanilla_KS
-        "20240314_130859228057",  # rec-1_63-good-of-103-total_Th,[7,3],spkTh,-3_vanilla_KS
-        "20240314_130920017501",  # rec-1_52-good-of-90-total_Th,[7,3],spkTh,-7.5_vanilla_KS
-        "20240314_130953221015",  # rec-1_59-good-of-100-total_Th,[5,2],spkTh,-4.5_vanilla_KS
-        "20240314_131022913817",  # rec-1_68-good-of-125-total_Th,[5,2],spkTh,-9_vanilla_KS
-        "20240314_131059650387",  # rec-1_99-good-of-228-total_Th,[2,1],spkTh,-9_vanilla_KS
-        "20240314_131106869584",  # rec-1_120-good-of-233-total_Th,[2,1],spkTh,-4.5_vanilla_KS
-        "20240314_131445242868",  # rec-1_115-good-of-241-total_Th,[2,1],spkTh,-6_vanilla_KS
-        # # EMUsort, Konstantin 2020 simulation 10/18 MUs detectable, full emg
-        # # Kilosort, Konstantin 2020 simulation 10/18 MUs detectable, full emg
-        # # EMUsort, Konstantin 2020 simulation 10/18 MUs detectable, full emg with Gaussian noise
-        # # Kilosort, Konstantin 2020 simulation 10/18 MUs detectable, full emg with Gaussian noise
+        # "20240314_130436324157",  # rec-1_45-good-of-82-total_Th,[10,4],spkTh,-7.5_vanilla_KS
+        # "20240314_130436535281",  # rec-1_53-good-of-93-total_Th,[7,3],spkTh,-9_vanilla_KS
+        # "20240314_130439530174",  # rec-1_48-good-of-82-total_Th,[10,4],spkTh,-3_vanilla_KS
+        # "20240314_130441924825",  # rec-1_61-good-of-104-total_Th,[7,3],spkTh,-4.5_vanilla_KS
+        # "20240314_130515824181",  # rec-1_76-good-of-148-total_Th,[5,2],spkTh,-6_vanilla_KS
+        # "20240314_130637016676",  # rec-1_30-good-of-57-total_Th,[10,4],spkTh,-9_vanilla_KS
+        # "20240314_130640813332",  # rec-1_109-good-of-224-total_Th,[2,1],spkTh,-3_vanilla_KS
+        # "20240314_130657414489",  # rec-1_59-good-of-85-total_Th,[10,4],spkTh,-4.5_vanilla_KS
+        # "20240314_130700582218",  # rec-1_109-good-of-206-total_Th,[2,1],spkTh,-7.5_vanilla_KS
+        # "20240314_130709080675",  # rec-1_55-good-of-102-total_Th,[7,3],spkTh,-6_vanilla_KS
+        # "20240314_130732540178",  # rec-1_70-good-of-135-total_Th,[5,2],spkTh,-3_vanilla_KS
+        # "20240314_130750627529",  # rec-1_69-good-of-113-total_Th,[5,2],spkTh,-7.5_vanilla_KS
+        # "20240314_130850692336",  # rec-1_36-good-of-56-total_Th,[10,4],spkTh,-6_vanilla_KS
+        # "20240314_130859228057",  # rec-1_63-good-of-103-total_Th,[7,3],spkTh,-3_vanilla_KS
+        # "20240314_130920017501",  # rec-1_52-good-of-90-total_Th,[7,3],spkTh,-7.5_vanilla_KS
+        # "20240314_130953221015",  # rec-1_59-good-of-100-total_Th,[5,2],spkTh,-4.5_vanilla_KS
+        # "20240314_131022913817",  # rec-1_68-good-of-125-total_Th,[5,2],spkTh,-9_vanilla_KS
+        # "20240314_131059650387",  # rec-1_99-good-of-228-total_Th,[2,1],spkTh,-9_vanilla_KS
+        # "20240314_131106869584",  # rec-1_120-good-of-233-total_Th,[2,1],spkTh,-4.5_vanilla_KS
+        # "20240314_131445242868",  # rec-1_115-good-of-241-total_Th,[2,1],spkTh,-6_vanilla_KS
+        # # EMUsort, Konstantin 2020 simulation 11/18 MUs detectable, detectable reconstruction
+        # "20240321_124209509936",  # rec-1_27-good-of-52-total_Th,[10,4],spkTh,[-3,-6]_EMUsort
+        # "20240321_124347474108",  # rec-1_52-good-of-102-total_Th,[10,4],spkTh,[-3]_EMUsort
+        # "20240321_124356310172",  # rec-1_52-good-of-97-total_Th,[7,3],spkTh,[-6,-9]_EMUsort
+        # "20240321_124525653167",  # rec-1_82-good-of-137-total_Th,[7,3],spkTh,[-6]_EMUsort
+        # "20240321_124527914172",  # rec-1_61-good-of-111-total_Th,[5,2],spkTh,[-6,-9]_EMUsort
+        # "20240321_124611775942",  # rec-1_72-good-of-134-total_Th,[5,2],spkTh,[-9]_EMUsort
+        # "20240321_124755737983",  # rec-1_38-good-of-68-total_Th,[10,4],spkTh,[-6,-9]_EMUsort
+        # "20240321_124917574479",  # rec-1_37-good-of-75-total_Th,[10,4],spkTh,[-6]_EMUsort
+        # "20240321_125018953591",  # rec-1_94-good-of-185-total_Th,[2,1],spkTh,[-6]_EMUsort
+        # "20240321_125141544407",  # rec-1_45-good-of-85-total_Th,[7,3],spkTh,[-9]_EMUsort
+        # "20240321_125402791107",  # rec-1_26-good-of-49-total_Th,[10,4],spkTh,[-9]_EMUsort
+        # "20240321_125415943412",  # rec-1_70-good-of-123-total_Th,[5,2],spkTh,[-3,-6]_EMUsort
+        # "20240321_125429386729",  # rec-1_92-good-of-174-total_Th,[5,2],spkTh,[-3]_EMUsort
+        # "20240321_125451209827",  # rec-1_123-good-of-236-total_Th,[2,1],spkTh,[-3,-6]_EMUsort
+        # "20240321_125759609494",  # rec-1_85-good-of-158-total_Th,[7,3],spkTh,[-3]_EMUsort
+        # "20240321_125854033708",  # rec-1_64-good-of-120-total_Th,[7,3],spkTh,[-3,-6]_EMUsort
+        # "20240321_130035330897",  # rec-1_109-good-of-231-total_Th,[2,1],spkTh,[-3]_EMUsort
+        # "20240321_130158482804",  # rec-1_82-good-of-178-total_Th,[2,1],spkTh,[-9]_EMUsort
+        # "20240321_130201817036",  # rec-1_72-good-of-155-total_Th,[5,2],spkTh,[-6]_EMUsort
+        # "20240321_131048018338",  # rec-1_131-good-of-303-total_Th,[2,1],spkTh,[-6,-9]_EMUsort
+        # # Kilosort, Konstantin 2020 simulation 11/18 MUs detectable, detectable reconstruction
+        # "20240321_133209692667",  # rec-1_57-good-of-125-total_Th,[10,4],spkTh,-7.5_vanilla_KS
+        # "20240321_133243583907",  # rec-1_75-good-of-155-total_Th,[10,4],spkTh,-3_vanilla_KS
+        # "20240321_133248601234",  # rec-1_89-good-of-162-total_Th,[7,3],spkTh,-4.5_vanilla_KS
+        # "20240321_133309025779",  # rec-1_95-good-of-188-total_Th,[5,2],spkTh,-6_vanilla_KS
+        # "20240321_133316963669",  # rec-1_100-good-of-190-total_Th,[7,3],spkTh,-9_vanilla_KS
+        # "20240321_133324488479",  # rec-1_105-good-of-209-total_Th,[5,2],spkTh,-9_vanilla_KS
+        # "20240321_133553167271",  # rec-1_80-good-of-150-total_Th,[10,4],spkTh,-9_vanilla_KS
+        # "20240321_133558003097",  # rec-1_132-good-of-325-total_Th,[2,1],spkTh,-4.5_vanilla_KS
+        # "20240321_133636085220",  # rec-1_145-good-of-362-total_Th,[2,1],spkTh,-7.5_vanilla_KS
+        # "20240321_133636411457",  # rec-1_90-good-of-159-total_Th,[10,4],spkTh,-4.5_vanilla_KS
+        # "20240321_133701211118",  # rec-1_84-good-of-186-total_Th,[7,3],spkTh,-6_vanilla_KS
+        # "20240321_133821043152",  # rec-1_104-good-of-211-total_Th,[5,2],spkTh,-3_vanilla_KS
+        # "20240321_133833413527",  # rec-1_109-good-of-221-total_Th,[5,2],spkTh,-7.5_vanilla_KS
+        # "20240321_133954304194",  # rec-1_74-good-of-135-total_Th,[10,4],spkTh,-6_vanilla_KS
+        # "20240321_134010603543",  # rec-1_80-good-of-188-total_Th,[7,3],spkTh,-3_vanilla_KS
+        # "20240321_134054976498",  # rec-1_84-good-of-178-total_Th,[7,3],spkTh,-7.5_vanilla_KS
+        # "20240321_134101067184",  # rec-1_153-good-of-353-total_Th,[2,1],spkTh,-3_vanilla_KS
+        # "20240321_134204300555",  # rec-1_87-good-of-186-total_Th,[5,2],spkTh,-4.5_vanilla_KS
+        # "20240321_134253644348",  # rec-1_150-good-of-342-total_Th,[2,1],spkTh,-9_vanilla_KS
+        # "20240321_134308362350",  # rec-1_146-good-of-363-total_Th,[2,1],spkTh,-6_vanilla_KS
+        # # # EMUsort, Konstantin 2020 simulation 8/9 MUs detectable, detectable reconstruction, 08CH
+        # "20240401_143451686926",  # rec-1_18-good-of-27-total_Th,[7,3],spkTh,[-6,-9]_EMUsort
+        # "20240401_143454991388",  # rec-1_13-good-of-26-total_Th,[7,3],spkTh,[-6]_EMUsort
+        # "20240401_143501570809",  # rec-1_14-good-of-25-total_Th,[10,4],spkTh,[-3,-6]_EMUsort
+        # "20240401_143527052851",  # rec-1_23-good-of-37-total_Th,[10,4],spkTh,[-3]_EMUsort
+        # "20240401_143546714288",  # rec-1_26-good-of-47-total_Th,[5,2],spkTh,[-9]_EMUsort
+        # "20240401_143824317076",  # rec-1_14-good-of-21-total_Th,[10,4],spkTh,[-6,-9]_EMUsort
+        # "20240401_143838536818",  # rec-1_64-good-of-117-total_Th,[2,1],spkTh,[-3,-6]_EMUsort
+        # "20240401_143845329427",  # rec-1_16-good-of-35-total_Th,[10,4],spkTh,[-6]_EMUsort
+        # "20240401_143919097698",  # rec-1_19-good-of-43-total_Th,[7,3],spkTh,[-9]_EMUsort
+        # "20240401_143926410519",  # rec-1_19-good-of-33-total_Th,[5,2],spkTh,[-3]_EMUsort
+        # "20240401_143947277034",  # rec-1_19-good-of-35-total_Th,[5,2],spkTh,[-3,-6]_EMUsort
+        # "20240401_144240331885",  # rec-1_21-good-of-39-total_Th,[10,4],spkTh,[-9]_EMUsort
+        # "20240401_144240342857",  # rec-1_23-good-of-37-total_Th,[7,3],spkTh,[-3]_EMUsort
+        # "20240401_144249514326",  # rec-1_21-good-of-46-total_Th,[2,1],spkTh,[-6,-9]_EMUsort
+        # "20240401_144255771593",  # rec-1_13-good-of-27-total_Th,[5,2],spkTh,[-6]_EMUsort
+        # "20240401_144306570488",  # rec-1_18-good-of-30-total_Th,[5,2],spkTh,[-6,-9]_EMUsort
+        # "20240401_144316446726",  # rec-1_14-good-of-25-total_Th,[7,3],spkTh,[-3,-6]_EMUsort
+        # "20240401_144332718017",  # rec-1_77-good-of-216-total_Th,[2,1],spkTh,[-3]_EMUsort
+        # "20240401_144801044062",  # rec-1_34-good-of-62-total_Th,[2,1],spkTh,[-6]_EMUsort
+        # "20240401_145556888106",  # rec-1_41-good-of-84-total_Th,[2,1],spkTh,[-9]_EMUsort
+        # # # EMUsort, Konstantin 2020 simulation 8/9 MUs detectable, detectable reconstruction, 16CH
+        # "20240327_202524918615",  # rec-1_16-good-of-24-total_Th,[7,3],spkTh,[-6]_EMUsort
+        # "20240327_202534934565",  # rec-1_16-good-of-32-total_Th,[10,4],spkTh,[-3]_EMUsort
+        # "20240327_202538819805",  # rec-1_17-good-of-29-total_Th,[10,4],spkTh,[-3,-6]_EMUsort
+        # "20240327_202538954207",  # rec-1_16-good-of-28-total_Th,[7,3],spkTh,[-6,-9]_EMUsort
+        # "20240327_202551304503",  # rec-1_18-good-of-27-total_Th,[5,2],spkTh,[-9]_EMUsort
+        # "20240327_202818195257",  # rec-1_10-good-of-19-total_Th,[10,4],spkTh,[-6]_EMUsort
+        # "20240327_202857555716",  # rec-1_17-good-of-28-total_Th,[7,3],spkTh,[-9]_EMUsort
+        # "20240327_202921488830",  # rec-1_28-good-of-35-total_Th,[10,4],spkTh,[-6,-9]_EMUsort
+        # "20240327_203059286948",  # rec-1_46-good-of-77-total_Th,[5,2],spkTh,[-3]_EMUsort
+        # "20240327_203129813399",  # rec-1_52-good-of-91-total_Th,[5,2],spkTh,[-3,-6]_EMUsort
+        # "20240327_203135535338",  # rec-1_15-good-of-26-total_Th,[10,4],spkTh,[-9]_EMUsort
+        # "20240327_203241326354",  # rec-1_25-good-of-42-total_Th,[7,3],spkTh,[-3,-6]_EMUsort
+        # "20240327_203318218134",  # rec-1_30-good-of-45-total_Th,[7,3],spkTh,[-3]_EMUsort
+        # "20240327_203508156240",  # rec-1_31-good-of-47-total_Th,[5,2],spkTh,[-6,-9]_EMUsort
+        # "20240327_203543388847",  # rec-1_48-good-of-82-total_Th,[5,2],spkTh,[-6]_EMUsort
+        # "20240327_203730973208",  # rec-1_95-good-of-180-total_Th,[2,1],spkTh,[-3]_EMUsort
+        # "20240327_203942197910",  # rec-1_108-good-of-241-total_Th,[2,1],spkTh,[-3,-6]_EMUsort
+        # "20240327_205742347003",  # rec-1_124-good-of-250-total_Th,[2,1],spkTh,[-6,-9]_EMUsort
+        # "20240327_205841679532",  # rec-1_117-good-of-258-total_Th,[2,1],spkTh,[-6]_EMUsort
+        # "20240327_211546636381",  # rec-1_112-good-of-230-total_Th,[2,1],spkTh,[-9]_EMUsort
+        # # Kilosort, Konstantin 2020 simulation 8/9 MUs detectable, detectable reconstruction, 16CH
+        # "20240327_165217236323",  # rec-1_50-good-of-86-total_Th,[10,4],spkTh,-7.5_vanilla_KS
+        # "20240327_165258391997",  # rec-1_73-good-of-129-total_Th,[7,3],spkTh,-9_vanilla_KS
+        # "20240327_165307736652",  # rec-1_71-good-of-145-total_Th,[10,4],spkTh,-3_vanilla_KS
+        # "20240327_165315704587",  # rec-1_74-good-of-145-total_Th,[7,3],spkTh,-4.5_vanilla_KS
+        # "20240327_165334240992",  # rec-1_81-good-of-162-total_Th,[5,2],spkTh,-6_vanilla_KS
+        # "20240327_165439325375",  # rec-1_45-good-of-91-total_Th,[10,4],spkTh,-9_vanilla_KS
+        # "20240327_165538286205",  # rec-1_64-good-of-99-total_Th,[10,4],spkTh,-4.5_vanilla_KS
+        # "20240327_165550206411",  # rec-1_65-good-of-120-total_Th,[7,3],spkTh,-6_vanilla_KS
+        # # "20240327_165553696807",  # rec-1_106-good-of-228-total_Th,[2,1],spkTh,-7.5_vanilla_KS
+        # "20240327_165715859555",  # rec-1_77-good-of-172-total_Th,[5,2],spkTh,-7.5_vanilla_KS
+        # # "20240327_165718744046",  # rec-1_95-good-of-214-total_Th,[5,2],spkTh,-3_vanilla_KS
+        # # "20240327_165738255526",  # rec-1_148-good-of-337-total_Th,[2,1],spkTh,-3_vanilla_KS
+        # "20240327_165754033485",  # rec-1_50-good-of-86-total_Th,[10,4],spkTh,-6_vanilla_KS
+        # "20240327_165807022550",  # rec-1_83-good-of-167-total_Th,[7,3],spkTh,-3_vanilla_KS
+        # "20240327_165840929214",  # rec-1_69-good-of-127-total_Th,[7,3],spkTh,-7.5_vanilla_KS
+        # "20240327_170052113611",  # rec-1_99-good-of-181-total_Th,[5,2],spkTh,-9_vanilla_KS
+        # # "20240327_170125444286",  # rec-1_111-good-of-213-total_Th,[5,2],spkTh,-4.5_vanilla_KS
+        # # "20240327_170151247601",  # rec-1_127-good-of-304-total_Th,[2,1],spkTh,-9_vanilla_KS
+        # # "20240327_170431682694",  # rec-1_124-good-of-325-total_Th,[2,1],spkTh,-4.5_vanilla_KS
+        # # "20240327_171000259112",  # rec-1_125-good-of-288-total_Th,[2,1],spkTh,-6_vanilla_KS
         ############################################################################################
         #### Below are with new 16 channel, triple rat dataset
         # simulated20231219:
@@ -2696,6 +3125,23 @@ if __name__ == "__main__":
         # "20240216_193932148031",  # rec-1_24-good-of-39-total_Th,[2,1],spkTh,[-6,-9]_EMUsort
         # "20240216_194008953376",  # rec-1_28-good-of-43-total_Th,[5,2],spkTh,[-6]_EMUsort
         # "20240216_194021792336",  # rec-1_26-good-of-46-total_Th,[2,1],spkTh,[-9]_EMUsort
+        ## Kilosort4 testing with 8 channel dataset
+        # "20240506_180000000000",  # default settings
+        "20240508_201259971096",  # rec-1,2,4,5,6,7_Th,[9,8],spkTh,[6]_KS4
+        # "20240508_201319874725",  # rec-1,2,4,5,6,7_Th,[9,8],spkTh,[3]_KS4
+        # "20240508_201339072807",  # rec-1,2,4,5,6,7_Th,[9,8],spkTh,[9]_KS4
+        # "20240508_201412820291",  # rec-1,2,4,5,6,7_Th,[10,4],spkTh,[6]_KS4
+        # "20240508_201449760292",  # rec-1,2,4,5,6,7_Th,[10,4],spkTh,[3]_KS4
+        # "20240508_201523962938",  # rec-1,2,4,5,6,7_Th,[10,4],spkTh,[9]_KS4
+        # "20240508_201610602826",  # rec-1,2,4,5,6,7_Th,[7,3],spkTh,[6]_KS4
+        # "20240508_201700527644",  # rec-1,2,4,5,6,7_Th,[7,3],spkTh,[3]_KS4
+        # "20240508_201747653121",  # rec-1,2,4,5,6,7_Th,[7,3],spkTh,[9]_KS4
+        # "20240508_201904901109",  # rec-1,2,4,5,6,7_Th,[5,2],spkTh,[6]_KS4
+        # "20240508_202027853995",  # rec-1,2,4,5,6,7_Th,[5,2],spkTh,[3]_KS4
+        # "20240508_202145893192",  # rec-1,2,4,5,6,7_Th,[5,2],spkTh,[9]_KS4
+        # "20240508_202400082406",  # rec-1,2,4,5,6,7_Th,[2,1],spkTh,[6]_KS4
+        # "20240508_202626611651",  # rec-1,2,4,5,6,7_Th,[2,1],spkTh,[3]_KS4
+        # "20240508_202849312799",  # rec-1,2,4,5,6,7_Th,[2,1],spkTh,[9]_KS4
     ]
     clusters_to_take_from = {
         # {
@@ -2890,8 +3336,11 @@ if __name__ == "__main__":
             def compute_accuracy_for_each_GT_cluster(
                 ground_truth_path,
                 jCluster_GT,
+                KS_clusters_to_consider,  # list of candidate clusters for this GT cluster
                 random_seed_entropy,
-                bin_width_for_comparison,
+                correlation_alignment,
+                precorrelation_rebin_width,
+                preaccuracy_rebin_width,
                 ephys_fs,
                 time_frame,
                 path_to_sorted_folder,
@@ -2941,96 +3390,142 @@ if __name__ == "__main__":
                     load_type="kilosort",
                 )
 
-                # DO NOT subselect clusters in mu_KS using clusters_in_sort_to_use, now in that specified order
-                # commented out: mu_KS.spikes[-1] = mu_KS.spikes[-1][:, clusters_in_sort_to_use]
+                if KS_clusters_to_consider is not None:
+                    mu_KS.spikes[-1] = mu_KS.spikes[-1][:, KS_clusters_to_consider]
+                    # ensure its 2d
+                    if len(mu_KS.spikes[-1].shape) == 1:
+                        mu_KS.spikes[-1] = mu_KS.spikes[-1][:, np.newaxis]
 
-                # ensure kilosort_spikes and ground_truth_spikes have the same shape
+                # ensure kilosort_spikes and ground_truth_spikes have the same duration
                 # add more kilosort bins to match ground truth
                 # (fill missing allocation with zeros due to no spikes near end of recording)
                 if mu_KS.spikes[-1].shape[0] < mu_GT.spikes[-1].shape[0]:
-                    mu_KS.spikes[-1] = np.vstack(
-                        (
-                            mu_KS.spikes[-1],
-                            np.zeros(
-                                (
-                                    mu_GT.spikes[-1].shape[0]
-                                    - mu_KS.spikes[-1].shape[0],
-                                    mu_KS.spikes[-1].shape[1],
-                                )
-                            ),
+                    if len(mu_KS.spikes[-1].shape) == 2:
+                        zeros_shape_tuple = (
+                            mu_GT.spikes[-1].shape[0] - mu_KS.spikes[-1].shape[0],
+                            mu_KS.spikes[-1].shape[1],
                         )
-                    )
+                        mu_KS.spikes[-1] = np.vstack(
+                            (
+                                mu_KS.spikes[-1],
+                                np.zeros(zeros_shape_tuple),
+                            )
+                        )
+                    # elif len(mu_KS.spikes[-1].shape) == 1:
+                    #     zeros_shape_tuple = (
+                    #         mu_GT.spikes[-1].shape[0] - mu_KS.spikes[-1].shape[0],
+                    #     )
+                    #     mu_KS.spikes[-1] = np.hstack(
+                    #         (
+                    #             mu_KS.spikes[-1],
+                    #             np.zeros(zeros_shape_tuple),
+                    #         )
+                    #     )
+                    else:
+                        raise ValueError(
+                            f"mu_KS.spikes[-1] must be 2D, but has shape {mu_KS.spikes[-1].shape}"
+                        )
 
                 # compute the correlation between the two spike trains for each unit
                 # use the correlation to determine the shift for each unit
                 # use the shift to align the spike trains
                 # use the aligned spike trains to compute the metrics
+                if correlation_alignment:
 
-                min_delay_ms = -2  # ms
-                max_delay_ms = 2  # ms
-                min_delay_samples = int(round(min_delay_ms * ephys_fs / 1000))
-                max_delay_samples = int(round(max_delay_ms * ephys_fs / 1000))
+                    min_delay_ms = -2  # ms
+                    max_delay_ms = 2  # ms
 
-                for iUnit in range(mu_KS.spikes[-1].shape[1]):
-                    # skip the columns which contain nan's, which represent nonexistent clusters
-                    if np.any(np.isnan(mu_KS.spikes[-1][:, iUnit])):
-                        continue
+                    if precorrelation_rebin_width is not None:
+                        # precorrelation alignment rebinning
+                        mu_GT.rebin_trials(
+                            precorrelation_rebin_width / 1000
+                        )  # rebin to rebin_width ms bins
+                        mu_KS.rebin_trials(
+                            precorrelation_rebin_width / 1000
+                        )  # rebin to rebin_width ms bins
 
-                    correlation = correlate(
-                        mu_KS.spikes[-1][:, iUnit],
-                        mu_GT.spikes[-1][:, jCluster_GT],
-                        "same",
-                    )
-                    lags = correlation_lags(
-                        len(mu_KS.spikes[-1][:, iUnit]),
-                        len(mu_GT.spikes[-1][:, jCluster_GT]),
-                        "same",
-                    )
-                    lag_constraint_idxs = np.where(
-                        np.logical_and(
-                            lags >= min_delay_samples, lags <= max_delay_samples
+                        min_delay_samples = int(
+                            round(min_delay_ms / precorrelation_rebin_width)
                         )
-                    )[0]
-                    # limit the lags to range from min_delay_samples to max_delay_samples
-                    # lags = lags[(lags >= min_delay_samples) & (lags <= max_delay_samples)]
-                    # find the lag with the highest correlation
-                    max_correlation_index = np.argmax(correlation[lag_constraint_idxs])
-                    # find the lag with the highest correlation in the opposite direction
-                    min_correlation_index = np.argmin(correlation[lag_constraint_idxs])
-                    # if the max correlation is positive, shift the kilosort spikes to the right
-                    # if the max correlation is negative, shift the kilosort spikes to the left
-                    if (
-                        correlation[lag_constraint_idxs][max_correlation_index]
-                        > correlation[lag_constraint_idxs][min_correlation_index]
-                    ):
-                        shift = lags[lag_constraint_idxs][max_correlation_index]
+                        max_delay_samples = int(
+                            round(max_delay_ms / precorrelation_rebin_width)
+                        )
                     else:
-                        shift = lags[lag_constraint_idxs][min_correlation_index]
+                        min_delay_samples = int(round(min_delay_ms * ephys_fs / 1000))
+                        max_delay_samples = int(round(max_delay_ms * ephys_fs / 1000))
 
-                    # shift the kilosort spikes
-                    mu_KS.spikes[-1][:, iUnit] = np.roll(
-                        mu_KS.spikes[-1][:, iUnit], -shift
-                    )
-                    # make sure shift hasn't gone near the edge of the min or max delay
-                    if shift <= min_delay_samples + 1 or shift >= max_delay_samples - 1:
-                        print(
-                            f"WARNING: Shifted Kilosort spikes for GT unit {jCluster_GT} and KS unit {iUnit} by {shift} samples"
+                    for iUnit in range(mu_KS.spikes[-1].shape[1]):
+                        # skip the columns which contain nan's, which represent nonexistent clusters
+                        if np.any(np.isnan(mu_KS.spikes[-1][:, iUnit])):
+                            continue
+
+                        correlation = correlate(
+                            mu_KS.spikes[-1][:, iUnit],
+                            mu_GT.spikes[-1][:, jCluster_GT],
+                            "same",
                         )
-                    # print(
-                    #     f"Done with correlation-based shifting for GT unit {jCluster_GT} and KS unit {iUnit}"
-                    # )
+                        lags = correlation_lags(
+                            len(mu_KS.spikes[-1][:, iUnit]),
+                            len(mu_GT.spikes[-1][:, jCluster_GT]),
+                            "same",
+                        )
+                        lag_constraint_idxs = np.where(
+                            np.logical_and(
+                                lags >= min_delay_samples, lags <= max_delay_samples
+                            )
+                        )[0]
+                        # limit the lags to range from min_delay_samples to max_delay_samples
+                        # lags = lags[(lags >= min_delay_samples) & (lags <= max_delay_samples)]
+                        # find the lag with the highest correlation
+                        max_correlation_index = np.argmax(
+                            correlation[lag_constraint_idxs]
+                        )
+                        # find the lag with the highest correlation in the opposite direction
+                        min_correlation_index = np.argmin(
+                            correlation[lag_constraint_idxs]
+                        )
+                        # if the max correlation is positive, shift the kilosort spikes to the right
+                        # if the max correlation is negative, shift the kilosort spikes to the left
+                        if (
+                            correlation[lag_constraint_idxs][max_correlation_index]
+                            > correlation[lag_constraint_idxs][min_correlation_index]
+                        ):
+                            shift = lags[lag_constraint_idxs][max_correlation_index]
+                        else:
+                            shift = lags[lag_constraint_idxs][min_correlation_index]
+
+                        # shift the kilosort spikes
+                        mu_KS.spikes[-1][:, iUnit] = np.roll(
+                            mu_KS.spikes[-1][:, iUnit], -shift
+                        )
+                        # make sure shift hasn't gone to the edge of the min or max delay
+                        if shift <= min_delay_samples or shift >= max_delay_samples:
+                            print(
+                                f"WARNING: Shifted Kilosort spikes for GT unit {jCluster_GT} and KS unit {iUnit} by {shift} samples"
+                            )
+                        # print(
+                        #     f"Done with correlation-based shifting for GT unit {jCluster_GT} and KS unit {iUnit}"
+                        # )
 
                 # rebin the spike trains to the bin width for comparison
                 mu_GT.rebin_trials(
-                    bin_width_for_comparison / 1000
-                )  # rebin to bin_width_for_comparison ms bins
+                    preaccuracy_rebin_width / 1000
+                )  # rebin to rebin_width ms bins
 
                 mu_KS.rebin_trials(
-                    bin_width_for_comparison / 1000
-                )  # rebin to bin_width_for_comparison ms bins
+                    preaccuracy_rebin_width / 1000
+                )  # rebin to rebin_width ms bins
 
                 kilosort_spikes = mu_KS.spikes[-1]  # shape is (num_bins, num_units)
                 ground_truth_spikes = mu_GT.spikes[-1]  # shape is (num_bins, num_units)
+
+                # if kilosort spike length is greater, trim it to match GT
+                if kilosort_spikes.shape[0] > ground_truth_spikes.shape[0]:
+                    print(
+                        f"Shape mismatch after rebinning, trimming KS spikes time dimension down to {ground_truth_spikes.shape[0]}"
+                    )
+                    kilosort_spikes = kilosort_spikes[: ground_truth_spikes.shape[0]]
+
                 ground_truth_spikes_this_clust_repeat = np.tile(
                     ground_truth_spikes[:, jCluster_GT], (kilosort_spikes.shape[1], 1)
                 ).T
@@ -3127,40 +3622,216 @@ if __name__ == "__main__":
                     ground_truth_spikes,
                 )
 
-            # make lists to house the results from each iSort iteration
-            precisions_list = []
-            recalls_list = []
-            accuracies_list = []
-            num_matches_list = []
-            num_kilosort_spikes_list = []
-            num_ground_truth_spikes_list = []
-            true_positive_spikes_list = []
-            false_positive_spikes_list = []
-            false_negative_spikes_list = []
-            kilosort_spikes_list = []
-            ground_truth_spikes_list = []
-            sort_dstr_list = []
+            # parameters for different settings across repeats
+            # only do correlation alignment during 2nd pass
+            correlation_alignment = [False, True]
+            precorrelation_rebin_width = [None, 0.1]
+            preaccuracy_rebin_width = [10, 1]
+            # repeat twice to only compute the correlation alignment once
+            for iRepeat in range(2):
+                # make lists to house the results from each iSort iteration
+                precisions_list = []
+                recalls_list = []
+                accuracies_list = []
+                num_matches_list = []
+                num_kilosort_spikes_list = []
+                num_ground_truth_spikes_list = []
+                true_positive_spikes_list = []
+                false_positive_spikes_list = []
+                false_negative_spikes_list = []
+                kilosort_spikes_list = []
+                ground_truth_spikes_list = []
+                sort_dstr_list = []
+                for iSort, sort_dstr in enumerate(sorts_from_each_path_to_load):
+                    # # use MUsim object to load and rebin Kilosort data
+                    # mu_KS = MUsim(random_seed_entropy)
+                    # mu_KS.sample_rate = 1 / ephys_fs
+                    # mu_KS.load_MUs(
+                    #     # npy_file_path
+                    #     list_of_paths_to_sorted_folders[0][iSort],
+                    #     1 / ephys_fs,
+                    #     load_as="trial",
+                    #     slice=[0, 0.01],  # save memory by only loading 1% of the file
+                    #     load_type="kilosort",
+                    # )
+                    num_KS_clusters_this_sort = (
+                        np.load(
+                            list_of_paths_to_sorted_folders[0][iSort].joinpath(
+                                "spike_clusters.npy"
+                            ),
+                            mmap_mode="r",
+                        )
+                        .flatten()
+                        .max()
+                        + 1
+                    )  # take the max to get the number of clusters for memory allocation
+                    precisions = np.zeros(
+                        (len(GT_clusters_to_use), num_KS_clusters_this_sort)
+                    )
+                    recalls = np.zeros(
+                        (len(GT_clusters_to_use), num_KS_clusters_this_sort)
+                    )
+                    accuracies = np.zeros(
+                        (len(GT_clusters_to_use), num_KS_clusters_this_sort)
+                    )
+                    # del mu_KS  # free up memory after allocating precisions, recalls, and accuracies
+                    (
+                        num_matches,
+                        num_kilosort_spikes,
+                        num_ground_truth_spikes,
+                        true_positive_spikes,
+                        false_positive_spikes,
+                        false_negative_spikes,
+                        kilosort_spikes,
+                        ground_truth_spikes,
+                    ) = [[] for i in range(8)]
 
-            for iSort, sort_dstr in enumerate(sorts_from_each_path_to_load):
-                # use MUsim object to load and rebin Kilosort data
-                mu_KS = MUsim(random_seed_entropy)
-                mu_KS.sample_rate = 1 / ephys_fs
-                mu_KS.load_MUs(
-                    # npy_file_path
-                    list_of_paths_to_sorted_folders[0][iSort],
-                    1 / ephys_fs,
-                    load_as="trial",
-                    slice=time_frame,
-                    load_type="kilosort",
-                )
-                precisions = np.zeros(
-                    (len(GT_clusters_to_use), mu_KS.spikes[-1].shape[1])
-                )
-                recalls = np.zeros((len(GT_clusters_to_use), mu_KS.spikes[-1].shape[1]))
-                accuracies = np.zeros(
-                    (len(GT_clusters_to_use), mu_KS.spikes[-1].shape[1])
-                )
+                    if parallel:
+                        passable_precorrelation_rebin_width = (
+                            precorrelation_rebin_width[iRepeat]
+                        )
+                        passable_preaccuracy_rebin_width = preaccuracy_rebin_width[
+                            iRepeat
+                        ]
+                        passable_correlation_alignment = correlation_alignment[iRepeat]
+                        with ProcessPoolExecutor(
+                            max_workers=min(mp.cpu_count() // 2, num_motor_units)
+                        ) as executor:
+                            futures = [
+                                executor.submit(
+                                    compute_accuracy_for_each_GT_cluster,
+                                    ground_truth_path,
+                                    jCluster_GT,
+                                    (
+                                        None
+                                        if iRepeat == 0
+                                        else KS_clusters_to_consider[iSort][jCluster_GT]
+                                    ),  # choose the best candidate cluster for this GT cluster
+                                    random_seed_entropy,
+                                    passable_correlation_alignment,
+                                    passable_precorrelation_rebin_width,
+                                    passable_preaccuracy_rebin_width,
+                                    ephys_fs,
+                                    time_frame,
+                                    list_of_paths_to_sorted_folders[0][iSort],
+                                    simulation_method,
+                                )
+                                for jCluster_GT in range(len(GT_clusters_to_use))
+                            ]
+                            results = dict()
+                            for future in as_completed(futures):
+                                result = future.result()
+                                # vvv numpy arrays need to be unpacked differently vvv
+                                precisions[result[0], :] = result[1]
+                                recalls[result[0], :] = result[2]
+                                accuracies[result[0], :] = result[3]
+                                results[result[0]] = (
+                                    result  # store result for unpacking later
+                                )
+                                print(
+                                    f"Done computing accuracies for GT cluster {result[0]} in sort {sort_dstr} ({iSort+1}/{len(sorts_from_each_path_to_load)} sorts)"
+                                )
+                        for iKey in sorted(results.keys()):
+                            num_matches.append(results[iKey][4])
+                            num_kilosort_spikes.append(results[iKey][5])
+                            num_ground_truth_spikes.append(results[iKey][6])
+                            true_positive_spikes.append(results[iKey][7])
+                            false_positive_spikes.append(results[iKey][8])
+                            false_negative_spikes.append(results[iKey][9])
+                            kilosort_spikes.append(results[iKey][10])
+                            ground_truth_spikes.append(results[iKey][11])
+
+                    else:
+                        for jCluster_GT in range(len(GT_clusters_to_use)):
+                            (
+                                _,
+                                precisions[jCluster_GT, :],
+                                recalls[jCluster_GT, :],
+                                accuracies[jCluster_GT, :],
+                                *results,
+                            ) = compute_accuracy_for_each_GT_cluster(
+                                ground_truth_path,
+                                jCluster_GT,
+                                (
+                                    None
+                                    if iRepeat == 0
+                                    else KS_clusters_to_consider[iSort][jCluster_GT]
+                                ),  # choose the best candidate cluster for this GT cluster
+                                random_seed_entropy,
+                                correlation_alignment,
+                                precorrelation_rebin_width[iRepeat],
+                                preaccuracy_rebin_width[iRepeat],
+                                ephys_fs,
+                                time_frame,
+                                list_of_paths_to_sorted_folders[0][iSort],
+                                simulation_method,
+                            )
+                            print(
+                                f"Done computing accuracies for GT cluster {jCluster_GT} in sort {sort_dstr} ({iSort+1}/{len(sorts_from_each_path_to_load)} sorts)"
+                            )
+                            # append the results into each corresponding output list
+                            _ = [
+                                x.append(y)
+                                for x, y in zip(
+                                    [
+                                        num_matches,
+                                        num_kilosort_spikes,
+                                        num_ground_truth_spikes,
+                                        true_positive_spikes,
+                                        false_positive_spikes,
+                                        false_negative_spikes,
+                                        kilosort_spikes,
+                                        ground_truth_spikes,
+                                    ],
+                                    results,
+                                )
+                            ]
+                    # make lists into numpy arrays
+                    num_matches = np.vstack(num_matches)
+                    num_kilosort_spikes = np.vstack(num_kilosort_spikes)
+                    num_ground_truth_spikes = np.vstack(num_ground_truth_spikes)
+                    true_positive_spikes = np.array(true_positive_spikes)
+                    false_positive_spikes = np.array(false_positive_spikes)
+                    false_negative_spikes = np.array(false_negative_spikes)
+                    kilosort_spikes = np.array(kilosort_spikes)
+                    ground_truth_spikes = np.array(ground_truth_spikes)
+
+                    # append each stacked array to each corresponding list
+                    precisions_list.append(precisions)
+                    recalls_list.append(recalls)
+                    accuracies_list.append(accuracies)
+                    num_matches_list.append(num_matches)
+                    num_kilosort_spikes_list.append(num_kilosort_spikes)
+                    num_ground_truth_spikes_list.append(num_ground_truth_spikes)
+                    true_positive_spikes_list.append(true_positive_spikes)
+                    false_positive_spikes_list.append(false_positive_spikes)
+                    false_negative_spikes_list.append(false_negative_spikes)
+                    kilosort_spikes_list.append(kilosort_spikes)
+                    ground_truth_spikes_list.append(ground_truth_spikes)
+                    sort_dstr_list.append(sort_dstr)
+
+                    # collect garbage to free up memory from the previous iteration
+                    gc.collect()
+
+                # now rename the lists to the original variable names
+                precisions = precisions_list
+                recalls = recalls_list
+                accuracies = accuracies_list
+                num_matches = num_matches_list
+                num_kilosort_spikes = num_kilosort_spikes_list
+                num_ground_truth_spikes = num_ground_truth_spikes_list
+                true_positive_spikes = true_positive_spikes_list
+                false_positive_spikes = false_positive_spikes_list
+                false_negative_spikes = false_negative_spikes_list
+                kilosort_spikes = kilosort_spikes_list
+                ground_truth_spikes = ground_truth_spikes_list
+                print(sort_dstr_list)
+
+                correlations = accuracies  # use accuracies as the metric for matching
                 (
+                    precisions,
+                    recalls,
+                    accuracies,
                     num_matches,
                     num_kilosort_spikes,
                     num_ground_truth_spikes,
@@ -3169,128 +3840,37 @@ if __name__ == "__main__":
                     false_negative_spikes,
                     kilosort_spikes,
                     ground_truth_spikes,
-                ) = [[] for i in range(8)]
-                if parallel:
-                    with ProcessPoolExecutor(
-                        max_workers=min(mp.cpu_count() // 2, num_motor_units)
-                    ) as executor:
-                        futures = [
-                            executor.submit(
-                                compute_accuracy_for_each_GT_cluster,
-                                ground_truth_path,
-                                jCluster_GT,
-                                random_seed_entropy,
-                                1,  # set bin_width_for_comparison to 1ms by default
-                                ephys_fs,
-                                time_frame,
-                                list_of_paths_to_sorted_folders[0][iSort],
-                                simulation_method,
-                            )
-                            for jCluster_GT in range(len(GT_clusters_to_use))
-                        ]
-                        results = dict()
-                        for future in as_completed(futures):
-                            result = future.result()
-                            precisions[result[0], :] = result[1]
-                            recalls[result[0], :] = result[2]
-                            accuracies[result[0], :] = result[3]
-                            results[result[0]] = (
-                                result  # store result for unpacking later
-                            )
-                            print(
-                                f"Done computing accuracies for GT cluster {result[0]} in sort {sort_dstr} ({iSort+1}/{len(sorts_from_each_path_to_load)} sorts)"
-                            )
-
-                    for iKey in results.keys():
-                        num_matches.append(results[iKey][4])
-                        num_kilosort_spikes.append(results[iKey][5])
-                        num_ground_truth_spikes.append(results[iKey][6])
-                        true_positive_spikes.append(results[iKey][7])
-                        false_positive_spikes.append(results[iKey][8])
-                        false_negative_spikes.append(results[iKey][9])
-                        kilosort_spikes.append(results[iKey][10])
-                        ground_truth_spikes.append(results[iKey][11])
-
-                else:
-                    for jCluster_GT in range(len(GT_clusters_to_use)):
-                        (
-                            _,
-                            precisions[jCluster_GT, :],
-                            recalls[jCluster_GT, :],
-                            accuracies[jCluster_GT, :],
-                            *results,
-                        ) = compute_accuracy_for_each_GT_cluster(
-                            ground_truth_path,
-                            jCluster_GT,
-                            random_seed_entropy,
-                            1,  # set bin_width_for_comparison to 1ms by default
-                            ephys_fs,
-                            time_frame,
-                            list_of_paths_to_sorted_folders[0][iSort],
-                            simulation_method,
-                        )
-                        print(
-                            f"Done computing accuracies for GT cluster {jCluster_GT} in sort {sort_dstr} ({iSort+1}/{len(sorts_from_each_path_to_load)} sorts)"
-                        )
-                        # append the results into each corresponding output list
-                        _ = [
-                            x.append(y)
-                            for x, y in zip(
-                                [
-                                    num_matches,
-                                    num_kilosort_spikes,
-                                    num_ground_truth_spikes,
-                                    true_positive_spikes,
-                                    false_positive_spikes,
-                                    false_negative_spikes,
-                                    kilosort_spikes,
-                                    ground_truth_spikes,
-                                ],
-                                results,
-                            )
-                        ]
-                # make lists into numpy arrays
-                num_matches = np.vstack(num_matches)
-                num_kilosort_spikes = np.vstack(num_kilosort_spikes)
-                num_ground_truth_spikes = np.vstack(num_ground_truth_spikes)
-                true_positive_spikes = np.vstack(true_positive_spikes)
-                false_positive_spikes = np.vstack(false_positive_spikes)
-                false_negative_spikes = np.vstack(false_negative_spikes)
-                kilosort_spikes = np.vstack(kilosort_spikes)
-                ground_truth_spikes = np.vstack(ground_truth_spikes)
-
-                # append each stacked array to each corresponding list
-                precisions_list.append(precisions)
-                recalls_list.append(recalls)
-                accuracies_list.append(accuracies)
-                num_matches_list.append(num_matches)
-                num_kilosort_spikes_list.append(num_kilosort_spikes)
-                num_ground_truth_spikes_list.append(num_ground_truth_spikes)
-                true_positive_spikes_list.append(true_positive_spikes)
-                false_positive_spikes_list.append(false_positive_spikes)
-                false_negative_spikes_list.append(false_negative_spikes)
-                kilosort_spikes_list.append(kilosort_spikes)
-                ground_truth_spikes_list.append(ground_truth_spikes)
-                sort_dstr_list.append(sort_dstr)
-
-                # collect garbage to free up memory from the previous iteration
-                gc.collect()
-
-            # now rename the lists to the original variable names
-            precisions = precisions_list
-            recalls = recalls_list
-            accuracies = accuracies_list
-            num_matches = num_matches_list
-            num_kilosort_spikes = num_kilosort_spikes_list
-            num_ground_truth_spikes = num_ground_truth_spikes_list
-            true_positive_spikes = true_positive_spikes_list
-            false_positive_spikes = false_positive_spikes_list
-            false_negative_spikes = false_negative_spikes_list
-            kilosort_spikes = kilosort_spikes_list
-            ground_truth_spikes = ground_truth_spikes_list
-            print(sort_dstr_list)
-
-            correlations = accuracies  # use accuracies as the metric for matching
+                    clusters_in_sort_to_use_list,
+                ) = find_best_cluster_matches(
+                    correlations,
+                    precisions,
+                    recalls,
+                    accuracies,
+                    num_matches,
+                    num_kilosort_spikes,
+                    num_ground_truth_spikes,
+                    true_positive_spikes,
+                    false_positive_spikes,
+                    false_negative_spikes,
+                    kilosort_spikes,
+                    ground_truth_spikes,
+                    method_for_automatic_cluster_mapping,
+                    None if iRepeat == 0 else KS_clusters_to_consider,
+                )
+                # now rename the lists to the original variable names
+                # precisions = precisions_list
+                # recalls = recalls_list
+                # accuracies = accuracies_list
+                # num_matches = num_matches_list
+                # num_kilosort_spikes = num_kilosort_spikes_list
+                # num_ground_truth_spikes = num_ground_truth_spikes_list
+                # true_positive_spikes = true_positive_spikes_list
+                # false_positive_spikes = false_positive_spikes_list
+                # false_negative_spikes = false_negative_spikes_list
+                # kilosort_spikes = kilosort_spikes_list
+                # ground_truth_spikes = ground_truth_spikes_list
+                KS_clusters_to_consider = clusters_in_sort_to_use_list
+                clusters_in_sort_to_use = clusters_in_sort_to_use_list
         elif method_for_automatic_cluster_mapping == "waves":
             true_spike_counts_for_each_cluster = np.load(
                 str(ground_truth_path), mmap_mode="r"
@@ -3738,213 +4318,50 @@ if __name__ == "__main__":
             raise Exception(
                 f"method_for_automatic_cluster_mapping must be either 'waves', 'times', or 'trains', but was {method_for_automatic_cluster_mapping}"
             )
-        # loop through each correlations list element, which house scores for all GT clusters in each sort
-        GT_mapped_corrs_list = []
-        precisions_list = []
-        recalls_list = []
-        accuracies_list = []
-        num_matches_list = []
-        num_kilosort_spikes_list = []
-        num_ground_truth_spikes_list = []
-        true_positive_spikes_list = []
-        false_positive_spikes_list = []
-        false_negative_spikes_list = []
-        kilosort_spikes_list = []
-        ground_truth_spikes_list = []
-        clusters_in_sort_to_use_list = []
-
-        for iCorr in range(len(correlations)):
-            # now find the cluster with the highest correlation
-            sorted_cluster_pair_corr_idx = np.unravel_index(
-                np.argsort(correlations[iCorr].ravel()), correlations[iCorr].shape
-            )
-
-            # make sure to slice of coordinate pairs with a nan result
-            num_nan_pairs = np.isnan(np.sort(correlations[iCorr].ravel())).sum()
-            sorted_GT_cluster_match_idxs = np.flip(sorted_cluster_pair_corr_idx[0])[
-                num_nan_pairs:
-            ]
-            sorted_KS_cluster_match_idxs = np.flip(sorted_cluster_pair_corr_idx[1])[
-                num_nan_pairs:
-            ]
-
-            GT_mapped_idxs = np.nan * np.ones((len(sorted_GT_cluster_match_idxs), 2))
-            GT_mapped_idxs[:, 0] = sorted_GT_cluster_match_idxs
-            GT_mapped_idxs[:, 1] = sorted_KS_cluster_match_idxs
-            GT_mapped_idxs = GT_mapped_idxs.astype(int)
-
-            # now extract only non-repeated rows from the first column
-            # (so there's only one match per GT cluster, in order)
-            [uniq_GT, uniq_GT_idx, uniq_GT_inv_idx] = np.unique(
-                GT_mapped_idxs[:, 0], return_index=True, return_inverse=True
-            )
-            [uniq_KS, uniq_KS_idx, uniq_KS_inv_idx] = np.unique(
-                GT_mapped_idxs[:, 1], return_index=True, return_inverse=True
-            )
-
-            # find the ordering of which GT clusters have the highest score
-            sorted_by_corr_uniq_GT = get_unique_N(uniq_GT_inv_idx, len(uniq_GT))
-            best_uniq_pair_idxs = np.nan * np.ones_like(uniq_GT_idx)
-            claimed_KS_idxs = np.nan * np.ones_like(uniq_GT_idx)
-            for iGT_clust_idx in sorted_by_corr_uniq_GT:
-                best_corr_clust_match_idxs = np.where(uniq_GT_inv_idx == iGT_clust_idx)
-                for iBest_corr_match in best_corr_clust_match_idxs[0]:
-                    if GT_mapped_idxs[iBest_corr_match][1] not in claimed_KS_idxs:
-                        best_uniq_pair_idxs[iGT_clust_idx] = iBest_corr_match
-                        claimed_KS_idxs[iGT_clust_idx] = GT_mapped_idxs[
-                            iBest_corr_match
-                        ][1]
-                        break
-                else:
-                    print(
-                        f"WARNING: GT cluster {iGT_clust_idx} was not matched to any KS cluster"
-                    )
-                    set_trace()
-
-            best_uniq_pair_idxs = best_uniq_pair_idxs.astype(int)
-            GT_mapped_idxs = GT_mapped_idxs[best_uniq_pair_idxs]
-            GT_mapped_corrs = [
-                correlations[iCorr][idx_pair[0], idx_pair[1]]
-                for idx_pair in GT_mapped_idxs
-            ]
-
-            if method_for_automatic_cluster_mapping == "accuracies":
-                GT_mapped_precisions = [
-                    precisions[iCorr][idx_pair[0], idx_pair[1]]
-                    for idx_pair in GT_mapped_idxs
-                ]
-                GT_mapped_recalls = [
-                    recalls[iCorr][idx_pair[0], idx_pair[1]]
-                    for idx_pair in GT_mapped_idxs
-                ]
-                GT_mapped_accuracies = [
-                    accuracies[iCorr][idx_pair[0], idx_pair[1]]
-                    for idx_pair in GT_mapped_idxs
-                ]
-                GT_mapped_num_matches = [
-                    num_matches[iCorr][idx_pair[0], idx_pair[1]]
-                    for idx_pair in GT_mapped_idxs
-                ]
-                GT_mapped_num_KS_spikes = [
-                    num_kilosort_spikes[iCorr][idx_pair[0], idx_pair[1]]
-                    for idx_pair in GT_mapped_idxs
-                ]
-                # shape of metrics is (num_GT_clusters, num_KS_clusters), but KS clusters were
-                # pared down to only the ones that matched to a GT cluster, so the shape of the
-                # metrics will effectively be (num_GT_clusters, num_GT_clusters)
-                accuracies[iCorr] = GT_mapped_accuracies
-                precisions[iCorr] = GT_mapped_precisions
-                recalls[iCorr] = GT_mapped_recalls
-                num_matches[iCorr] = GT_mapped_num_matches
-                num_kilosort_spikes[iCorr] = np.array(GT_mapped_num_KS_spikes)
-                num_ground_truth_spikes[iCorr] = num_ground_truth_spikes[iCorr][0]
-                true_positive_spikes[iCorr] = true_positive_spikes[iCorr][
-                    :, GT_mapped_idxs[:, 1]
-                ]
-                false_positive_spikes[iCorr] = false_positive_spikes[iCorr][
-                    :, GT_mapped_idxs[:, 1]
-                ]
-                false_negative_spikes[iCorr] = false_negative_spikes[iCorr][
-                    :, GT_mapped_idxs[:, 1]
-                ]
-                kilosort_spikes[iCorr] = kilosort_spikes[iCorr][:, GT_mapped_idxs[:, 1]]
-                clusters_in_sort_to_use = GT_mapped_idxs[:, 1]
-
-                # append each stacked array to each corresponding list
-                # accuracies_list.append(accuracies)
-                # precisions_list.append(precisions)
-                # recalls_list.append(recalls)
-                # num_matches_list.append(num_matches)
-                # num_kilosort_spikes_list.append(num_kilosort_spikes)
-                # num_ground_truth_spikes_list.append(num_ground_truth_spikes)
-                # true_positive_spikes_list.append(true_positive_spikes)
-                # false_positive_spikes_list.append(false_positive_spikes)
-                # false_negative_spikes_list.append(false_negative_spikes)
-                # kilosort_spikes_list.append(kilosort_spikes)
-                # ground_truth_spikes_list.append(ground_truth_spikes)
-                clusters_in_sort_to_use_list.append(clusters_in_sort_to_use)
-
-                metrics_df = df(
-                    GT_clusters_to_use,  # GT_mapped_idxs[:, 0],
-                    columns=["GT Unit"],
-                    index=clusters_in_sort_to_use,
-                )
-                metrics_df.index.name = "KS Unit"
-                metrics_df["Precision"] = np.array(GT_mapped_precisions)
-                metrics_df["Recall"] = np.array(GT_mapped_recalls)
-                metrics_df["Accuracy"] = np.array(GT_mapped_accuracies)
-                print(metrics_df)
-            else:
-                clusters_in_sort_to_use = [
-                    clusters_in_sort_to_use[idx] for idx in GT_mapped_idxs[:, 1]
-                ]
-
-            score_df = df(
-                GT_clusters_to_use,  # GT_mapped_idxs[:, 0],
-                columns=["GT Unit"],
-                index=clusters_in_sort_to_use,
-            )
-            score_df.index.name = "KS Unit"
-            score_df["Match Score"] = np.array(GT_mapped_corrs)
-            print(score_df)
-
-            # print metrics for each unit
-            print("\n")  # add a newline for readability
-            print("Sort: ", sorts_from_each_path_to_load[iCorr])
-
-            unit_df = df()
-            unit_df["Unit"] = np.array(clusters_in_sort_to_use).astype(int)
-            unit_df["True Count"] = num_ground_truth_spikes[iCorr]
-            unit_df["KS Count"] = num_kilosort_spikes[iCorr]
-            unit_df["Precision"] = precisions[iCorr]
-            unit_df["Recall"] = recalls[iCorr]
-            unit_df["Accuracy"] = accuracies[iCorr]
-            unit_df["Unit"].astype(int)
-            unit_df.set_index("Unit", inplace=True)
-            print(unit_df)
-            print("\n")  # add a newline for readability
-            # print lowest and highest accuracies, limit to 3 decimal places
-            print(
-                f"Lowest accuracy: {unit_df['Accuracy'].min():.3f}, Unit {unit_df['Accuracy'].idxmin()}"
-            )
-            print(
-                f"Highest accuracy: {unit_df['Accuracy'].max():.3f}, Unit {unit_df['Accuracy'].idxmax()}"
-            )
-
-            # print average accuracy plus or minus standard deviation
-            print(
-                f"Average accuracy: {unit_df['Accuracy'].mean():.3f} +/- {unit_df['Accuracy'].std():.3f}"
-            )
-            # print average accuracy weighted by number of spikes in each unit
-            print(
-                f"Weighted average accuracy: {np.average(unit_df['Accuracy'], weights=unit_df['True Count']):.3f}"
-            )
-            # print average precision plus or minus standard deviation
-            print(
-                f"Average precision: {unit_df['Precision'].mean():.3f} +/- {unit_df['Precision'].std():.3f}"
-            )
-            # print average recall plus or minus standard deviation
-            print(
-                f"Average recall: {unit_df['Recall'].mean():.3f} +/- {unit_df['Recall'].std():.3f}"
-            )
-
-            print("\n")  # add a newline for readability
-
-        # now rename the lists to the original variable names
-        # precisions = precisions_list
-        # recalls = recalls_list
-        # accuracies = accuracies_list
-        # num_matches = num_matches_list
-        # num_kilosort_spikes = num_kilosort_spikes_list
-        # num_ground_truth_spikes = num_ground_truth_spikes_list
-        # true_positive_spikes = true_positive_spikes_list
-        # false_positive_spikes = false_positive_spikes_list
-        # false_negative_spikes = false_negative_spikes_list
-        # kilosort_spikes = kilosort_spikes_list
-        # ground_truth_spikes = ground_truth_spikes_list
-        clusters_in_sort_to_use = clusters_in_sort_to_use_list
 
         if method_for_automatic_cluster_mapping != "accuracies":
+            (
+                precisions,
+                recalls,
+                accuracies,
+                num_matches,
+                num_kilosort_spikes,
+                num_ground_truth_spikes,
+                true_positive_spikes,
+                false_positive_spikes,
+                false_negative_spikes,
+                kilosort_spikes,
+                ground_truth_spikes,
+                clusters_in_sort_to_use_list,
+            ) = find_best_cluster_matches(
+                correlations,
+                precisions,
+                recalls,
+                accuracies,
+                num_matches,
+                num_kilosort_spikes,
+                num_ground_truth_spikes,
+                true_positive_spikes,
+                false_positive_spikes,
+                false_negative_spikes,
+                kilosort_spikes,
+                ground_truth_spikes,
+                method_for_automatic_cluster_mapping,
+            )
+
+            # now rename the lists to the original variable names
+            # precisions = precisions_list
+            # recalls = recalls_list
+            # accuracies = accuracies_list
+            # num_matches = num_matches_list
+            # num_kilosort_spikes = num_kilosort_spikes_list
+            # num_ground_truth_spikes = num_ground_truth_spikes_list
+            # true_positive_spikes = true_positive_spikes_list
+            # false_positive_spikes = false_positive_spikes_list
+            # false_negative_spikes = false_negative_spikes_list
+            # kilosort_spikes = kilosort_spikes_list
+            # ground_truth_spikes = ground_truth_spikes_list
+            clusters_in_sort_to_use = clusters_in_sort_to_use_list
             if parallel:
                 with mp.Pool(processes=len(bin_widths_for_comparison)) as pool:
                     zip_obj = zip(
@@ -4040,7 +4457,7 @@ if __name__ == "__main__":
                 recalls = np.vstack(recalls)
                 iPlot, iSort = iShow, 0
         elif method_for_automatic_cluster_mapping == "accuracies":
-            iPlot, iSort = iShow, 0
+            iPlot = iShow
         #     # putting into list will allow indexing with 0
         #     num_ground_truth_spikes = [num_ground_truth_spikes]
         #     num_kilosort_spikes = [num_kilosort_spikes]
@@ -4069,119 +4486,124 @@ if __name__ == "__main__":
         ### plot 1: bar plot of spike counts
         # now create an overlay plot of the two plots above. Do not use subplots, but use two y axes
         # make bar plot of total spike counts use left y axis
-        plot1(
-            num_ground_truth_spikes,
-            num_kilosort_spikes,
-            precisions,
-            recalls,
-            accuracies,
-            bin_widths_for_comparison,
-            clusters_in_sort_to_use,
-            GT_clusters_to_use,
-            sorts_from_each_path_to_load,
-            plot_template,
-            plot1_bar_type,
-            plot1_ylim,
-            show_plot1a,
-            save_png_plot1a,
-            save_svg_plot1a,
-            save_html_plot1a,
-            show_plot1b,
-            save_png_plot1b,
-            save_svg_plot1b,
-            save_html_plot1b,
-            # make figsize 1080p
-            figsize=(1280, 1440),
-        )
+        for iSort in range(len(sorts_from_each_path_to_load)):
+            plot1(
+                num_ground_truth_spikes,
+                num_kilosort_spikes,
+                precisions,
+                recalls,
+                accuracies,
+                bin_widths_for_comparison[0],
+                clusters_in_sort_to_use[iSort],
+                GT_clusters_to_use,
+                sorts_from_each_path_to_load[iSort],
+                plot_template,
+                plot1_bar_type,
+                plot1_ylim,
+                show_plot1a,
+                save_png_plot1a,
+                save_svg_plot1a,
+                save_html_plot1a,
+                show_plot1b,
+                save_png_plot1b,
+                save_svg_plot1b,
+                save_html_plot1b,
+                # make figsize 1080p
+                figsize=(1280, 1440),
+            )
 
     if show_plot2 or save_png_plot2 or save_html_plot2 or save_svg_plot2:
         ### plot 2: spike trains
 
         # now plot the spike trains, emphasizing each type of error with a different color
         # include an event plot of the kilosort and ground truth spikes for reference
-        plot2(
-            kilosort_spikes[iPlot],
-            ground_truth_spikes[iPlot],
-            false_positive_spikes[iPlot],
-            false_negative_spikes[iPlot],
-            true_positive_spikes[iPlot],
-            bin_widths_for_comparison[iPlot],
-            clusters_in_sort_to_use,
-            GT_clusters_to_use,
-            sorts_from_each_path_to_load[iSort],
-            plot_template,
-            show_plot2,
-            plot2_xlim,
-            save_png_plot2,
-            save_svg_plot2,
-            save_html_plot2,
-            # make figsize 1080p
-            figsize=(1920, 1080),
-        )
+        for iSort in range(len(sorts_from_each_path_to_load)):
+            plot2(
+                kilosort_spikes[iSort],
+                ground_truth_spikes[iSort],
+                false_positive_spikes[iSort],
+                false_negative_spikes[iSort],
+                true_positive_spikes[iSort],
+                bin_widths_for_comparison[0],
+                clusters_in_sort_to_use[iSort],
+                GT_clusters_to_use,
+                sorts_from_each_path_to_load[iSort],
+                plot_template,
+                show_plot2,
+                plot2_xlim,
+                save_png_plot2,
+                save_svg_plot2,
+                save_html_plot2,
+                # make figsize 1080p
+                figsize=(1920, 1080),
+            )
 
     if show_plot3 or save_png_plot3 or save_html_plot3 or save_svg_plot3:
         ### plot 3: comparison across bin widths, ground truth metrics
         # the bin width for comparison is varied from 0.25 ms to 8 ms, doubling each time
         # the metrics are computed for each bin width
-        plot3(
-            bin_widths_for_comparison,
-            precisions,
-            recalls,
-            accuracies,
-            num_motor_units,
-            clusters_in_sort_to_use,
-            GT_clusters_to_use,
-            sorts_from_each_path_to_load[iSort],
-            plot_template,
-            show_plot3,
-            save_png_plot3,
-            save_svg_plot3,
-            save_html_plot3,
-            # make figsize 1080p
-            figsize=(1920, 1080),
-        )
+        for iSort in range(len(sorts_from_each_path_to_load)):
+            plot3(
+                bin_widths_for_comparison[0],
+                precisions,
+                recalls,
+                accuracies,
+                num_motor_units,
+                clusters_in_sort_to_use[iSort],
+                GT_clusters_to_use,
+                sorts_from_each_path_to_load[iSort],
+                plot_template,
+                show_plot3,
+                save_png_plot3,
+                save_svg_plot3,
+                save_html_plot3,
+                # make figsize 1080p
+                figsize=(1920, 1080),
+            )
 
     if show_plot4 or save_png_plot4 or save_html_plot4 or save_svg_plot4:
         ### plot 4: analogous to plot 3, but for each different run, processing results from each
         # sort in the list of paths to sorted folders
-        plot4(
-            bin_widths_for_comparison,
-            precisions,
-            recalls,
-            accuracies,
-            num_motor_units,
-            clusters_in_sort_to_use,
-            GT_clusters_to_use,
-            sorts_from_each_path_to_load,
-            plot_template,
-            show_plot4,
-            save_png_plot4,
-            save_svg_plot4,
-            save_html_plot4,
-            # make figsize 1080p
-            figsize=(1920, 1080),
-        )
+        for iSort in range(len(sorts_from_each_path_to_load)):
+            plot4(
+                bin_widths_for_comparison[0],
+                precisions,
+                recalls,
+                accuracies,
+                num_motor_units,
+                clusters_in_sort_to_use[iSort],
+                GT_clusters_to_use,
+                sorts_from_each_path_to_load,
+                plot_template,
+                show_plot4,
+                save_png_plot4,
+                save_svg_plot4,
+                save_html_plot4,
+                # make figsize 1080p
+                figsize=(1080, 1080),
+            )
 
     if show_plot5 or save_png_plot5 or save_html_plot5 or save_svg_plot5:
         ### plot 5: examples of overlaps throughout sort to validate results
-        plot5(
-            bin_widths_for_comparison,
-            precisions,
-            recalls,
-            accuracies,
-            nt0,
-            num_motor_units,
-            clusters_in_sort_to_use,
-            GT_clusters_to_use,
-            sorts_from_each_path_to_load[iSort],
-            plot_template,
-            show_plot5,
-            save_png_plot5,
-            save_svg_plot5,
-            save_html_plot5,
-            # make figsize 1080p
-            figsize=(1920, 1080),
-        )
+        for iSort in range(len(sorts_from_each_path_to_load)):
+            plot5(
+                bin_widths_for_comparison[0],
+                precisions,
+                recalls,
+                accuracies,
+                nt0,
+                num_motor_units,
+                clusters_in_sort_to_use[iSort],
+                GT_clusters_to_use,
+                sorts_from_each_path_to_load[iSort],
+                plot_template,
+                show_plot5,
+                save_png_plot5,
+                save_svg_plot5,
+                save_html_plot5,
+                # make figsize 1080p
+                figsize=(1920, 1080),
+            )
 
     finish_time = datetime.now()
     time_elapsed = finish_time - start_time

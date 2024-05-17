@@ -727,10 +727,10 @@ else:
 if save_simulated_spikes:
     mu.save_spikes(
         # f"synthetic_spikes_from_{session_name}_using_{chosen_bodypart_to_load}.npy"
-        f"spikes_{datetime.now().strftime('%Y%m%d-%H%M%S')}_{session_name}_SNR-{adjust_SNR}-{SNR_mode}_jitter-{shape_jitter_amount}std_method-{method}_{len(kinematic_csv_file_paths)}-files.npy"
+        f"spikes_files/spikes_{datetime.now().strftime('%Y%m%d-%H%M%S')}_{session_name}_SNR-{adjust_SNR}-{SNR_mode}_jitter-{shape_jitter_amount}std_method-{method}_{len(kinematic_csv_file_paths)}-files.npy"
     )
     # also save a copy with name "most_recent_synthetic_spikes.npy"
-    mu.save_spikes("most_recent_synthetic_spikes.npy")
+    mu.save_spikes("spikes_files/most_recent_synthetic_spikes.npy")
 
 ## next section will place real multichannel electrophysiological spike waveform shapes at each
 #  simulated spike time, onto multiple data channels. The final result will be an int16 binary file
@@ -1450,10 +1450,10 @@ else:
 
 if save_continuous_dat:
     continuous_dat.tofile(
-        f"continuous_{datetime.now().strftime('%Y%m%d-%H%M%S')}_{session_name}_SNR-{adjust_SNR}-{SNR_mode}_jitter-{shape_jitter_amount}std_method-{method}_{len(kinematic_csv_file_paths)}-files.dat"
+        f"continuous_dat_files/continuous_{datetime.now().strftime('%Y%m%d-%H%M%S')}_{session_name}_SNR-{adjust_SNR}-{SNR_mode}_jitter-{shape_jitter_amount}std_method-{method}_{len(kinematic_csv_file_paths)}-files.dat"
     )
     # overwrite a copy of most recent continuous.dat file
-    continuous_dat.tofile("most_recent_continuous.dat")
+    continuous_dat.tofile("continuous_dat_files/most_recent_continuous.dat")
 print("Synthetic Data Generated Successfully!")
 
 # ## compare synthetic data to real data
