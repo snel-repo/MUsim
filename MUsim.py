@@ -1,20 +1,21 @@
-import pdb
 import copy
-from pathlib import Path, PosixPath
+import pdb
 import tempfile
+from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path, PosixPath
 
 import matplotlib.pyplot as plt
 import numpy as np
 import plotly.graph_objects as go
+from mat73 import loadmat
 from scipy.ndimage import gaussian_filter1d
 from scipy.signal import find_peaks
 from scipy.special import expit
-from mat73 import loadmat
-from concurrent.futures import ThreadPoolExecutor
 
 
 class MUsim:
     def __init__(self, random_seed=False):
+        self.memmap = False
         self.MUmode = "static"  # "static" for size-principle obediance, "dynamic" for yank-dependent thresholds
         self.MUactivation = (
             "sigmoid"  # "sigmoid"/"heaviside" activation function of MUs
@@ -303,15 +304,17 @@ class MUsim:
             np.round(spike_times[-1]) + 1
         )  # use last spike time because it is the largest in time
         # create empty trial
-        # trial = np.zeros((num_bins, largest_cluster_number + 1))
-        # do not load the trial into ram, as it may be very large
-        # make a memmap to a temporary file using tempfile library
-        trial = np.memmap(
-            tempfile.TemporaryFile(),
-            dtype=np.float32,
-            mode="w+",
-            shape=(num_bins, largest_cluster_number + 1),
-        )
+        if self.memmap:
+            # do not load the trial into ram, as it may be very large
+            # make a memmap to a temporary file using tempfile library
+            trial = np.memmap(
+                tempfile.TemporaryFile(),
+                dtype=np.float32,
+                mode="w+",
+                shape=(num_bins, largest_cluster_number + 1),
+            )
+        else:
+            trial = np.zeros((num_bins, largest_cluster_number + 1), dtype=np.float32)
         # fill trial with spikes in order of KS cluster number
         for ii in range(largest_cluster_number + 1):
             unit_spike_times = spike_times[spike_clusters == ii]
@@ -466,7 +469,6 @@ class MUsim:
                 # use mat73.loadmat to import the spikes.mat file, which is a Time x MUs matrix
                 # of 1s and 0s, where 1s represent spikes
                 spikes_mat = loadmat(data_file_path.joinpath("spikes.mat"))
-                # memmap it, but slice before memmapping to save disk space
                 spikes_mat = spikes_mat["spikes"]
                 sliced_spikes_mat = spikes_mat[
                     int(np.round(spikes_mat.shape[0] * slice[0])) : int(
@@ -474,16 +476,20 @@ class MUsim:
                     ),
                     :,
                 ]
-                sliced_trial_from_konstantin = np.memmap(
-                    tempfile.TemporaryFile(),
-                    dtype=np.float32,
-                    mode="w+",
-                    shape=sliced_spikes_mat.shape,
-                )
-                sliced_trial_from_konstantin[:] = (
-                    sliced_spikes_mat.copy()  # transfer from RAM to disk
-                )
-                del spikes_mat, sliced_spikes_mat  # clear RAM
+                if self.memmap:
+                    # memmap it, but slice before memmapping to save disk space
+                    sliced_trial_from_konstantin = np.memmap(
+                        tempfile.TemporaryFile(),
+                        dtype=np.float32,
+                        mode="w+",
+                        shape=sliced_spikes_mat.shape,
+                    )
+                    sliced_trial_from_konstantin[:] = (
+                        sliced_spikes_mat.copy()  # transfer from RAM to disk
+                    )
+                    del spikes_mat, sliced_spikes_mat  # clear RAM
+                else:
+                    sliced_trial_from_konstantin = sliced_spikes_mat
                 self.spikes.append(sliced_trial_from_konstantin)
                 self.num_trials = 1
                 self.MUmode = "loaded"  # record that this session was loaded
@@ -540,13 +546,20 @@ class MUsim:
             self.bin_width = new_bin_width
             # update number of bins
             self.num_bins_per_trial = new_num_bins
+            # update sample rate
+            self.sample_rate = 1 / new_bin_width
             # update spikes
-            self.spikes[index] = np.memmap(
-                tempfile.TemporaryFile(),
-                dtype=np.float32,
-                mode="w+",
-                shape=(new_num_bins, spikes.shape[1]),
-            )
+            if self.memmap:
+                self.spikes[index] = np.memmap(
+                    tempfile.TemporaryFile(),
+                    dtype=np.float32,
+                    mode="w+",
+                    shape=(new_num_bins, spikes.shape[1]),
+                )
+            else:
+                self.spikes[index] = np.zeros(
+                    (new_num_bins, spikes.shape[1]), dtype=np.float32
+                )
             self.spikes[index][:] = new_spikes
         if target == "session":
             raise Exception("self.rebin for target=session not implemented yet.")

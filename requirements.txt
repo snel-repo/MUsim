@@ -9,3 +9,4 @@ pytorch-gpu
 scikit-learn
 scipy
 kaleido
+neuroconv[openephys]

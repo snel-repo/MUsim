@@ -12,6 +12,9 @@ import plotly.subplots as subplots
 import torch
 from scipy import signal
 from scipy.io import loadmat
+from sklearn.decomposition import PCA
+from sklearn.mixture import GaussianMixture
+from sklearn.preprocessing import StandardScaler
 
 from MUsim import MUsim
 
@@ -132,19 +135,25 @@ def batch_run_MUsim(mu, force_profile, proc_num):
 session_name = (
     "godzilla_20221117_10MU"  # "godzilla_20221117_10MU"  # "monkey_20221202_6MU"
 )
+cuda_device_number = "1"
 show_plotly_figures = False
 show_matplotlib_figures = False
-show_final_plotly_figure = False
+show_final_plotly_figure = True
 save_final_plotly_figure = False
 show_waveform_graph = False
-save_simulated_spikes = True
-save_continuous_dat = True
+show_real_waveform_graph = False
+save_simulated_spikes = False
+save_continuous_dat = False
 # multiprocess = False  # deprecated setting, now multithreading in MUsim to avoid refractory period violations
 use_KS_templates = True  # set to True to use Kilosort templates to create waveform shapes, else load open ephys data, and use spike times to extract median waveform shapes for each unit
+median_waveforms = False  # set to True to use median waveforms from the Kilosort data to create waveform shapes, else use Kilosort templates
 num_duplicate_kinematics_to_add = 2  # number of duplicate kinematics files to add to the list, for generating longer simulations
 kinematics_shuffle_N = 2  # number of times to shuffle the kinematics files list, 0 for no shuffling (rat=0, monkey=1, konstantin=2)
 write_kinematics_to_mat = (
-    True  # set to True to write the kinematics array to a .mat file
+    False  # set to True to write the kinematics array to a .mat file
+)
+write_kinematics_to_npy = (
+    False  # set to True to write the kinematics array to a .npy file
 )
 shift_MU_templates_along_channels = False
 kinematics_fs = 125
@@ -158,7 +167,8 @@ SNR_mode = "from_data"  # 'power' to compute desired SNR with power,'from_data' 
 # target SNR value if "power", or factor to adjust SNR by if "from_data", or set None to disable
 adjust_SNR = 1  # None
 # set 0 for no shape jitter, or a positive number for standard deviations of additive shape jitter
-shape_jitter_amount = 32
+shape_jitter_amount = 2
+shape_jitter_type = "multiplicative"  # "additive" or "multiplicative"
 # set None for random behavior, or a previous entropy int value to reproduce
 random_seed_entropy = 17750944332329041344095472642137516706  # 218530072159092100005306709809425040261  # 75092699954400878964964014863999053929  # None
 if random_seed_entropy is None:
@@ -211,7 +221,7 @@ MU_colors = [
 ]
 
 # set plotting parameters
-time_frame = [0, 1]  # time frame to plot, fractional bounds of 0 to 1
+time_frame = [0, 0.02]  # time frame to plot, fractional bounds of 0 to 1
 if time_frame[1] > 0.1:
     # disable the final plotly figure if the time frame is too long
     print(
@@ -403,6 +413,12 @@ if "monkey" not in session_name:
 
     # write the normalized force array to a .mat file
     # save the force profile to a .mat file
+    if write_kinematics_to_npy:
+        np.save(
+            f"force_array_{datetime.now().strftime('%Y%m%d-%H%M%S')}_shuffled_{kinematics_shuffle_N}_times.npy",
+            interp_final_force_array,
+        )
+        exit()
     if write_kinematics_to_mat:
         from scipy.io import savemat
 
@@ -721,8 +737,10 @@ if show_matplotlib_figures:
 # )
 if use_KS_templates:
     method = "KS_templates"
-else:
+elif median_waveforms:
     method = "median_waves"
+else:
+    method = "GMM"
 
 if save_simulated_spikes:
     mu.save_spikes(
@@ -746,6 +764,19 @@ else:
     num_dummy_chans = 0
     num_chans_with_data = num_chans_in_recording
 
+
+# create padded tukey to prevent edge artifacts in waveform shapes
+percent_tukey_coverage = 0.9
+tukey_window = signal.windows.tukey(
+    np.ceil(nt0 * percent_tukey_coverage).astype(int), alpha=0.25
+)
+zeros_for_padding = np.zeros(nt0)  # create a zeros array of length nt0
+# place the tukey window in the center of the zeros by slicing and overwriting
+pad_start = (1 - percent_tukey_coverage) / 2
+pad_start_idx = int(pad_start * nt0)
+pad_end_idx = pad_start_idx + len(tukey_window)
+zeros_for_padding[pad_start_idx:pad_end_idx] = tukey_window
+padded_tukey_window = zeros_for_padding
 
 # this chunk uses KS templates to create waveform shapes for each spike time
 spike_counts_for_each_unit = mu.spikes[-1].sum(axis=0).astype(int)
@@ -798,11 +829,20 @@ if use_KS_templates:
         )
         jitter_mat[:, :num_chans_with_data, :] = jitter_mat_to_chans_with_data
         # jitter and scale by amplitude for this unit
-        iUnit_U = np.tile(
-            U_good[0][:, iUnit, :], (np.max(spike_counts_for_each_unit), 1, 1)
-        ) * amplitudes_df_list.loc[clusters_to_take_from[0][iUnit]].Amplitude + (
-            jitter_mat if shape_jitter_amount else 0
-        )  # additive shape jitter
+        if shape_jitter_type == "additive":
+            iUnit_U = np.tile(
+                U_good[0][:, iUnit, :], (np.max(spike_counts_for_each_unit), 1, 1)
+            ) * amplitudes_df_list.loc[clusters_to_take_from[0][iUnit]].Amplitude + (
+                jitter_mat if shape_jitter_amount else 0
+            )  # additive shape jitter
+        elif shape_jitter_type == "multiplicative":
+            iUnit_U = (
+                np.tile(
+                    U_good[0][:, iUnit, :], (np.max(spike_counts_for_each_unit), 1, 1)
+                )
+                * amplitudes_df_list.loc[clusters_to_take_from[0][iUnit]].Amplitude
+                * (1 + jitter_mat if shape_jitter_amount else 1)
+            )  # multiplicative shape jitter
         for iSpike in range(np.max(spike_counts_for_each_unit)):
             iSpike_U = iUnit_U[
                 iSpike, :, :
@@ -841,31 +881,8 @@ else:  # this chunk uses the real data from proc.dat to create waveform shapes f
             )
             for iCluster_spike_times in spike_times_for_each_cluster
         ]  # dimensions are (num_spikes, nt0, num_chans_in_recording)
-        # get the median waveform shape for each cluster
-        median_spike_snippets_for_each_cluster = [
-            np.median(iCluster_snippets, axis=0)
-            for iCluster_snippets in spike_snippets_for_each_cluster
-        ]
-        median_spikes_list.append(median_spike_snippets_for_each_cluster)
-        # use RNG to randomize the channel order of the median waveform shape for each cluster
-        # for iCluster in median_spike_snippets_for_each_cluster:
-        #     RNG.shuffle(iCluster, axis=1)
 
-        # now place the median waveform shape for each cluster into the spike_snippets_to_place array
-        # for iUnit, iCount in enumerate(
-        #     spike_counts_for_each_unit[
-        #         unit_start_offset : len(np.unique(clusters_to_take_from[ii]))
-        #         + unit_start_offset
-        #     ]
-        # ):
-        #     for iSpike in range(iCount):
-        #         spike_snippets_to_place[
-        #             iUnit, iSpike, :, :
-        #         ] = median_spike_snippets_for_each_cluster[iUnit]
-        # unit_start_offset += len(np.unique(clusters_to_take_from[ii]))
-        # that didn't work, so try placing the median waveform shape from each cluster into the spike_snippets_to_place array
-        # make sure not to overwrite any of the previous waveform shapes across ephys_data_list iterations
-        spike_snippets_to_place = np.zeros(
+        spike_snippets_to_place = np.nan * np.ones(
             (
                 mu.num_units,
                 np.max(spike_counts_for_each_unit),
@@ -873,18 +890,216 @@ else:  # this chunk uses the real data from proc.dat to create waveform shapes f
                 num_chans_in_recording,
             )
         )
-        for jj in range(len(np.unique(clusters_to_take_from[ii]))):
-            spike_snippets_to_place[unit_counter, :, :, :] = (
-                median_spike_snippets_for_each_cluster[jj]
-            )
-            unit_counter += 1
-        unit_start_offset += len(np.unique(clusters_to_take_from[ii]))
+        # fit a GMM for each cluster, and sample from each cluster in proportion to the number of spikes in each cluster
+        pca_n_components = 9
+        GMM_models, MUAPs_list, Whiten_models, PCA_models, Scaler_models = (
+            [],
+            [],
+            [],
+            [],
+            [],
+        )
+        for iModel in range(len(spike_snippets_for_each_cluster)):
+            GMM_models.append(GaussianMixture(n_components=1, n_init=5))
+            Whiten_models.append(PCA(n_components=pca_n_components, whiten=True))
+            PCA_models.append(PCA(n_components=pca_n_components))
+            Scaler_models.append(StandardScaler())
 
-    median_spikes_array = np.concatenate(
-        median_spikes_list
-    )  # new shape is (num_units, nt0, num_chans_in_recording)
-    order_by_amplitude = np.max(np.abs(median_spikes_array), axis=(1, 2)).argsort()
-    waveforms_to_plot_in_graph = median_spikes_array[order_by_amplitude, :, :]
+        for ii, iCluster_snippets in enumerate(spike_snippets_for_each_cluster):
+            # tukey window the MUAPs
+            iCluster_snippets = (
+                iCluster_snippets * padded_tukey_window[np.newaxis, :, np.newaxis]
+            )
+            # normalize the snippets along channel axis, so that channels are comparable
+            Scaler_models[ii].fit(iCluster_snippets.reshape(-1, num_chans_in_recording))
+            iCluster_snippets = (
+                Scaler_models[ii]
+                .transform(iCluster_snippets.reshape(-1, num_chans_in_recording))
+                .reshape((-1, nt0, num_chans_in_recording))
+            )
+            Chan_Feats = np.vstack(iCluster_snippets)
+            # whitening
+            Whiten_models[ii].fit(Chan_Feats)
+            Chan_Feats_decorr = Whiten_models[ii].transform(Chan_Feats)
+            # reshape the decorrelated features into the original shape of the MUAPs
+            MUAPs_decorr = Chan_Feats_decorr.reshape((-1, nt0, num_chans_in_recording))
+            # MUAPs = np.vstack(iCluster_snippets.T)
+            # MUAPs_list.append(MUAPs)
+            # PCA_models[ii].fit(MUAPs.T)
+            # MUAPs_pca = PCA_models[ii].transform(MUAPs.T)
+            MUAPs_decorr_stacked = np.vstack(MUAPs_decorr.T)
+            MUAPs_list.append(MUAPs_decorr_stacked)
+            PCA_models[ii].fit(MUAPs_decorr_stacked.T)
+            MUAPs_pca = PCA_models[ii].transform(MUAPs_decorr_stacked.T)
+            GMM_models[ii].fit(MUAPs_pca)
+            # scale the diagonal of the covariance matrix to adjust the range of spike shapes,
+            # but do not adjust the covariance structure. scale by shape_jitter_amount
+            # there is only 1 component, so the covariance matrix is pca_n_components x pca_n_components
+            scaled_covariance_matrix = GMM_models[ii].covariances_.copy()
+            scaled_covariance_matrix = np.array(
+                [
+                    np.diag(
+                        np.diag(iCov)
+                        * (1 + shape_jitter_amount * RNG.normal(0, 1, pca_n_components))
+                    )
+                    for iCov in scaled_covariance_matrix
+                ]
+            )
+            GMM_models[ii].covariances_ = scaled_covariance_matrix
+
+            # sample same number of spikes as in real data
+            GMM_sample_proj, _ = GMM_models[ii].sample(spike_counts_for_each_unit[ii])
+            GMM_sample_decorr_stacked = PCA_models[ii].inverse_transform(
+                GMM_sample_proj
+            )
+            GMM_sample_decorr = GMM_sample_decorr_stacked.T.reshape(
+                num_chans_in_recording, nt0, -1
+            )
+            # stack along time axis
+            GMM_sample_Chan_Feats = np.vstack(GMM_sample_decorr.T)
+            # undo whitening
+            GMM_sample_recorr_Chan_Feats = Whiten_models[ii].inverse_transform(
+                GMM_sample_Chan_Feats
+            )
+            # reshape the sample into the original shape of the MUAPs
+            # GMM_sampled_MUAPs = GMM_sample.T.reshape((num_chans_in_recording, nt0, -1)).T
+            # GMM_sampled_MUAPs = GMM_sample.reshape((num_chans_in_recording, nt0, -1)).T
+            GMM_sampled_MUAPs = GMM_sample_recorr_Chan_Feats.reshape(
+                (-1, nt0, num_chans_in_recording)
+            )
+            # inverse the channel scaling
+            GMM_sampled_MUAPs = (
+                Scaler_models[ii]
+                .inverse_transform(
+                    GMM_sampled_MUAPs.reshape(-1, num_chans_in_recording)
+                )
+                .reshape((GMM_sampled_MUAPs.shape[0], nt0, num_chans_in_recording))
+            )
+            # # place the samples into the spike_snippets_to_place array
+            spike_snippets_to_place[ii, : GMM_sampled_MUAPs.shape[0], :, :] = (
+                GMM_sampled_MUAPs
+            )
+            ## vvv this method allowed getting whitening matrices for each cluster vvv
+            # # normalize the snippets along channel axis, so that channels are comparable
+            # Scaler_models[ii].fit(iCluster_snippets.reshape(-1, num_chans_in_recording))
+            # iCluster_snippets = (
+            #     Scaler_models[ii]
+            #     .transform(iCluster_snippets.reshape(-1, num_chans_in_recording))
+            #     .reshape((-1, nt0, num_chans_in_recording))
+            # )
+            # MUAPs = np.vstack(iCluster_snippets)
+            # MUAPs_list.append(MUAPs)
+            # PCA_models[ii].fit(MUAPs)
+            # MUAPs_pca = PCA_models[ii].transform(MUAPs)
+            # GMM_models[ii].fit(MUAPs_pca)
+        # plot the whitening_matrix of the PCA for each cluster with plotly to show correlation structure
+        # of the MUAPs across channels
+        # apply thresholding to the heatmaps to show only the most important components
+        # fig = subplots.make_subplots(
+        #     rows=1,
+        #     cols=len(spike_snippets_for_each_cluster),
+        #     subplot_titles=[
+        #         f"Cluster {iCluster}" for iCluster in clusters_to_take_from[0]
+        #     ],
+        #     shared_xaxes=True,
+        #     shared_yaxes=True,
+        # )
+        # for jj, iCluster in enumerate(spike_snippets_for_each_cluster):
+        #     fig.add_trace(
+        #         go.Heatmap(
+        #             z=Whiten_models[jj].components_
+        #             / np.sqrt(Whiten_models[jj].explained_variance_)[:, np.newaxis],
+        #             # diverging color scale, with with 0 as white
+        #             colorscale="RdBu",
+        #             zmin=-1,
+        #             zmax=1,
+        #         ),
+        #         row=1,
+        #         col=jj + 1,
+        #     )
+        # fig.update_layout(
+        #     title="<b>Whitening Matrices of Waveforms in Each Cluster</b>",
+        #     template=plot_template,
+        # )
+        # fig.update_xaxes(title_text="Channels", row=1, col=1)
+        # fig.update_yaxes(title_text="Principal Components", row=1, col=1)
+        # fig.show()
+
+        # MUAPs_1D = np.concatenate(spike_snippets_for_each_cluster)
+        # MUAPs = np.vstack(MUAPs_1D.T)
+        # PCA = TruncatedSVD(n_components=20).fit(MUAPs.T)
+        # MUAPs_pca = PCA.transform(MUAPs.T)
+
+        # # create GMM for all spikes combined, with number of components equal to the number of clusters
+        # GMM = GaussianMixture(n_components=len(spike_snippets_for_each_cluster), n_init=10)
+        # GMM.fit(MUAPs_pca)
+        # # get GMM centroids
+        # GMM_centroids_proj = GMM.means_
+        # # project the centroids back into the original space
+        # GMM_centroids = PCA.inverse_transform(GMM_centroids_proj)
+        # # compute the norm of each centroid
+        # GMM_norms = np.linalg.norm(GMM_centroids, axis=1)
+        # # get the ordering of the labels corresponding to each cluster, descending by norm
+        # GMM_order = np.argsort(GMM_norms)
+
+        # # sample from each cluster in exact proportion to the number of spikes in each cluster
+        # # these examples will be reshaped into the original shape of the MUAPs and placed into
+        # # the spike_snippets_to_place array and each spike will be placed at the corresponding spike time
+        # # for ii, iClust in enumerate(GMM_order):
+        # num_samples = sum(spike_counts_for_each_unit)
+        # GMM_samples_proj, GMM_sample_labels = GMM.sample(num_samples)
+        # GMM_samples = PCA.inverse_transform(GMM_samples_proj)
+        # # reshape the samples into the original shape of the MUAPs
+        # GMM_sampled_MUAPs = GMM_samples.T.reshape((num_chans_in_recording, nt0, -1)).T
+        if median_waveforms:
+            # get the median waveform shape for each cluster
+            median_spike_snippets_for_each_cluster = [
+                np.median(iCluster_snippets, axis=0)
+                for iCluster_snippets in spike_snippets_for_each_cluster
+            ]
+            median_spikes_list.append(median_spike_snippets_for_each_cluster)
+            # use RNG to randomize the channel order of the median waveform shape for each cluster
+            # for iCluster in median_spike_snippets_for_each_cluster:
+            #     RNG.shuffle(iCluster, axis=1)
+
+            # now place the median waveform shape for each cluster into the spike_snippets_to_place array
+            # for iUnit, iCount in enumerate(
+            #     spike_counts_for_each_unit[
+            #         unit_start_offset : len(np.unique(clusters_to_take_from[ii]))
+            #         + unit_start_offset
+            #     ]
+            # ):
+            #     for iSpike in range(iCount):
+            #         spike_snippets_to_place[
+            #             iUnit, iSpike, :, :
+            #         ] = median_spike_snippets_for_each_cluster[iUnit]
+            # unit_start_offset += len(np.unique(clusters_to_take_from[ii]))
+            # that didn't work, so try placing the median waveform shape from each cluster into the spike_snippets_to_place array
+            # make sure not to overwrite any of the previous waveform shapes across ephys_data_list iterations
+            spike_snippets_to_place = np.zeros(
+                (
+                    mu.num_units,
+                    np.max(spike_counts_for_each_unit),
+                    nt0,
+                    num_chans_in_recording,
+                )
+            )
+            for jj in range(len(np.unique(clusters_to_take_from[ii]))):
+                spike_snippets_to_place[unit_counter, :, :, :] = (
+                    median_spike_snippets_for_each_cluster[jj]
+                )
+                unit_counter += 1
+            unit_start_offset += len(np.unique(clusters_to_take_from[ii]))
+    if median_waveforms:
+
+        median_spikes_array = np.concatenate(
+            median_spikes_list
+        )  # new shape is (num_units, nt0, num_chans_in_recording)
+        order_by_amplitude = np.max(np.abs(median_spikes_array), axis=(1, 2)).argsort()
+        waveforms_to_plot_in_graph = median_spikes_array[order_by_amplitude, :, :]
+    else:
+        median_spikes_array = np.median(spike_snippets_to_place, axis=1)
+        order_by_amplitude = np.max(np.abs(median_spikes_array), axis=(1, 2)).argsort()
 
 if show_waveform_graph:
     # plot the median waveform shape for each cluster in a different subplot, which is channel x unit
@@ -906,7 +1121,7 @@ if show_waveform_graph:
         shared_xaxes=True,
         shared_yaxes=True,
     )
-    if not use_KS_templates:
+    if median_waveforms:
         for iChan in range(num_chans_in_recording):
             for iUnit in range(num_motor_units):
                 fig.add_trace(
@@ -922,7 +1137,11 @@ if show_waveform_graph:
     else:
         for iChan in range(num_chans_in_recording):
             for iUnit in range(num_motor_units):
-                for iSpike in range(0, spike_snippets_to_place.shape[1], 10):
+                for iSpike in np.unique(
+                    np.linspace(0, spike_counts_for_each_unit[iUnit] - 1, 100).astype(
+                        int
+                    )
+                ):  # show at most 50 spikes for each unit and channel
                     fig.add_trace(
                         go.Scatter(
                             x=np.arange(nt0) / ephys_fs * 1000,
@@ -930,14 +1149,14 @@ if show_waveform_graph:
                             name=f"Unit {iUnit}",
                             marker_color=MU_colors[iUnit],
                             line=dict(width=0.5),
-                            opacity=0.5,
+                            opacity=0.25,
                         ),
                         row=iChan + 1,
                         col=iUnit + 1,
                     )
     # add title and axis labels
     fig.update_layout(
-        title="<b>Median Waveform Shapes for Each Cluster</b>",
+        title="<b>Waveform Shapes for Each Cluster</b>",
         template=plot_template,
     )
     fig.update_yaxes(title_text="Voltage (uV)", row=1, col=1)
@@ -945,17 +1164,94 @@ if show_waveform_graph:
     # make y-axis range shared across all voltage subplots
     fig.update_yaxes(matches="y")
     fig.show()
+if show_real_waveform_graph:
+    for ii, ephys_data in enumerate(ephys_data_list):
+        # get the spike times for each cluster
+        spike_times = spike_times_list[ii]
+        spike_clusters = spike_clusters_list[ii]
+        # get the spike times for each cluster
+        spike_times_for_each_cluster = [
+            spike_times[spike_clusters == iCluster]
+            for iCluster in clusters_to_take_from[ii]
+        ]
+        # get the spike snippets for each cluster
+        spike_snippets_for_each_cluster = [
+            np.array(
+                [
+                    ephys_data[
+                        int(iSpike_time - nt0 // 2) : int(iSpike_time + nt0 // 2 + 1), :
+                    ]
+                    for iSpike_time in iCluster_spike_times
+                ]
+            )
+            for iCluster_spike_times in spike_times_for_each_cluster
+        ]  # dimensions are (num_spikes, nt0, num_chans_in_recording)
 
-# multiply all waveforms by a Tukey window to make the edges go to zero
-tukey_window = signal.windows.tukey(nt0, 0.25)
-tukey_window = np.tile(tukey_window, (num_chans_in_recording, 1)).T
+        real_snippets_to_place = np.nan * np.ones(
+            (
+                mu.num_units,
+                np.max([i.shape[0] for i in spike_snippets_for_each_cluster]),
+                nt0,
+                num_chans_in_recording,
+            )
+        )
+        # fill in the real_snippets_to_place array with the real waveform shapes
+        spikes_in_each_cluster = []
+        for iUnit, iCluster_snippets in enumerate(spike_snippets_for_each_cluster):
+            spikes_in_each_cluster.append(iCluster_snippets.shape[0])
+            real_snippets_to_place[iUnit, : iCluster_snippets.shape[0], :, :] = (
+                iCluster_snippets
+            )
+        # plot the real waveform shape for each cluster in a different subplot, which is channel x unit
+        # plot the unit by color
+        fig = subplots.make_subplots(
+            rows=num_chans_in_recording,
+            cols=num_motor_units,
+            subplot_titles=[
+                f"Unit {iUnit} Ch. {iChan}"
+                for iChan in range(num_chans_in_recording)
+                for iUnit in range(num_motor_units)
+            ],
+            shared_xaxes=True,
+            shared_yaxes=True,
+        )
+        for iChan in range(num_chans_in_recording):
+            for iUnit in range(num_motor_units):
+                for iSpike in np.unique(
+                    np.linspace(0, spikes_in_each_cluster[iUnit] - 1, 100).astype(int)
+                ):
+                    fig.add_trace(
+                        go.Scatter(
+                            x=np.arange(nt0) / ephys_fs * 1000,
+                            y=real_snippets_to_place[iUnit, iSpike, :, iChan],
+                            name=f"Unit {iUnit}",
+                            marker_color=MU_colors[iUnit],
+                            line=dict(width=0.5),
+                            opacity=0.25,
+                        ),
+                        row=iChan + 1,
+                        col=iUnit + 1,
+                    )
+        # add title and axis labels
+        fig.update_layout(
+            title="<b>Real Waveform Shapes for Each Cluster</b>",
+            template=plot_template,
+        )
+        fig.update_yaxes(title_text="Voltage (uV)", row=1, col=1)
+        fig.update_xaxes(title_text="Time (ms)", row=num_chans_in_recording, col=1)
+        # make y-axis range shared across all voltage subplots
+        fig.update_yaxes(matches="y")
+        fig.show()
+
 # order the spike snippets to place by spike by amplitude
 spike_snippets_to_place = spike_snippets_to_place[
     order_by_amplitude, :, :, :
 ]  # new shape is (num_units, num_spikes, nt0, num_chans_in_recording)
 for iUnit in range(mu.num_units):
     for iSpike in range(spike_counts_for_each_unit[iUnit]):
-        spike_snippets_to_place[iUnit, iSpike, :, :] *= tukey_window
+        spike_snippets_to_place[iUnit, iSpike, :, :] *= padded_tukey_window[
+            :, np.newaxis
+        ]
 
 # # plot all waveforms for all units
 # for iUnit in range(mu.num_units):
@@ -988,7 +1284,6 @@ if shift_MU_templates_along_channels:
         spike_snippets_to_place[iUnit] = np.roll(
             spike_snippets_to_place[iUnit], random_shifts_along_channels[iUnit], axis=-1
         )
-    # set_trace()
 else:
     continuous_dat = np.zeros((mu.spikes[-1].shape[0], num_chans_in_recording))
 
@@ -1033,7 +1328,7 @@ print(f"Spike Band Power: {spike_band_power}")
 if adjust_SNR is not None:
     if SNR_mode == "from_data":
         os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-        os.environ["CUDA_VISIBLE_DEVICES"] = "6"
+        os.environ["CUDA_VISIBLE_DEVICES"] = cuda_device_number
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         print(f"DEVICE: {device}")
         torch_continuous_dat = torch.tensor(continuous_dat, device=device)
@@ -1443,17 +1738,22 @@ print(f"Overall recording length: {len(continuous_dat) / ephys_fs} seconds")
 # now save as binary file in int16 format, where elements are 2 bytes, and samples from each channel
 # are interleaved, such as: [chan1_sample1, chan2_sample1, chan3_sample1, ...]
 # save simulation properties in continuous.dat file name
-if use_KS_templates:
-    method = "KS_templates"
-else:
-    method = "median_waves"
-
 if save_continuous_dat:
+    Path("continuous_dat_files").exists() or Path("continuous_dat_files").mkdir()
+    Path("sample_numbers_npy_files").exists() or Path(
+        "sample_numbers_npy_files"
+    ).mkdir()
     continuous_dat.tofile(
         f"continuous_dat_files/continuous_{datetime.now().strftime('%Y%m%d-%H%M%S')}_{session_name}_SNR-{adjust_SNR}-{SNR_mode}_jitter-{shape_jitter_amount}std_method-{method}_{len(kinematic_csv_file_paths)}-files.dat"
     )
     # overwrite a copy of most recent continuous.dat file
     continuous_dat.tofile("continuous_dat_files/most_recent_continuous.dat")
+    # create a corresponding sample_numbers.npy file, of same length, but starting at 0. make it int64
+    sample_numbers_npy = np.save(
+        f"sample_numbers_npy_files/sample_numbers_{datetime.now().strftime('%Y%m%d-%H%M%S')}_{session_name}_SNR-{adjust_SNR}-{SNR_mode}_jitter-{shape_jitter_amount}std_method-{method}_{len(kinematic_csv_file_paths)}-files.npy",
+        np.arange(continuous_dat.shape[0], dtype=np.int64),
+    )
+
 print("Synthetic Data Generated Successfully!")
 
 # ## compare synthetic data to real data
