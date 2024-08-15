@@ -131,24 +131,62 @@ def batch_run_MUsim(mu, force_profile, proc_num):
     return mu
 
 
+## WIP
+# def compute_overlap_fraction(spike_isolation_radius_ms, bin_width_ms, MUsim_obj1, MUsim_obj2):
+#     """
+#     Compute the fraction of overlapping spikes between two MUsim objects.
+#     """
+#     # get the spike times from each MUsim object
+#     spike_times1 = MUsim_obj1.spike_times
+#     spike_times2 = MUsim_obj2.spike_times
+#     # get the number of spikes from each MUsim object
+#     num_spikes1 = len(spike_times1)
+#     num_spikes2 = len(spike_times2)
+#     # set the bin width in seconds
+#     bin_width = bin_width_ms / 1000
+#     # set the spike isolation radius in seconds
+#     spike_isolation_radius = spike_isolation_radius_ms / 1000
+#     # set the number of bins
+#     num_bins = int(np.ceil((max(spike_times1[-1], spike_times2[-1]) + 2 * spike_isolation_radius) / bin_width))
+#     # create the spike count arrays
+#     spike_counts1 = np.zeros(num_bins)
+#     spike_counts2 = np.zeros(num_bins)
+#     # fill the spike count arrays
+#     for iBin in range(num_bins):
+#         spike_counts1[iBin] = np.sum((spike_times1 >= iBin * bin_width) & (spike_times1 < (iBin + 1) * bin_width))
+#         spike_counts2[iBin] = np.sum((spike_times2 >= iBin * bin_width) & (spike_times2 < (iBin + 1) * bin_width))
+#     # compute the overlapping spike count
+#     overlapping_spike_count = np.sum((spike_counts1 > 0) & (spike_counts2 > 0))
+#     # compute the total spike count
+#     total_spike_count = np.sum((spike_counts1 > 0) | (spike_counts2 > 0))
+#     # compute the fraction of overlapping spikes
+#     overlap_fraction = overlapping_spike_count / total_spike_count
+#     return overlap_fraction
+
 # set analysis parameters
 session_name = (
-    "godzilla_20221117_10MU"  # "godzilla_20221117_10MU"  # "monkey_20221202_6MU"
+    "monkey_20221202_6MU"  # "godzilla_20221117_10MU"  # "monkey_20221202_6MU"
 )
-cuda_device_number = "1"
+cuda_device_number = "0"
 show_plotly_figures = False
 show_matplotlib_figures = False
 show_final_plotly_figure = True
 save_final_plotly_figure = False
 show_waveform_graph = False
 show_real_waveform_graph = False
-save_simulated_spikes = False
-save_continuous_dat = False
+save_simulated_spikes = True
+save_continuous_dat = True
 # multiprocess = False  # deprecated setting, now multithreading in MUsim to avoid refractory period violations
-use_KS_templates = True  # set to True to use Kilosort templates to create waveform shapes, else load open ephys data, and use spike times to extract median waveform shapes for each unit
-median_waveforms = False  # set to True to use median waveforms from the Kilosort data to create waveform shapes, else use Kilosort templates
+use_KS_templates = True
+# (False if "monkey" in session_name else True
+# )  # set to True to use Kilosort templates to create waveform shapes, else load open ephys data, and use spike times to extract median waveform shapes for each unit
+median_waveforms = False
+# (True if "monkey" in session_name else False
+# )  # set to True to use median waveforms from the Kilosort data to create waveform shapes, else use Kilosort templates
 num_duplicate_kinematics_to_add = 2  # number of duplicate kinematics files to add to the list, for generating longer simulations
-kinematics_shuffle_N = 2  # number of times to shuffle the kinematics files list, 0 for no shuffling (rat=0, monkey=1, konstantin=2)
+kinematics_shuffle_N = 2  # (
+# 1 if "monkey" in session_name else 0
+# )  # number of times to shuffle the kinematics files list, 0 for no shuffling (rat=0, monkey=1, konstantin=2)
 write_kinematics_to_mat = (
     False  # set to True to write the kinematics array to a .mat file
 )
@@ -167,10 +205,10 @@ SNR_mode = "from_data"  # 'power' to compute desired SNR with power,'from_data' 
 # target SNR value if "power", or factor to adjust SNR by if "from_data", or set None to disable
 adjust_SNR = 1  # None
 # set 0 for no shape jitter, or a positive number for standard deviations of additive shape jitter
-shape_jitter_amount = 2
+shape_jitter_amount = 3.75
 shape_jitter_type = "multiplicative"  # "additive" or "multiplicative"
 # set None for random behavior, or a previous entropy int value to reproduce
-random_seed_entropy = 17750944332329041344095472642137516706  # 218530072159092100005306709809425040261  # 75092699954400878964964014863999053929  # None
+random_seed_entropy = 17750944332329041344095472642137516706  # rat # 218530072159092100005306709809425040261  # 75092699954400878964964014863999053929  # None
 if random_seed_entropy is None:
     random_seed_entropy = np.random.SeedSequence().entropy
 RNG = np.random.default_rng(random_seed_entropy)  # create a random number generator
@@ -221,7 +259,7 @@ MU_colors = [
 ]
 
 # set plotting parameters
-time_frame = [0, 0.02]  # time frame to plot, fractional bounds of 0 to 1
+time_frame = [0, 1]  # time frame to plot, fractional bounds of 0 to 1
 if time_frame[1] > 0.1:
     # disable the final plotly figure if the time frame is too long
     print(
@@ -432,10 +470,10 @@ if "monkey" not in session_name:
 # then 1 Hz sine wave then repeat until 10 minutes
 else:
     force_max = 20
-    force_ramp_time = 2 * time_frame[1]
-    force_hold_time = 3 * time_frame[1]
-    force_down_time = 1 * time_frame[1]
-    force_sine_time = 6 * time_frame[1]
+    force_ramp_time = 2  # * time_frame[1]
+    force_hold_time = 3  # * time_frame[1]
+    force_down_time = 1  # * time_frame[1]
+    force_sine_time = 6  # * time_frame[1]
     force_total_time = 600 * time_frame[1]
     force_ramp_up = np.linspace(0, force_max, int(force_ramp_time * ephys_fs))
     force_hold_up = np.ones(int(force_hold_time * ephys_fs)) * force_max
@@ -465,17 +503,16 @@ else:
         round(len(interp_final_force_array) * (kinematics_fs / ephys_fs)),
     )  # create a fake kinematic array to match the kinematic sampling rate
     kinematic_csv_file_paths = [None]  # fake placeholder, to indicate 1 file was used
-
-#     # plot with plotly express
-#     fig = px.line(interp_final_force_array)
-#     # add title and axis labels
-#     fig.update_layout(
-#         title="Interpolated Final Force Profile",
-#         xaxis_title="Time",
-#         yaxis_title="Force Approximation",
-#     )
-#     fig.show()
-#     set_trace()
+    if show_plotly_figures:
+        # plot with plotly express
+        fig = px.line(interp_final_force_array[:360000])  # 10 seconds
+        # add title and axis labels
+        fig.update_layout(
+            title="Interpolated Final Force Profile",
+            xaxis_title="Time",
+            yaxis_title="Force Approximation",
+        )
+        fig.show()
 ## load the spike history kernel csv's and plot them with plotly express to compare in 2 subplots
 # load each csv file into a pandas dataframe
 # MU_spike_history_kernel_path = Path(__file__).parent.joinpath("spike_history_kernel_basis_MU.csv")
@@ -528,44 +565,87 @@ orig_spike_history_kernel_df = pd.read_csv(orig_spike_history_kernel_path)
 
 ## load proc.dat from a sort for each rat including 16 channels (zeroed-out channels replace noisy ones)
 # paths to the folders containing the Kilosort data
-paths_to_proc_dat = [
-    Path(
-        "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/godzilla/session20221117/2022-11-17_17-08-07_myo/sorted0_20231027_163931_rec-1,2,4,5,6_chans-2,3,5,6,13,14,15,16_12-good-of-43-total_Th,[10,2]"
-    ),
-    # Path(
-    #     "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/inkblot/session20230323/2023-03-23_14-41-46_myo/sorted0_20231218_202453598454_rec-3,5,7,8,9,10_Th,[10,4],spkTh,[-6]"
-    # ),
-    # Path(
-    #     "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/kitkat/session20230420/2023-04-20_14-12-09_myo/sorted0_20231218_203140625455_rec-1,2,3,4,5,7,8,9,11,12,14,15,16,17,19,20,21"
-    # ),
-    # Path(
-    #     "/snel/share/data/rodent-ephys/open-ephys/monkey/sean-pipeline/session20231202/2022-12-02_10-14-45_myo/sorted0_20240131_172133542034_rec-1_11-good-of-20-total_Th,[10,4],spkTh,[-6]"
-    # ),
-]
+# paths_to_proc_dat = [
+#     Path(
+#         "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/godzilla/session20221117/2022-11-17_17-08-07_myo/sorted0_20231027_163931_rec-1,2,4,5,6_chans-2,3,5,6,13,14,15,16_12-good-of-43-total_Th,[10,2]"
+#     ),
+#     # Path(
+#     #     "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/inkblot/session20230323/2023-03-23_14-41-46_myo/sorted0_20231218_202453598454_rec-3,5,7,8,9,10_Th,[10,4],spkTh,[-6]"
+#     # ),
+#     # Path(
+#     #     "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/kitkat/session20230420/2023-04-20_14-12-09_myo/sorted0_20231218_203140625455_rec-1,2,3,4,5,7,8,9,11,12,14,15,16,17,19,20,21"
+#     # ),
+#     # Path(
+#     #     "/snel/share/data/rodent-ephys/open-ephys/monkey/sean-pipeline/session20231202/2022-12-02_10-14-45_myo/sorted0_20240131_172133542034_rec-1_11-good-of-20-total_Th,[10,4],spkTh,[-6]"
+#     # ),
+# ]
 
-## load Kilosort data
-# paths to the folders containing the Kilosort data
-paths_to_KS_session_folders = [
-    Path(
-        # "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/godzilla/session20221116/"
-        "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/godzilla/session20221117/"
-    ),
-    # Path(
-    #     "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/inkblot/session20230323/"
-    # ),
-    # Path(
-    #     "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/kitkat/session20230420/"
-    # ),
-    # Path(
-    #     "/snel/share/data/rodent-ephys/open-ephys/monkey/sean-pipeline/session20231202/"
-    # ),
-]
-sorts_from_each_path_to_load = [
-    "20231027_163931",  # godzilla
-    # "20231218_181442825759",  # inkblot
-    # "20231214_104534576438",  # kitkat
-    # "20240131_172133542034",  # monkey
-]  # ["20230924_151421"]  # , ["20230923_125645"], ["20230923_125645"]]
+# ## load Kilosort data
+# # paths to the folders containing the Kilosort data
+# paths_to_KS_session_folders = [
+#     Path(
+#         # "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/godzilla/session20221116/"
+#         "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/godzilla/session20221117/"
+#     ),
+#     # Path(
+#     #     "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/inkblot/session20230323/"
+#     # ),
+#     # Path(
+#     #     "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/kitkat/session20230420/"
+#     # ),
+#     # Path(
+#     #     "/snel/share/data/rodent-ephys/open-ephys/monkey/sean-pipeline/session20231202/"
+#     # ),
+# ]
+# sorts_from_each_path_to_load = [
+#     "20231027_163931",  # godzilla
+#     # "20231218_181442825759",  # inkblot
+#     # "20231214_104534576438",  # kitkat
+#     # "20240131_172133542034",  # monkey
+# ]  # ["20230924_151421"]  # , ["20230923_125645"], ["20230923_125645"]]
+
+if "monkey" in session_name:
+    # load the Kilosort data
+    paths_to_proc_dat = [
+        Path(
+            "/snel/share/data/rodent-ephys/open-ephys/monkey/sean-pipeline/session20231202/2022-12-02_10-14-45_myo/sorted0_20240131_172133542034_rec-1_11-good-of-20-total_Th,[10,4],spkTh,[-6]"
+        )
+    ]
+    paths_to_KS_session_folders = [
+        Path(
+            "/snel/share/data/rodent-ephys/open-ephys/monkey/sean-pipeline/session20231202/"
+        )
+    ]
+    sorts_from_each_path_to_load = ["20240131_172133542034"]
+else:
+    # load the Kilosort data
+    paths_to_proc_dat = [
+        Path(
+            "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/godzilla/session20221117/2022-11-17_17-08-07_myo/sorted0_20231027_163931_rec-1,2,4,5,6_chans-2,3,5,6,13,14,15,16_12-good-of-43-total_Th,[10,2]"
+        )
+        # Path(
+        #     "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/inkblot/session20230323/"
+        # )
+        # Path(
+        #     "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/kitkat/session20230420/"
+        # )
+    ]
+    paths_to_KS_session_folders = [
+        Path(
+            "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/godzilla/session20221117/"
+        )
+        # Path(
+        #     "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/inkblot/session20230323/"
+        # )
+        # Path(
+        #     "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/kitkat/session20230420/"
+        # )
+    ]
+    sorts_from_each_path_to_load = [
+        "20231027_163931",
+        # "20231218_181442825759",  # inkblot
+        # "20231214_104534576438",  # kitkat
+    ]
 
 # find the folder name which ends in _myo and append to the paths_to_session_folders
 paths_to_each_myo_folder = []
@@ -629,12 +709,17 @@ amplitudes_df_list = amplitudes_df_list[0].set_index("cluster_id")
 
 # list of lists of good clusters to take from each rez_list
 # place units in order of total spike count, from highest to lowest
-clusters_to_take_from = [
-    [26, 13, 10, 3, 22, 32, 1, 15, 40, 27],  # godzilla, 20231027_163931
-    # [9, 7, 8, 13],  # [12, 8, 14, 1, 13],  # inkblot, 20231218_181442825759
-    # [15, 52, 9, 20, 16, 5, 14, 23, 13, 8],  # kitkat, 20231214_104534576438
-    # [6, 13, 24, 1, 23, 14],  # monkey, 20240131_172133542034
-]  # [[25, 3, 1, 5, 17, 18, 0, 22, 20, 30]]  # [[18, 2, 11, 0, 4, 10, 1, 9]]
+if "monkey" in session_name:
+    clusters_to_take_from_for_templates = [
+        [6, 13, 0, 1, 16, 14],  # monkey, 20240131_172133542034
+    ]
+    clusters_to_take_from = [[6, 13, 24, 1, 23, 14]]
+else:
+    clusters_to_take_from = [
+        [26, 13, 10, 3, 22, 32, 1, 15, 40, 27],  # godzilla, 20231027_163931
+        # [9, 7, 8, 13],  # [12, 8, 14, 1, 13],  # inkblot, 20231218_181442825759
+        # [15, 52, 9, 20, 16, 5, 14, 23, 13, 8],  # kitkat, 20231214_104534576438
+    ]  # [[25, 3, 1, 5, 17, 18, 0, 22, 20, 30]]  # [[18, 2, 11, 0, 4, 10, 1, 9]]
 
 num_motor_units = sum([len(i) for i in clusters_to_take_from])
 
@@ -645,14 +730,14 @@ mu = MUsim(random_seed_entropy)
 mu.num_units = num_motor_units  # set same number of motor units as in the Kilosort data
 mu.MUthresholds_dist = "exponential"  # set the distribution of motor unit thresholds
 mu.MUspike_dynamics = "spike_history"
-mu.kernel_interpolation_factor = 4 if "monkey" in session_name else 1
+mu.kernel_interpolation_factor = 1  # 2 if "monkey" in session_name else 1
 mu.sample_rate = ephys_fs  # 30000 Hz
 # fixed minimum force threshold for the generated units' response curves. Tune this for lower
 # bound of force thresholds sampled in the distribution of MUs during MU_sample()
-mu.threshmin = np.percentile(interp_final_force_array, 40)
+mu.threshmin = np.percentile(interp_final_force_array, 35)  # 40 for rat, 35 for monkey
 # fixed maximum force threshold for the generated units' response curves. Tune this for upper
 # bound of force thresholds sampled in the distribution of MUs during MU_sample()
-mu.threshmax = 2 * np.max(
+mu.threshmax = 2.5 * np.max(  # 2.0 for rat, 2.5 for monkey
     interp_final_force_array
 )  # np.percentile(interp_final_force_array, 99)
 mu.sample_MUs()
@@ -785,6 +870,34 @@ if use_KS_templates:
     # U are the weights of each temporal component distrubuted across channels
     W = rez_list[0]["W"]  # shape is (nt0, mu.num_units, SVD_dim)
     U = rez_list[0]["U"]  # shape is (SVD_dim, mu.num_units, num_chans)
+    # now plot the product of each template with each weight, for each unit
+    # and put each unit's channels on different rows of the subplot
+    # resulting in a grid with dimensions (num_chans, num_units) (in this case 9x20)
+    # using plotly  express
+    if False:
+        fig = subplots.make_subplots(
+            rows=U.shape[2],
+            cols=W.shape[1],
+            shared_xaxes=True,
+            shared_yaxes=True,
+            subplot_titles=[
+                f"Unit {iUnit} Channel {iChan}"
+                for iUnit, iChan in zip(range(W.shape[1]), range(U.shape[2]))
+            ],
+        )
+        for iUnit in range(W.shape[1]):
+            for iChan in range(U.shape[2]):
+                fig.add_trace(
+                    go.Scatter(
+                        x=np.arange(nt0),
+                        y=np.dot(W[:, iUnit, :], U[:, iUnit, iChan]),
+                        name=f"Unit {iUnit} Channel {iChan}",
+                    ),
+                    row=iChan + 1,
+                    col=iUnit + 1,
+                )
+        fig.show()
+        set_trace()
 
     W_good = []
     U_good = []
@@ -793,8 +906,8 @@ if use_KS_templates:
     # take the W and U matrixes from each recording in rez_list, and only take the good clusters
     # then get SVD_dim standard deviation values across all
     for ii, iRec in enumerate(rez_list):
-        W_good.append(iRec["W"][:, clusters_to_take_from[ii], :])
-        U_good.append(iRec["U"][:, clusters_to_take_from[ii], :])
+        W_good.append(iRec["W"][:, clusters_to_take_from_for_templates[ii], :])
+        U_good.append(iRec["U"][:, clusters_to_take_from_for_templates[ii], :])
         # take mean and std of all elements in U_good
         U_mean.append(np.mean(U_good[ii]))
         U_std.append(np.std(U_good[ii]))
@@ -1084,12 +1197,12 @@ else:  # this chunk uses the real data from proc.dat to create waveform shapes f
                     num_chans_in_recording,
                 )
             )
-            for jj in range(len(np.unique(clusters_to_take_from[ii]))):
+            for jj in range(len(np.unique(clusters_to_take_from[0]))):
                 spike_snippets_to_place[unit_counter, :, :, :] = (
                     median_spike_snippets_for_each_cluster[jj]
                 )
                 unit_counter += 1
-            unit_start_offset += len(np.unique(clusters_to_take_from[ii]))
+            unit_start_offset += len(np.unique(clusters_to_take_from[0]))
     if median_waveforms:
 
         median_spikes_array = np.concatenate(
@@ -1489,7 +1602,7 @@ computed_SNR = spike_band_power / outside_spike_band_power
 print(f"Computed SNR: {computed_SNR}")
 
 # finally use ops variable channelDelays to reapply the original channel delays to the data
-channel_delays_to_apply = ops_list[0]["channelDelays"][0]
+channel_delays_to_apply = (ops_list[0]["channelDelays"][0]).astype(int)
 for iChan in range(num_chans_with_data):
     continuous_dat[:, iChan] = np.roll(
         continuous_dat[:, iChan], -channel_delays_to_apply[iChan]
@@ -1644,12 +1757,12 @@ if show_final_plotly_figure or save_final_plotly_figure:
         secondary_y=True,
     )
     # round down to nearest thousand from largest-amplitude channel's 15th standard deviation
-    max_ylim = 1000 * (15 * np.max(np.std(continuous_dat, axis=0)) // 1000)
+    max_ylim = 1000 * (15 * np.max(np.std(continuous_dat, axis=0)) // 1000 + 1)
     fig.update_yaxes(
         row=2,
         col=1,
         side="right",
-        tickvals=np.arange(-max_ylim, max_ylim + 1, 5000),
+        tickvals=np.arange(-max_ylim, max_ylim + 1, max_ylim // 2),
         title_text="<b>Voltage (μV)</b>",
     )
     for iRow in range(2, num_chans_to_plot + 2):

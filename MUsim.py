@@ -497,6 +497,7 @@ class MUsim:
             raise Exception(
                 "load_type must be either 'MUsim', 'rat-loco', 'kilosort', or 'konstantin'."
             )
+        self.bin_width = recording_bin_width
         self.sample_rate = 1 / recording_bin_width
         self.num_bins_per_trial = self.spikes[-1].shape[0]
         self.num_units = self.spikes[-1].shape[1]
@@ -532,7 +533,7 @@ class MUsim:
             new_bin_edges = np.linspace(
                 0, new_num_bins * new_bin_width, new_num_bins + 1
             )
-            # now snap all edges to nearest integer
+            # now snap all edges to nearest integer using existing sample rate
             new_bin_indexes = np.round(new_bin_edges * self.sample_rate).astype(int)
             new_spikes = np.zeros(
                 (new_num_bins, spikes.shape[1]), dtype=float
@@ -541,7 +542,6 @@ class MUsim:
                 new_spikes[ii, :] = np.sum(
                     spikes[new_bin_indexes[ii] : new_bin_indexes[ii + 1], :], axis=0
                 )
-
             # update bin width
             self.bin_width = new_bin_width
             # update number of bins

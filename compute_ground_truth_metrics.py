@@ -174,7 +174,6 @@ def compare_spike_trains(
 
     # use MUsim object to load and rebin ground truth data
     mu_GT = MUsim(random_seed_entropy)
-    mu_GT.sample_rate = 1 / ephys_fs
     mu_GT.load_MUs(
         # npy_file_path
         ground_truth_path,
@@ -187,7 +186,6 @@ def compare_spike_trains(
 
     # use MUsim object to load and rebin Kilosort data
     mu_KS = MUsim(random_seed_entropy)
-    mu_KS.sample_rate = 1 / ephys_fs
     mu_KS.load_MUs(
         # npy_file_path
         list_of_paths_to_sorted_folders[0],
@@ -224,8 +222,8 @@ def compare_spike_trains(
     # use the shift to align the spike trains
     # use the aligned spike trains to compute the metrics
 
-    min_delay_ms = -2  # ms
-    max_delay_ms = 2  # ms
+    min_delay_ms = -1  # ms
+    max_delay_ms = 1  # ms
     min_delay_samples = int(round(min_delay_ms * ephys_fs / 1000))
     max_delay_samples = int(round(max_delay_ms * ephys_fs / 1000))
 
@@ -1002,10 +1000,36 @@ def plot2(
     save_svg_plot2,
     save_html_plot2,
     figsize=(1920, 1080),
+    sort_index=0,
 ):
-    # get suffix after the KS folder name, which is the repo branch name for that sort
-    PPP_branch_name = list_of_paths_to_sorted_folders[0][iSort].name.split("_")[-1]
-    sort_type = "Kilosort" if "KS" in PPP_branch_name else "EMUsort"
+    # search all the paths to sorted folders for the KS or EMUsort string, in the order of matches with sorts_from_each_path_to_load
+    sort_types = [None] * len(sorts_from_each_path_to_load)
+    for iSort in range(len(sorts_from_each_path_to_load)):
+        for iPath in range(len(list_of_paths_to_sorted_folders[0])):
+            if (
+                sorts_from_each_path_to_load[iSort]
+                in list_of_paths_to_sorted_folders[0][iPath].name
+            ):
+                suffix = list_of_paths_to_sorted_folders[0][iPath].name.split("_")[-1]
+            elif (
+                sorts_from_each_path_to_load[iSort]
+                in list_of_paths_to_sorted_folders[0][iPath].parent.name
+            ):
+                suffix = list_of_paths_to_sorted_folders[0][iPath].parent.name.split(
+                    "_"
+                )[-1]
+            else:
+                continue  # keep searching
+            if suffix == "KS":
+                sort_types[iSort] = "Kilosort3"
+            elif suffix == "KS4":
+                sort_types[iSort] = "Kilosort4"
+            else:
+                sort_types[iSort] = "EMUsort"
+            break  # found a match with the datestring, label and break out of the loop
+    # make sure all sort_types were found
+    assert None not in sort_types, "Not all sort_types were found"
+    sort_type = sort_types[sort_index]
     # make a subplot for each unit
     subtitles = [
         f"Unit {GT_clusters_to_use[iUnit]}" for iUnit in range(num_motor_units)
@@ -1132,32 +1156,28 @@ def plot2(
         title_text="<b>Time (s)</b>",
         row=2 * num_motor_units,
         col=1,
-        range=[left_bound / 1000, right_bound / 1000] * int(bin_width_for_comparison),
+        range=np.array([left_bound / 1000, right_bound / 1000])
+        * bin_width_for_comparison,
     )
-    # print(
-    #     f"set xaxis range to {[left_bound / 1000, right_bound / 1000] * int(bin_width_for_comparison)}"
-    # )
     # remove y axes numbers from all plots
     fig.update_yaxes(showticklabels=False)
-    # get suffix after the KS folder name, which is the repo branch name for that sort
-    PPP_branch_name = list_of_paths_to_sorted_folders[0][iSort].name.split("_")[-1]
 
     # append sort name instead of time stamp
     if save_png_plot2:
         fig.write_image(
-            f"plot2/plot2_KS_vs_GT_spike_trains_{bin_width_for_comparison}ms_{sort_from_each_path_to_load}_{PPP_branch_name}.png",
+            f"plot2/plot2_KS_vs_GT_spike_trains_{bin_width_for_comparison}ms_{sort_from_each_path_to_load}_{sort_type}.png",
             width=figsize[0],
             height=figsize[1],
         )
     if save_svg_plot2:
         fig.write_image(
-            f"plot2/plot2_KS_vs_GT_spike_trains_{bin_width_for_comparison}ms_{sort_from_each_path_to_load}_{PPP_branch_name}.svg",
+            f"plot2/plot2_KS_vs_GT_spike_trains_{bin_width_for_comparison}ms_{sort_from_each_path_to_load}_{sort_type}.svg",
             width=figsize[0],
             height=figsize[1],
         )
     if save_html_plot2:
         fig.write_html(
-            f"plot2/plot2_KS_vs_GT_spike_trains_{bin_width_for_comparison}ms_{sort_from_each_path_to_load}_{PPP_branch_name}.html",
+            f"plot2/plot2_KS_vs_GT_spike_trains_{bin_width_for_comparison}ms_{sort_from_each_path_to_load}_{sort_type}.html",
         )
     if show_plot2:
         fig.show()
@@ -1340,13 +1360,22 @@ def plot4(
                 sort_types[iSort] = "EMUsort"
             # for each match, extract the noise level from the path, which will be revealed by splitting the parent path by underscores and taking the last index
             # will be a number of format x.xx, such as 3.00, and convert to string
-            noise_levels[iSort] = [
-                np.round(float(noise_lvl), 2)
-                for noise_lvl in list_of_paths_to_sorted_folders[0][
-                    iPath
-                ].parent.parent.name.split("_")
-                if "." in noise_lvl
-            ][0]
+            try:
+                noise_levels[iSort] = [
+                    np.round(float(noise_lvl), 2)
+                    for noise_lvl in list_of_paths_to_sorted_folders[0][
+                        iPath
+                    ].parent.parent.name.split("_")
+                    if "." in noise_lvl
+                ][0]
+            except:
+                noise_levels[iSort] = [
+                    np.round(float(noise_lvl), 2)
+                    for noise_lvl in list_of_paths_to_sorted_folders[0][
+                        iPath
+                    ].parent.name.split("_")
+                    if "." in noise_lvl
+                ][0]
 
             break  # found a match with the datestring, label and break out of the loop
     # make sure all sort_types were found
@@ -1606,6 +1635,14 @@ def plot4(
                 fig.show()
             except Exception as e:
                 print(e)  # don't crash if the plot can't be shown, but print the error
+
+        # print the average and std of the accuracy for the dataframes, filtering for each unique sort type
+        print("\n")
+        print(
+            metrics_df.groupby("sort_type")
+            .agg({"accuracy": ["mean", "std"]})
+            .sort_values(by=("accuracy", "mean"), ascending=False)
+        )
 
 
 def plot5(
@@ -1956,39 +1993,39 @@ if __name__ == "__main__":
     automatically_assign_cluster_mapping = True
     method_for_automatic_cluster_mapping = "accuracies"  # can be "accuracies", "waves", "times", or "trains"  what the correlation is computed on to map clusters
     simulation_method = "MUsim"  # can be "MUsim" or "konstantin"
-    time_frame = [0, 0.1]  # must be between 0 and 1
+    time_frame = [0, 1]  # must be between 0 and 1
     ephys_fs = 30000  # Hz
     xstart = np.log2(
         0.125
     )  # choose bin widths as a range from 0.125 ms to 8 ms in log2 increments
     bin_widths_for_comparison = np.logspace(xstart, -xstart, num=13, base=2)
-    bin_widths_for_comparison = [1]
+    bin_widths_for_comparison = [0.1]
     spike_isolation_radius_ms = 1  # radius of isolation of a spike for it to be removed from consideration. set to positive float, integer, or set None to disable
     iShow = 0  # index of which bin width of bin_widths_for_comparison to show in plots
 
-    nt0 = 121  # number of time bins in the template, in ms it is 3.367
+    nt0 = 121  # number of time bins in the template, in ms it is 3.367, only used if method_for_automatic_cluster_mapping is "waves"
     random_seed_entropy = 218530072159092100005306709809425040261  # 75092699954400878964964014863999053929  # int
     plot_template = "plotly_white"  # ['ggplot2', 'seaborn', 'simple_white', 'plotly', 'plotly_white', 'plotly_dark', 'presentation', 'xgridoff', 'ygridoff', 'gridon', 'none']
     plot1_bar_type = "percent"  # totals / percent
     plot1_ylim = [0, 135]
-    plot2_xlim = [0, 0.1]
+    plot2_xlim = [0, 0.006]
     show_plot1a = False
     show_plot1b = False
     show_plot2 = True
     show_plot3 = False
-    show_plot4 = True
+    show_plot4 = False
     show_plot5 = False
     save_png_plot1a = False
     save_png_plot1b = False
     save_png_plot2 = False
     save_png_plot3 = False
-    save_png_plot4 = False  #
+    save_png_plot4 = True  #
     save_png_plot5 = False
     save_svg_plot1a = False
     save_svg_plot1b = False
     save_svg_plot2 = False
     save_svg_plot3 = False
-    save_svg_plot4 = False  #
+    save_svg_plot4 = True  #
     save_svg_plot5 = False
     save_html_plot1a = False
     save_html_plot1b = False
@@ -1997,7 +2034,7 @@ if __name__ == "__main__":
     save_html_plot4 = False
     save_html_plot5 = False
     save_plot4_df_as_pickle = False  #
-    save_plot4_df_as_csv = False  #
+    save_plot4_df_as_csv = True  #
 
     ## TBD: NEED TO ADD FLAG FOR DATASET CHOICE, to flip all related variables
     ## paths with simulated data
@@ -2041,6 +2078,8 @@ if __name__ == "__main__":
         # "/home/smoconn/git/iemg_simulator/simulation_output/vector_100%MVC_600sec_17p_array_9_MUs_1/"
         ## >= 20240607, godzilla
         "spikes_20240607-143039_godzilla_20221117_10MU_SNR-1-from_data_jitter-0std_method-KS_templates_12-files.npy"
+        ## >= 20240731, monkey
+        # "spikes_20240726-204919_monkey_20221202_6MU_SNR-1-from_data_jitter-0std_method-KS_templates_1-files.npy"
     )  # spikes_20221116_godzilla_SNR-None_jitter-0std_files-1.npy
     ground_truth_path = Path().joinpath("spikes_files", ground_truth_path)
     if ".npy" not in ground_truth_path.name:
@@ -2048,8 +2087,8 @@ if __name__ == "__main__":
             simulation_method == "konstantin"
         ), "simulation_method must be 'konstantin' if ground_truth_path is not an .npy file"
     # set which ground truth clusters to compare with (a range from 0 to num_motor_units)
-    GT_clusters_to_use = list(range(0, 10))
-    num_motor_units = len(GT_clusters_to_use)
+    num_motor_units = 6 if "monkey" in ground_truth_path.name else 10
+    GT_clusters_to_use = list(range(0, num_motor_units))
 
     ## load Kilosort data
     # paths to the folders containing the Kilosort data
@@ -2066,6 +2105,12 @@ if __name__ == "__main__":
             "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/godzilla/siemu_test/sim_2022-11-17_17-08-07_shape_noise_2.25/"
             # "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/godzilla/siemu_test/sim_2022-11-17_17-08-07_shape_noise_3.00/"
             # "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/godzilla/siemu_test/sim_2022-11-17_17-08-07_shape_noise_3.75/"
+            # "/snel/share/data/rodent-ephys/open-ephys/monkey/paper_evals/sim_2022-12-02_10-14-45_shape_noise_0.00"
+            # "/snel/share/data/rodent-ephys/open-ephys/monkey/paper_evals/sim_2022-12-02_10-14-45_shape_noise_0.75"
+            # "/snel/share/data/rodent-ephys/open-ephys/monkey/paper_evals/sim_2022-12-02_10-14-45_shape_noise_1.50"
+            # "/snel/share/data/rodent-ephys/open-ephys/monkey/paper_evals/sim_2022-12-02_10-14-45_shape_noise_2.25"
+            # "/snel/share/data/rodent-ephys/open-ephys/monkey/paper_evals/sim_2022-12-02_10-14-45_shape_noise_3.00"
+            # "/snel/share/data/rodent-ephys/open-ephys/monkey/paper_evals/sim_2022-12-02_10-14-45_shape_noise_3.75"
         ),
     ]
     sorts_from_each_path_to_load = [
@@ -2214,7 +2259,7 @@ if __name__ == "__main__":
         # "20240214_151336958967",  # rec-1,2,4,5,6,7_11-good-of-14-total_Th,[2,1],spkTh,[-6]_EMUsort
         # "20240214_151825607477",  # rec-1,2,4,5,6,7_15-good-of-24-total_Th,[2,1],spkTh,[-6,-9]_EMUsort
         # "20240214_152603425570",  # rec-1,2,4,5,6,7_12-good-of-15-total_Th,[2,1],spkTh,[-9]_EMUsort
-        # # ## EMUsort with extended grid search, 200 noise, without sgolay filter
+        # ## EMUsort with extended grid search, 200 noise, without sgolay filter
         # "20240215_180243669553",  # rec-1,2,4,5,6,7_13-good-of-16-total_Th,[10,4],spkTh,[-3]
         # "20240215_180354552562",  # rec-1,2,4,5,6,7_18-good-of-28-total_Th,[10,4],spkTh,[-3,-6]
         # "20240215_180359238313",  # rec-1,2,4,5,6,7_19-good-of-28-total_Th,[7,3],spkTh,[-6,-9]
@@ -3369,6 +3414,84 @@ if __name__ == "__main__":
         "20240612_163003203155",  # Th_2,1_spkTh_3,6_EMUsort $$$
         # "20240612_162957571579",  # Th_2,1_spkTh_9,_EMUsort
         # "20240612_163002704257",  # Th_2,1_spkTh_3,_EMUsort
+        # ## EMUsort replication of "full" EMUsort with 8 channel rat, 2.25 noise
+        # "20240806_120615841738",  # Th_9,8_spkTh_6,9
+        # "20240806_120616745005",  # Th_9,8_spkTh_3,6
+        # "20240806_120616753651",  # Th_10,4_spkTh_6
+        # "20240806_120617940585",  # Th_10,4_spkTh_6,9
+        # "20240806_120619598012",  # Th_5,2_spkTh_9
+        # "20240806_120619791756",  # Th_5,2_spkTh_3,6
+        # "20240806_120619965658",  # Th_10,4_spkTh_3,6
+        # "20240806_120621031098",  # Th_10,4_spkTh_3
+        # "20240806_120621052823",  # Th_10,4_spkTh_9
+        # "20240806_120621092749",  # Th_9,8_spkTh_3
+        # "20240806_120621348820",  # Th_7,3_spkTh_6,9
+        # "20240806_120622408905",  # Th_9,8_spkTh_6
+        # "20240806_120623503157",  # Th_7,3_spkTh_9
+        # "20240806_120624762432",  # Th_7,3_spkTh_6
+        # "20240806_120625885872",  # Th_5,2_spkTh_3
+        # "20240806_120625987775",  # Th_9,8_spkTh_9
+        # "20240806_120626282989",  # Th_7,3_spkTh_3,6
+        # "20240806_120626435160",  # Th_7,3_spkTh_3
+        # "20240806_120627436681",  # Th_5,2_spkTh_6,9
+        # "20240806_120628582330",  # Th_2,1_spkTh_6
+        # "20240806_120629598433",  # Th_5,2_spkTh_6
+        # "20240806_120632568044",  # Th_2,1_spkTh_6,9
+        # "20240806_120634402481",  # Th_2,1_spkTh_3
+        # "20240806_120635115658",  # Th_2,1_spkTh_3,6
+        # "20240806_120637076301",  # Th_2,1_spkTh_9
+        # ## EMUsort replication of "full" EMUsort with 8 channel rat, 2.25 noise, without init temp normalization
+        # "20240806_141311661338",  # Th_10,4_spkTh_6
+        # "20240806_141311718974",  # Th_9,8_spkTh_3,6
+        # "20240806_141312808406",  # Th_10,4_spkTh_3
+        # "20240806_141314646354",  # Th_10,4_spkTh_3,6
+        # "20240806_141315105731",  # Th_5,2_spkTh_3
+        # "20240806_141315728141",  # Th_9,8_spkTh_6,9
+        # "20240806_141315873286",  # Th_5,2_spkTh_9
+        # "20240806_141317034662",  # Th_5,2_spkTh_6,9
+        # "20240806_141317102903",  # Th_7,3_spkTh_6,9
+        # "20240806_141319208055",  # Th_9,8_spkTh_6
+        # "20240806_141319295566",  # Th_5,2_spkTh_3,6
+        # "20240806_141320972546",  # Th_10,4_spkTh_6,9
+        # "20240806_141321311716",  # Th_10,4_spkTh_9
+        # "20240806_141321321316",  # Th_7,3_spkTh_3
+        # "20240806_141321371298",  # Th_9,8_spkTh_9
+        # "20240806_141322347198",  # Th_7,3_spkTh_6
+        # "20240806_141323042120",  # Th_5,2_spkTh_6
+        # "20240806_141324311571",  # Th_7,3_spkTh_3,6
+        # "20240806_141324415003",  # Th_2,1_spkTh_6,9
+        # "20240806_141325535909",  # Th_9,8_spkTh_3
+        # "20240806_141326064773",  # Th_7,3_spkTh_9
+        # "20240806_141327377276",  # Th_2,1_spkTh_6
+        # "20240806_141329278340",  # Th_2,1_spkTh_9
+        # "20240806_141331066000",  # Th_2,1_spkTh_3,6
+        # "20240806_141337957671",  # Th_2,1_spkTh_3
+        # ## EMUsort spikedetect_orig, EMUsort with 8 channel rat dataset, 2.25 shape noise
+        # "20240805_181823766336",  # Th_10,4_spkTh_9
+        # "20240805_181829910981",  # Th_5,2_spkTh_6,9
+        # "20240805_181831265373",  # Th_7,3_spkTh_9
+        # "20240805_181832036707",  # Th_7,3_spkTh_3
+        # "20240805_181833060633",  # Th_7,3_spkTh_6
+        # "20240805_181834029400",  # Th_10,4_spkTh_6,9
+        # "20240805_181836948674",  # Th_7,3_spkTh_6,9
+        # "20240805_181837028862",  # Th_5,2_spkTh_9
+        # "20240805_181837169887",  # Th_5,2_spkTh_6
+        # "20240805_181837282023",  # Th_9,8_spkTh_9
+        # "20240805_181837292127",  # Th_7,3_spkTh_3,6
+        # "20240805_181837673358",  # Th_9,8_spkTh_6
+        # "20240805_181838315875",  # Th_10,4_spkTh_6
+        # "20240805_181839293019",  # Th_10,4_spkTh_3,6
+        # "20240805_181841031304",  # Th_10,4_spkTh_3
+        # "20240805_181841992562",  # Th_2,1_spkTh_6
+        # "20240805_181842739280",  # Th_5,2_spkTh_3,6
+        # "20240805_181844255664",  # Th_9,8_spkTh_3
+        # "20240805_181844715498",  # Th_9,8_spkTh_3,6
+        # "20240805_181844735641",  # Th_5,2_spkTh_3
+        # "20240805_181844792752",  # Th_9,8_spkTh_6,9
+        # "20240805_181845895495",  # Th_2,1_spkTh_9
+        # "20240805_181848518479",  # Th_2,1_spkTh_6,9
+        # "20240805_181852707476",  # Th_2,1_spkTh_3
+        # "20240805_181853639707",  # Th_2,1_spkTh_3,6
         ## EMUsort_ks4_v1 with 8 channel dataset, 3.00 shape noise
         # "20240612_163456847912",  # Th_10,4_spkTh_3,_EMUsort
         # "20240612_163509588959",  # Th_9,8_spkTh_9,_EMUsort
@@ -3577,6 +3700,396 @@ if __name__ == "__main__":
         # "20240612_160919396268",  # Th_2,1_spkTh_3,_KS4
         # "20240612_160921224979",  # Th_2,1_spkTh_9,_KS4
         # "20240612_160920824169",  # Th_2,1_spkTh_4.5,_KS4
+        ## EMUsort with 8 channel monkey dataset, 0.00 shape noise
+        # "20240729_144735275390",  # Th_10,4_spkTh_3,6
+        # "20240729_144738481381",  # Th_9,8_spkTh_9
+        # "20240729_144738483859",  # Th_10,4_spkTh_9
+        # "20240729_144739221455",  # Th_9,8_spkTh_6,9
+        # "20240729_144740493837",  # Th_9,8_spkTh_6
+        # "20240729_144740752816",  # Th_9,8_spkTh_3
+        # "20240729_144741087491",  # Th_9,8_spkTh_3,6
+        # "20240729_144741906760",  # Th_10,4_spkTh_3
+        # "20240729_144742462640",  # Th_10,4_spkTh_6,9
+        # "20240729_144743054720",  # Th_10,4_spkTh_6
+        # "20240729_144744222918",  # Th_7,3_spkTh_9
+        # "20240729_144744808447",  # Th_7,3_spkTh_3
+        # "20240729_144747762023",  # Th_7,3_spkTh_6
+        # "20240729_144747810927",  # Th_7,3_spkTh_6,9
+        # "20240729_144749739034",  # Th_7,3_spkTh_3,6
+        # "20240729_144757059368",  # Th_5,2_spkTh_6
+        # "20240729_144757132848",  # Th_5,2_spkTh_3,6
+        # "20240729_144758382361",  # Th_5,2_spkTh_9
+        # "20240729_144759068036",  # Th_5,2_spkTh_6,9
+        # "20240729_144802124317",  # Th_5,2_spkTh_3
+        # "20240729_144807290099",  # Th_2,1_spkTh_6
+        # "20240729_144808734701",  # Th_2,1_spkTh_3,6
+        # "20240729_144808780519",  # Th_2,1_spkTh_9
+        # "20240729_144808875007",  # Th_2,1_spkTh_6,9
+        # "20240729_144809879874",  # Th_2,1_spkTh_3
+        # ## EMUsort with 8 channel monkey dataset, 0.75 shape noise
+        # "20240729_150216499934",  # Th_10,4_spkTh_3,6
+        # "20240729_150219065196",  # Th_10,4_spkTh_3
+        # "20240729_150221584248",  # Th_7,3_spkTh_9
+        # "20240729_150222169724",  # Th_9,8_spkTh_6
+        # "20240729_150222644309",  # Th_10,4_spkTh_6
+        # "20240729_150224042483",  # Th_9,8_spkTh_3,6
+        # "20240729_150224138534",  # Th_7,3_spkTh_3
+        # "20240729_150224157341",  # Th_10,4_spkTh_6,9
+        # "20240729_150224228967",  # Th_9,8_spkTh_9
+        # "20240729_150225213599",  # Th_9,8_spkTh_3
+        # "20240729_150229272967",  # Th_10,4_spkTh_9
+        # "20240729_150229302285",  # Th_7,3_spkTh_6,9
+        # "20240729_150229394357",  # Th_9,8_spkTh_6,9
+        # "20240729_150229988247",  # Th_7,3_spkTh_6
+        # "20240729_150232954844",  # Th_7,3_spkTh_3,6
+        # "20240729_150234946209",  # Th_5,2_spkTh_3
+        # "20240729_150240449711",  # Th_5,2_spkTh_6,9
+        # "20240729_150241924340",  # Th_5,2_spkTh_3,6
+        # "20240729_150242872867",  # Th_5,2_spkTh_9
+        # "20240729_150243403948",  # Th_5,2_spkTh_6
+        # "20240729_150243406427",  # Th_2,1_spkTh_6,9
+        # "20240729_150245536823",  # Th_2,1_spkTh_6
+        # "20240729_150249459168",  # Th_2,1_spkTh_9
+        # "20240729_150249562005",  # Th_2,1_spkTh_3,6
+        # "20240729_150252521026",  # Th_2,1_spkTh_3
+        # ## EMUsort with 8 channel monkey dataset, 1.50 shape noise
+        # "20240729_153638201680",  # Th_10,4_spkTh_6
+        # "20240729_153642346039",  # Th_10,4_spkTh_3
+        # "20240729_153643758861",  # Th_9,8_spkTh_6
+        # "20240729_153646235535",  # Th_10,4_spkTh_6,9
+        # "20240729_153646240857",  # Th_9,8_spkTh_9
+        # "20240729_153646383431",  # Th_9,8_spkTh_3,6
+        # "20240729_153647728445",  # Th_9,8_spkTh_3
+        # "20240729_153648458060",  # Th_10,4_spkTh_9
+        # "20240729_153648592723",  # Th_9,8_spkTh_6,9
+        # "20240729_153648697869",  # Th_10,4_spkTh_3,6
+        # "20240729_153649473712",  # Th_7,3_spkTh_3
+        # "20240729_153650577782",  # Th_7,3_spkTh_3,6
+        # "20240729_153653534123",  # Th_7,3_spkTh_6
+        # "20240729_153654612759",  # Th_7,3_spkTh_6,9
+        # "20240729_153654647117",  # Th_7,3_spkTh_9
+        # "20240729_153654982896",  # Th_5,2_spkTh_6,9
+        # "20240729_153655116680",  # Th_5,2_spkTh_6
+        # "20240729_153656599003",  # Th_5,2_spkTh_9
+        # "20240729_153658395492",  # Th_5,2_spkTh_3,6
+        # "20240729_153659199267",  # Th_2,1_spkTh_6,9
+        # "20240729_153701007096",  # Th_2,1_spkTh_9
+        # "20240729_153702086907",  # Th_2,1_spkTh_6
+        # "20240729_153702180908",  # Th_5,2_spkTh_3
+        # "20240729_153706636335",  # Th_2,1_spkTh_3
+        # "20240729_153708142777",  # Th_2,1_spkTh_3,6
+        # ## EMUsort with 8 channel monkey dataset, 2.25 shape noise
+        # "20240729_154815433183",  # Th_9,8_spkTh_6
+        # "20240729_154820083604",  # Th_9,8_spkTh_3,6
+        # "20240729_154820478686",  # Th_9,8_spkTh_9
+        # "20240729_154822471039",  # Th_10,4_spkTh_3
+        # "20240729_154822525582",  # Th_10,4_spkTh_6,9
+        # "20240729_154823085597",  # Th_9,8_spkTh_6,9
+        # "20240729_154823091090",  # Th_10,4_spkTh_3,6
+        # "20240729_154823218983",  # Th_10,4_spkTh_9
+        # "20240729_154823265184",  # Th_10,4_spkTh_6
+        # "20240729_154824447139",  # Th_7,3_spkTh_3,6
+        # "20240729_154824462380",  # Th_9,8_spkTh_3
+        # "20240729_154824559408",  # Th_7,3_spkTh_6,9
+        # "20240729_154826396020",  # Th_7,3_spkTh_9
+        # "20240729_154829670530",  # Th_7,3_spkTh_3
+        # "20240729_154830155217",  # Th_5,2_spkTh_3,6
+        # "20240729_154830191641",  # Th_5,2_spkTh_6
+        # "20240729_154830294346",  # Th_2,1_spkTh_3,6
+        # "20240729_154830349476",  # Th_7,3_spkTh_6
+        # "20240729_154830359810",  # Th_5,2_spkTh_3
+        # "20240729_154831184258",  # Th_2,1_spkTh_6,9
+        # "20240729_154832844760",  # Th_5,2_spkTh_9
+        # "20240729_154836406699",  # Th_2,1_spkTh_9
+        # "20240729_154836467501",  # Th_5,2_spkTh_6,9
+        # "20240729_154837774767",  # Th_2,1_spkTh_6
+        # "20240729_154838963555",  # Th_2,1_spkTh_3
+        # ## SPIKEDETECT_ORIG, EMUsort with 8 channel monkey dataset, 2.25 shape noise
+        # "20240802_194643174275",  # Th_10,4_spkTh_9
+        # "20240802_194645442549",  # Th_9,8_spkTh_3,6
+        # "20240802_194646169533",  # Th_10,4_spkTh_3,6
+        # "20240802_194646225376",  # Th_10,4_spkTh_3
+        # "20240802_194647090719",  # Th_9,8_spkTh_3
+        # "20240802_194648464324",  # Th_9,8_spkTh_6
+        # "20240802_194649703320",  # Th_10,4_spkTh_6,9
+        # "20240802_194650064474",  # Th_9,8_spkTh_9
+        # "20240802_194650526025",  # Th_9,8_spkTh_6,9
+        # "20240802_194650754331",  # Th_7,3_spkTh_9
+        # "20240802_194650962863",  # Th_10,4_spkTh_6
+        # "20240802_194654872038",  # Th_5,2_spkTh_9
+        # "20240802_194655707829",  # Th_7,3_spkTh_3
+        # "20240802_194656562543",  # Th_5,2_spkTh_3
+        # "20240802_194657224726",  # Th_7,3_spkTh_3,6
+        # "20240802_194658559079",  # Th_2,1_spkTh_9
+        # "20240802_194658604594",  # Th_5,2_spkTh_3,6
+        # "20240802_194659131796",  # Th_7,3_spkTh_6,9
+        # "20240802_194702806798",  # Th_5,2_spkTh_6,9
+        # "20240802_194703645927",  # Th_7,3_spkTh_6
+        # "20240802_194704166921",  # Th_5,2_spkTh_6
+        # "20240802_194707030313",  # Th_2,1_spkTh_6
+        # "20240802_194707464796",  # Th_2,1_spkTh_3
+        # "20240802_194707484350",  # Th_2,1_spkTh_6,9
+        # "20240802_194709242683",  # Th_2,1_spkTh_3,6
+        # ## SPIKEDETECT_EMU_100% 0.2 TUKEY, EMUsort with 8 channel monkey dataset, 2.25 shape noise
+        # "20240802_200457811866",  # Th_9,8_spkTh_3
+        # "20240802_200500148536",  # Th_9,8_spkTh_9
+        # "20240802_200500420255",  # Th_10,4_spkTh_3
+        # "20240802_200501996593",  # Th_10,4_spkTh_6,9
+        # "20240802_200502481051",  # Th_9,8_spkTh_6
+        # "20240802_200502780055",  # Th_10,4_spkTh_9
+        # "20240802_200504386943",  # Th_10,4_spkTh_6
+        # "20240802_200504831966",  # Th_9,8_spkTh_3,6
+        # "20240802_200505916978",  # Th_10,4_spkTh_3,6
+        # "20240802_200505987510",  # Th_9,8_spkTh_6,9
+        # "20240802_200508232376",  # Th_7,3_spkTh_9
+        # "20240802_200510325663",  # Th_2,1_spkTh_9
+        # "20240802_200512641524",  # Th_7,3_spkTh_3,6
+        # "20240802_200512687576",  # Th_7,3_spkTh_6
+        # "20240802_200513042258",  # Th_7,3_spkTh_6,9
+        # "20240802_200513204543",  # Th_5,2_spkTh_3
+        # "20240802_200514355943",  # Th_5,2_spkTh_6
+        # "20240802_200514584973",  # Th_7,3_spkTh_3
+        # "20240802_200516987098",  # Th_5,2_spkTh_3,6
+        # "20240802_200517445757",  # Th_5,2_spkTh_9
+        # "20240802_200518405242",  # Th_5,2_spkTh_6,9
+        # "20240802_200519605359",  # Th_2,1_spkTh_3,6
+        # "20240802_200521451163",  # Th_2,1_spkTh_6,9
+        # "20240802_200521476452",  # Th_2,1_spkTh_6
+        # "20240802_200521538874",  # Th_2,1_spkTh_3
+        # ## EMUsort GMM on spikes, no windowing, EMUsort with 8 channel monkey dataset, 2.25 shape noise
+        # "20240805_165547997309",  # Th_10,4_spkTh_9
+        # "20240805_165553499487",  # Th_9,8_spkTh_9
+        # "20240805_165554016046",  # Th_10,4_spkTh_6
+        # "20240805_165556182143",  # Th_9,8_spkTh_3
+        # "20240805_165557295304",  # Th_10,4_spkTh_3,6
+        # "20240805_165557832891",  # Th_10,4_spkTh_6,9
+        # "20240805_165558237005",  # Th_10,4_spkTh_3
+        # "20240805_165558269418",  # Th_9,8_spkTh_6
+        # "20240805_165602089271",  # Th_7,3_spkTh_3
+        # "20240805_165603328702",  # Th_7,3_spkTh_3,6
+        # "20240805_165604974114",  # Th_5,2_spkTh_3,6
+        # "20240805_165606017878",  # Th_9,8_spkTh_3,6
+        # "20240805_165606135730",  # Th_7,3_spkTh_9
+        # "20240805_165607729516",  # Th_9,8_spkTh_6,9
+        # "20240805_165609646815",  # Th_2,1_spkTh_9
+        # "20240805_165612330276",  # Th_7,3_spkTh_6
+        # "20240805_165614132667",  # Th_2,1_spkTh_3
+        # "20240805_165617363192",  # Th_5,2_spkTh_3
+        # "20240805_165617606739",  # Th_7,3_spkTh_6,9
+        # "20240805_165617791964",  # Th_5,2_spkTh_9
+        # "20240805_165619154697",  # Th_2,1_spkTh_6,9
+        # "20240805_165619166760",  # Th_2,1_spkTh_3,6
+        # "20240805_165619212573",  # Th_5,2_spkTh_6,9
+        # "20240805_165620223399",  # Th_5,2_spkTh_6
+        # "20240805_165622541837",  # Th_2,1_spkTh_6
+        # ## EMUsort with 8 channel monkey dataset, 3.00 shape noise
+        # "20240729_154051215897",  # Th_9,8_spkTh_6,9
+        # "20240729_154051281291",  # Th_9,8_spkTh_3,6
+        # "20240729_154053068421",  # Th_10,4_spkTh_9
+        # "20240729_154053283394",  # Th_10,4_spkTh_6
+        # "20240729_154053836935",  # Th_10,4_spkTh_3,6
+        # "20240729_154053881040",  # Th_5,2_spkTh_3,6
+        # "20240729_154053941322",  # Th_9,8_spkTh_9
+        # "20240729_154053950189",  # Th_9,8_spkTh_6
+        # "20240729_154053956661",  # Th_9,8_spkTh_3
+        # "20240729_154054420152",  # Th_5,2_spkTh_9
+        # "20240729_154056948639",  # Th_10,4_spkTh_6,9
+        # "20240729_154058093740",  # Th_5,2_spkTh_6
+        # "20240729_154058133967",  # Th_7,3_spkTh_9
+        # "20240729_154058279493",  # Th_7,3_spkTh_6,9
+        # "20240729_154059229195",  # Th_5,2_spkTh_3
+        # "20240729_154101979990",  # Th_10,4_spkTh_3
+        # "20240729_154102018455",  # Th_7,3_spkTh_6
+        # "20240729_154102240950",  # Th_2,1_spkTh_9
+        # "20240729_154102249721",  # Th_2,1_spkTh_6,9
+        # "20240729_154103427245",  # Th_7,3_spkTh_3,6
+        # "20240729_154104382574",  # Th_7,3_spkTh_3
+        # "20240729_154104382768",  # Th_5,2_spkTh_6,9
+        # "20240729_154104735560",  # Th_2,1_spkTh_3
+        # "20240729_154104899705",  # Th_2,1_spkTh_6
+        # "20240729_154106508617",  # Th_2,1_spkTh_3,6
+        # ## EMUsort with 8 channel monkey dataset, 3.75 shape noise
+        # "20240729_154411898143",  # Th_10,4_spkTh_9
+        # "20240729_154413273499",  # Th_9,8_spkTh_6,9
+        # "20240729_154414029444",  # Th_10,4_spkTh_3
+        # "20240729_154416286899",  # Th_10,4_spkTh_6,9
+        # "20240729_154416353633",  # Th_9,8_spkTh_3,6
+        # "20240729_154417028970",  # Th_9,8_spkTh_3
+        # "20240729_154417401777",  # Th_5,2_spkTh_6
+        # "20240729_154417749110",  # Th_7,3_spkTh_3,6
+        # "20240729_154418840782",  # Th_10,4_spkTh_3,6
+        # "20240729_154420344559",  # Th_10,4_spkTh_6
+        # "20240729_154420658756",  # Th_9,8_spkTh_9
+        # "20240729_154420723857",  # Th_7,3_spkTh_6,9
+        # "20240729_154422131131",  # Th_5,2_spkTh_9
+        # "20240729_154422161995",  # Th_9,8_spkTh_6
+        # "20240729_154422217428",  # Th_5,2_spkTh_3
+        # "20240729_154425105818",  # Th_5,2_spkTh_3,6
+        # "20240729_154425182835",  # Th_2,1_spkTh_9
+        # "20240729_154426375115",  # Th_2,1_spkTh_6,9
+        # "20240729_154426480872",  # Th_7,3_spkTh_9
+        # "20240729_154428225909",  # Th_2,1_spkTh_6
+        # "20240729_154428985312",  # Th_5,2_spkTh_6,9
+        # "20240729_154429056582",  # Th_7,3_spkTh_3
+        # "20240729_154430164593",  # Th_7,3_spkTh_6
+        # "20240729_154430652381",  # Th_2,1_spkTh_3,6
+        # "20240729_154431649770",  # Th_2,1_spkTh_3
+        # ## Kilosort4 with 8 channel monkey dataset, 0.00 shape noise
+        # "20240731_155143927861",  # Th_10,4_spkTh_4.5_KS4
+        # "20240731_155144546038",  # Th_10,4_spkTh_3_KS4
+        # "20240731_155146623895",  # Th_10,4_spkTh_9_KS4
+        # "20240731_155146632971",  # Th_9,8_spkTh_3_KS4
+        # "20240731_155146873163",  # Th_10,4_spkTh_6_KS4
+        # "20240731_155148098711",  # Th_9,8_spkTh_9_KS4
+        # "20240731_155148253302",  # Th_9,8_spkTh_4.5_KS4
+        # "20240731_155149183343",  # Th_9,8_spkTh_6_KS4
+        # "20240731_155150170841",  # Th_9,8_spkTh_7.5_KS4
+        # "20240731_155151225890",  # Th_10,4_spkTh_7.5_KS4
+        # "20240731_155155494558",  # Th_7,3_spkTh_9_KS4
+        # "20240731_155159718197",  # Th_7,3_spkTh_7.5_KS4
+        # "20240731_155201123960",  # Th_7,3_spkTh_6_KS4
+        # "20240731_155202192757",  # Th_7,3_spkTh_4.5_KS4
+        # "20240731_155205062814",  # Th_5,2_spkTh_4.5_KS4
+        # "20240731_155206031652",  # Th_5,2_spkTh_6_KS4
+        # "20240731_155207666356",  # Th_7,3_spkTh_3_KS4
+        # "20240731_155208355282",  # Th_5,2_spkTh_3_KS4
+        # "20240731_155211995331",  # Th_5,2_spkTh_7.5_KS4
+        # "20240731_155213428310",  # Th_2,1_spkTh_7.5_KS4
+        # "20240731_155216652715",  # Th_2,1_spkTh_6_KS4
+        # "20240731_155218072961",  # Th_5,2_spkTh_9_KS4
+        # "20240731_155221834342",  # Th_2,1_spkTh_9_KS4
+        # "20240731_155222322474",  # Th_2,1_spkTh_3_KS4
+        # "20240731_155225655170",  # Th_2,1_spkTh_4.5_KS4
+        # ## Kilosort4 with 8 channel monkey dataset, 0.75 shape noise
+        # "20240731_155546444343",  # Th_10,4_spkTh_9_KS4
+        # "20240731_155547686611",  # Th_10,4_spkTh_3_KS4
+        # "20240731_155550201616",  # Th_10,4_spkTh_4.5_KS4
+        # "20240731_155550327636",  # Th_10,4_spkTh_7.5_KS4
+        # "20240731_155550506189",  # Th_9,8_spkTh_6_KS4
+        # "20240731_155550928517",  # Th_9,8_spkTh_7.5_KS4
+        # "20240731_155551259486",  # Th_10,4_spkTh_6_KS4
+        # "20240731_155551429393",  # Th_9,8_spkTh_3_KS4
+        # "20240731_155551511145",  # Th_9,8_spkTh_9_KS4
+        # "20240731_155552525380",  # Th_9,8_spkTh_4.5_KS4
+        # "20240731_155554078826",  # Th_7,3_spkTh_9_KS4
+        # "20240731_155557544692",  # Th_7,3_spkTh_6_KS4
+        # "20240731_155557695040",  # Th_5,2_spkTh_7.5_KS4
+        # "20240731_155559361998",  # Th_7,3_spkTh_4.5_KS4
+        # "20240731_155600296905",  # Th_7,3_spkTh_3_KS4
+        # "20240731_155600415189",  # Th_7,3_spkTh_7.5_KS4
+        # "20240731_155605450418",  # Th_5,2_spkTh_9_KS4
+        # "20240731_155606946769",  # Th_5,2_spkTh_6_KS4
+        # "20240731_155608716424",  # Th_5,2_spkTh_4.5_KS4
+        # "20240731_155610177911",  # Th_5,2_spkTh_3_KS4
+        # "20240731_155610756090",  # Th_2,1_spkTh_9_KS4
+        # "20240731_155614397259",  # Th_2,1_spkTh_6_KS4
+        # "20240731_155616423085",  # Th_2,1_spkTh_3_KS4
+        # "20240731_155617843617",  # Th_2,1_spkTh_4.5_KS4
+        # "20240731_155621659040",  # Th_2,1_spkTh_7.5_KS4
+        # ## Kilosort4 with 8 channel monkey dataset, 1.50 shape noise
+        # "20240731_160707390186",  # Th_9,8_spkTh_3_KS4
+        # "20240731_160708270994",  # Th_9,8_spkTh_9_KS4
+        # "20240731_160709473998",  # Th_9,8_spkTh_4.5_KS4
+        # "20240731_160710703719",  # Th_10,4_spkTh_6_KS4
+        # "20240731_160710828336",  # Th_10,4_spkTh_9_KS4
+        # "20240731_160714083854",  # Th_10,4_spkTh_3_KS4
+        # "20240731_160714091635",  # Th_10,4_spkTh_7.5_KS4
+        # "20240731_160714106228",  # Th_10,4_spkTh_4.5_KS4
+        # "20240731_160714246362",  # Th_9,8_spkTh_7.5_KS4
+        # "20240731_160714548207",  # Th_9,8_spkTh_6_KS4
+        # "20240731_160715631015",  # Th_7,3_spkTh_3_KS4
+        # "20240731_160716936064",  # Th_7,3_spkTh_9_KS4
+        # "20240731_160718614697",  # Th_7,3_spkTh_6_KS4
+        # "20240731_160720435419",  # Th_7,3_spkTh_4.5_KS4
+        # "20240731_160721402304",  # Th_7,3_spkTh_7.5_KS4
+        # "20240731_160722654317",  # Th_5,2_spkTh_6_KS4
+        # "20240731_160725220054",  # Th_5,2_spkTh_4.5_KS4
+        # "20240731_160725995100",  # Th_5,2_spkTh_9_KS4
+        # "20240731_160727126094",  # Th_5,2_spkTh_7.5_KS4
+        # "20240731_160728080110",  # Th_2,1_spkTh_9_KS4
+        # "20240731_160729379832",  # Th_2,1_spkTh_4.5_KS4
+        # "20240731_160731386534",  # Th_2,1_spkTh_6_KS4
+        # "20240731_160732208700",  # Th_5,2_spkTh_3_KS4
+        # "20240731_160736101825",  # Th_2,1_spkTh_7.5_KS4
+        # "20240731_160741656037",  # Th_2,1_spkTh_3_KS4
+        # ## Kilosort4 with 8 channel monkey dataset, 2.25 shape noise
+        # "20240731_161302330839",  # Th_10,4_spkTh_3_KS4
+        # "20240731_161302431627",  # Th_10,4_spkTh_6_KS4
+        # "20240731_161302989672",  # Th_9,8_spkTh_6_KS4
+        # "20240731_161304556120",  # Th_9,8_spkTh_3_KS4
+        # "20240731_161305308614",  # Th_10,4_spkTh_7.5_KS4
+        # "20240731_161305977181",  # Th_10,4_spkTh_9_KS4
+        # "20240731_161307110971",  # Th_9,8_spkTh_9_KS4
+        # "20240731_161307997726",  # Th_9,8_spkTh_7.5_KS4
+        # "20240731_161308443423",  # Th_10,4_spkTh_4.5_KS4
+        # "20240731_161310151970",  # Th_9,8_spkTh_4.5_KS4
+        # "20240731_161310945830",  # Th_7,3_spkTh_7.5_KS4
+        # "20240731_161311616465",  # Th_5,2_spkTh_7.5_KS4
+        # "20240731_161314101781",  # Th_5,2_spkTh_9_KS4
+        # "20240731_161314677105",  # Th_7,3_spkTh_4.5_KS4
+        # "20240731_161316623068",  # Th_7,3_spkTh_6_KS4
+        # "20240731_161316627759",  # Th_7,3_spkTh_9_KS4
+        # "20240731_161319916195",  # Th_5,2_spkTh_6_KS4
+        # "20240731_161320605504",  # Th_7,3_spkTh_3_KS4
+        # "20240731_161321884103",  # Th_5,2_spkTh_4.5_KS4
+        # "20240731_161323937747",  # Th_5,2_spkTh_3_KS4
+        # "20240731_161324738434",  # Th_2,1_spkTh_9_KS4
+        # "20240731_161326432641",  # Th_2,1_spkTh_7.5_KS4
+        # "20240731_161328087769",  # Th_2,1_spkTh_4.5_KS4
+        # "20240731_161328416665",  # Th_2,1_spkTh_6_KS4
+        # "20240731_161331209863",  # Th_2,1_spkTh_3_KS4
+        # ## Kilosort4 with 8 channel monkey dataset, 3.00 shape noise
+        # "20240731_162137010229",  # Th_9,8_spkTh_3_KS4
+        # "20240731_162138924904",  # Th_10,4_spkTh_7.5_KS4
+        # "20240731_162142361541",  # Th_9,8_spkTh_6_KS4
+        # "20240731_162142403957",  # Th_10,4_spkTh_9_KS4
+        # "20240731_162143375234",  # Th_9,8_spkTh_4.5_KS4
+        # "20240731_162143600790",  # Th_9,8_spkTh_9_KS4
+        # "20240731_162143628911",  # Th_10,4_spkTh_6_KS4
+        # "20240731_162145001297",  # Th_10,4_spkTh_4.5_KS4
+        # "20240731_162145102627",  # Th_10,4_spkTh_3_KS4
+        # "20240731_162147539394",  # Th_9,8_spkTh_7.5_KS4
+        # "20240731_162149291646",  # Th_7,3_spkTh_6_KS4
+        # "20240731_162150594576",  # Th_7,3_spkTh_7.5_KS4
+        # "20240731_162150780826",  # Th_7,3_spkTh_4.5_KS4
+        # "20240731_162152116648",  # Th_7,3_spkTh_9_KS4
+        # "20240731_162154678819",  # Th_5,2_spkTh_9_KS4
+        # "20240731_162155059627",  # Th_7,3_spkTh_3_KS4
+        # "20240731_162155106263",  # Th_5,2_spkTh_7.5_KS4
+        # "20240731_162155116877",  # Th_2,1_spkTh_9_KS4
+        # "20240731_162157016037",  # Th_2,1_spkTh_6_KS4
+        # "20240731_162158563424",  # Th_5,2_spkTh_4.5_KS4
+        # "20240731_162158621279",  # Th_5,2_spkTh_6_KS4
+        # "20240731_162200001246",  # Th_2,1_spkTh_4.5_KS4
+        # "20240731_162200825833",  # Th_5,2_spkTh_3_KS4
+        # "20240731_162208171282",  # Th_2,1_spkTh_7.5_KS4
+        # "20240731_162210263399",  # Th_2,1_spkTh_3_KS4
+        # ## Kilosort4 with 8 channel monkey dataset, 3.75 shape noise
+        # "20240731_164150648764",  # Th_10,4_spkTh_6_KS4
+        # "20240731_164151949196",  # Th_9,8_spkTh_4.5_KS4
+        # "20240731_164153510177",  # Th_9,8_spkTh_7.5_KS4
+        # "20240731_164155681829",  # Th_9,8_spkTh_6_KS4
+        # "20240731_164155924911",  # Th_10,4_spkTh_7.5_KS4
+        # "20240731_164156714278",  # Th_10,4_spkTh_3_KS4
+        # "20240731_164156983224",  # Th_10,4_spkTh_4.5_KS4
+        # "20240731_164159708632",  # Th_9,8_spkTh_3_KS4
+        # "20240731_164202844717",  # Th_7,3_spkTh_6_KS4
+        # "20240731_164202859632",  # Th_9,8_spkTh_9_KS4
+        # "20240731_164202871331",  # Th_7,3_spkTh_7.5_KS4
+        # "20240731_164202873704",  # Th_10,4_spkTh_9_KS4
+        # "20240731_164206081027",  # Th_5,2_spkTh_3_KS4
+        # "20240731_164206487111",  # Th_7,3_spkTh_9_KS4
+        # "20240731_164207541393",  # Th_5,2_spkTh_6_KS4
+        # "20240731_164207541585",  # Th_7,3_spkTh_3_KS4
+        # "20240731_164207614482",  # Th_5,2_spkTh_7.5_KS4
+        # "20240731_164207653077",  # Th_5,2_spkTh_4.5_KS4
+        # "20240731_164211033125",  # Th_2,1_spkTh_6_KS4
+        # "20240731_164211525898",  # Th_7,3_spkTh_4.5_KS4
+        # "20240731_164212559678",  # Th_5,2_spkTh_9_KS4
+        # "20240731_164216099639",  # Th_2,1_spkTh_9_KS4
+        # "20240731_164216227174",  # Th_2,1_spkTh_3_KS4
+        # "20240731_164216405140",  # Th_2,1_spkTh_7.5_KS4
+        # "20240731_164218400584",  # Th_2,1_spkTh_4.5_KS4
     ]
     clusters_to_take_from = {
         # {
@@ -3672,11 +4185,12 @@ if __name__ == "__main__":
             assert (
                 len(paths_to_KS_session_folders) == 1
             ), f"There should be one _myo folder in each session folder, but there were {len(myo)} in {iDir}"
-            myo = paths_to_KS_session_folders
+            myo = paths_to_KS_session_folders  # set to the session folder if no _myo folder is found
         assert (
             len(myo) == 1
         ), f"There should be one _myo folder in each session folder, but there were {len(myo)} in {iDir}"
         paths_to_each_myo_folder.append(myo[0])
+
     # inside each _myo folder, find the folder name which constains sort_from_each_path_to_load string
     list_of_paths_to_sorted_folders = []
     for iPath in paths_to_each_myo_folder:
@@ -3701,12 +4215,21 @@ if __name__ == "__main__":
                 ]
             )
         elif from_spike_interface:
-            # append the path to the custom_merge_clusters folder
-            list_of_paths_to_sorted_folders.append(
-                [matches[i] / "sorter_output" for i in range(len(matches))]
-            )
+            # ensure there is an initial element for each path
+            list_of_paths_to_sorted_folders.append([])
+            # append the paths to the matched sort folders
+            for iMatch in range(len(matches)):
+                sorter_output_exists = (
+                    matches[iMatch].joinpath("sorter_output").is_dir()
+                )
+                if sorter_output_exists:
+                    list_of_paths_to_sorted_folders[-1].append(
+                        matches[iMatch] / "sorter_output"
+                    )
+                else:
+                    list_of_paths_to_sorted_folders[-1].append(matches[iMatch])
         else:
-            list_of_paths_to_sorted_folders.append(matches)
+            list_of_paths_to_sorted_folders[-1].append(matches)
 
     if automatically_assign_cluster_mapping:
         # tracemalloc.start()
@@ -3793,11 +4316,11 @@ if __name__ == "__main__":
                 time_frame,
                 path_to_sorted_folder,
                 simulation_method,
+                use_bins_for_matching=True,
             ):
 
                 # use MUsim object to load and rebin ground truth data
                 mu_GT = MUsim(random_seed_entropy)
-                mu_GT.sample_rate = 1 / ephys_fs
                 mu_GT.load_MUs(
                     # npy_file_path
                     ground_truth_path,
@@ -3829,7 +4352,6 @@ if __name__ == "__main__":
 
                 # use MUsim object to load and rebin Kilosort data
                 mu_KS = MUsim(random_seed_entropy)
-                mu_KS.sample_rate = 1 / ephys_fs
                 mu_KS.load_MUs(
                     # npy_file_path
                     path_to_sorted_folder,
@@ -4005,7 +4527,12 @@ if __name__ == "__main__":
                     # spike_isolation_radius_ms of spikes from neighboring MUs
                     # print(f"GT bin_width: {mu_GT.bin_width}")
                     # print(f"KS bin_width: {mu_KS.bin_width}")
+                    GT_spike_count_before = mu_GT.spikes[-1].sum()
                     mu_GT = remove_isolated_spikes(mu_GT, spike_isolation_radius_pts)
+                    GT_spike_count_after = mu_GT.spikes[-1].sum()
+                    print(
+                        f"Overlap fraction for this dataset with radius {spike_isolation_radius_pts} is:\n{GT_spike_count_after/GT_spike_count_before}"
+                    )
                     # concatenate the mu_KS_other spikes into mu_KS.spikes[-1] before removing isolated spikes
                     if all_matched_KS_clusters is not None:
                         # apply same roll to mu_KS_other.spikes
@@ -4048,88 +4575,171 @@ if __name__ == "__main__":
                     #     f"removed {mu_KS.removed_spike_count} isolated spikes from KS spikes with radius {spike_isolation_radius_pts} pts"
                     # )
 
-                # rebin the spike trains to the bin width for comparison
-                mu_GT.rebin_trials(
-                    preaccuracy_rebin_width / 1000
-                )  # rebin to rebin_width ms bins
+                if use_bins_for_matching:
+                    # rebin the spike trains to the bin width for comparison
+                    mu_GT.rebin_trials(
+                        preaccuracy_rebin_width / 1000
+                    )  # rebin to rebin_width ms bins
 
-                mu_KS.rebin_trials(
-                    preaccuracy_rebin_width / 1000
-                )  # rebin to rebin_width ms bins
+                    mu_KS.rebin_trials(
+                        preaccuracy_rebin_width / 1000
+                    )  # rebin to rebin_width ms bins
 
-                kilosort_spikes = mu_KS.spikes[-1]  # shape is (num_bins, num_units)
-                ground_truth_spikes = mu_GT.spikes[-1]  # shape is (num_bins, num_units)
+                    kilosort_spikes = mu_KS.spikes[-1]  # shape is (num_bins, num_units)
+                    ground_truth_spikes = mu_GT.spikes[
+                        -1
+                    ]  # shape is (num_bins, num_units)
 
-                # if kilosort spike length is greater, trim it to match GT
-                if kilosort_spikes.shape[0] > ground_truth_spikes.shape[0]:
-                    print(
-                        f"Shape mismatch after rebinning, trimming KS spikes time dimension down to {ground_truth_spikes.shape[0]}"
+                    # if kilosort spike length is greater, trim it to match GT
+                    if kilosort_spikes.shape[0] > ground_truth_spikes.shape[0]:
+                        print(
+                            f"Shape mismatch after rebinning, trimming KS spikes time dimension down to {ground_truth_spikes.shape[0]}"
+                        )
+                        kilosort_spikes = kilosort_spikes[
+                            : ground_truth_spikes.shape[0]
+                        ]
+
+                    ground_truth_spikes_this_clust_repeat = np.tile(
+                        ground_truth_spikes[:, jCluster_GT],
+                        (kilosort_spikes.shape[1], 1),
+                    ).T
+
+                    # compute false positive, false negative, and true positive spikes with vectorized operations
+                    # algorithm then has O(n) time complexity
+                    # create a new array for each type of error (false positive, false negative, true positive)
+                    true_positive_spikes = np.zeros(kilosort_spikes.shape, dtype=int)
+                    false_positive_spikes = np.zeros(kilosort_spikes.shape, dtype=int)
+                    false_negative_spikes = np.zeros(kilosort_spikes.shape, dtype=int)
+
+                    # Check for NaN's once for each unit
+                    nan_units = np.any(np.isnan(kilosort_spikes), axis=0)
+
+                    # Create masks for each condition
+                    true_positive_mask = (kilosort_spikes == 1) & (
+                        ground_truth_spikes_this_clust_repeat == 1
                     )
-                    kilosort_spikes = kilosort_spikes[: ground_truth_spikes.shape[0]]
+                    false_positive_mask = (kilosort_spikes >= 1) & (
+                        ground_truth_spikes_this_clust_repeat == 0
+                    )
+                    false_negative_mask = (kilosort_spikes == 0) & (
+                        ground_truth_spikes_this_clust_repeat >= 1
+                    )
 
-                ground_truth_spikes_this_clust_repeat = np.tile(
-                    ground_truth_spikes[:, jCluster_GT], (kilosort_spikes.shape[1], 1)
-                ).T
+                    # Handle cases where spike counts are larger than 1
+                    true_positive_large_mask = (kilosort_spikes > 1) & (
+                        ground_truth_spikes_this_clust_repeat >= 1
+                    )
+                    false_positive_large_mask = (
+                        kilosort_spikes > ground_truth_spikes_this_clust_repeat
+                    ) & true_positive_large_mask
+                    false_negative_large_mask = (
+                        kilosort_spikes < ground_truth_spikes_this_clust_repeat
+                    ) & true_positive_large_mask
 
-                # compute false positive, false negative, and true positive spikes with vectorized operations
-                # algorithm then has O(n) time complexity
-                # create a new array for each type of error (false positive, false negative, true positive)
-                true_positive_spikes = np.zeros(kilosort_spikes.shape, dtype=int)
-                false_positive_spikes = np.zeros(kilosort_spikes.shape, dtype=int)
-                false_negative_spikes = np.zeros(kilosort_spikes.shape, dtype=int)
+                    # Apply masks to arrays
+                    true_positive_spikes[true_positive_mask] = 1
+                    false_positive_spikes[false_positive_mask] = kilosort_spikes[
+                        false_positive_mask
+                    ]
+                    false_negative_spikes[false_negative_mask] = (
+                        ground_truth_spikes_this_clust_repeat[false_negative_mask]
+                    )
 
-                # Check for NaN's once for each unit
-                nan_units = np.any(np.isnan(kilosort_spikes), axis=0)
+                    # Handle large spike counts
+                    true_positive_spikes[true_positive_large_mask] = np.minimum(
+                        kilosort_spikes[true_positive_large_mask],
+                        ground_truth_spikes_this_clust_repeat[true_positive_large_mask],
+                    )
+                    false_positive_spikes[false_positive_large_mask] = (
+                        kilosort_spikes[false_positive_large_mask]
+                        - ground_truth_spikes_this_clust_repeat[
+                            false_positive_large_mask
+                        ]
+                    )
+                    false_negative_spikes[false_negative_large_mask] = (
+                        ground_truth_spikes_this_clust_repeat[false_negative_large_mask]
+                        - kilosort_spikes[false_negative_large_mask]
+                    )
 
-                # Create masks for each condition
-                true_positive_mask = (kilosort_spikes == 1) & (
-                    ground_truth_spikes_this_clust_repeat == 1
-                )
-                false_positive_mask = (kilosort_spikes >= 1) & (
-                    ground_truth_spikes_this_clust_repeat == 0
-                )
-                false_negative_mask = (kilosort_spikes == 0) & (
-                    ground_truth_spikes_this_clust_repeat >= 1
-                )
+                    # Set NaN units to 0
+                    true_positive_spikes[:, nan_units] = 0
+                    false_positive_spikes[:, nan_units] = 0
+                    false_negative_spikes[:, nan_units] = 0
 
-                # Handle cases where spike counts are larger than 1
-                true_positive_large_mask = (kilosort_spikes > 1) & (
-                    ground_truth_spikes_this_clust_repeat >= 1
-                )
-                false_positive_large_mask = (
-                    kilosort_spikes > ground_truth_spikes_this_clust_repeat
-                ) & true_positive_large_mask
-                false_negative_large_mask = (
-                    kilosort_spikes < ground_truth_spikes_this_clust_repeat
-                ) & true_positive_large_mask
+                else:
+                    # the alternative approach will not rebin the second time, and instead will
+                    # convert the current MUsim_obj.bin_width value to convert each spike into times
+                    # GT_times is M long and KS_times is N in length
+                    # a new M x N array will be created by np.tile'ing the GT_times array
+                    # the KS_times array will be subracted into the GT_repeated_times array, and
+                    # this result will be set into a np.ma.masked_array called "spike_dt", setting
+                    # the mask to all 1's of the same shape. From this 2D array, we will first
+                    # determine the number of true positives, which is found by checking each row
+                    # for the minimum absolute value that is less than preaccuracy_rebin_width
+                    # milliseconds, if there is ever a tie, just take the first one. The
+                    # corresponding row and column will then be masked to remove those entries from
+                    # future consideration. The row and column indexes represent paired GT and KS
+                    # spike times but only the total number of pairs needs to be stored into the
+                    # num_matches variable. Then we need to find the number of false positives and
+                    # false negatives. False negatives are found by checking the columns for any
+                    # masked values, and the corresponding KS spike times are marked as false
 
-                # Apply masks to arrays
-                true_positive_spikes[true_positive_mask] = 1
-                false_positive_spikes[false_positive_mask] = kilosort_spikes[
-                    false_positive_mask
-                ]
-                false_negative_spikes[false_negative_mask] = (
-                    ground_truth_spikes_this_clust_repeat[false_negative_mask]
-                )
+                    current_GT_bin_width = mu_GT.bin_width  # seconds
+                    current_KS_bin_width = mu_KS.bin_width  # seconds
 
-                # Handle large spike counts
-                true_positive_spikes[true_positive_large_mask] = np.minimum(
-                    kilosort_spikes[true_positive_large_mask],
-                    ground_truth_spikes_this_clust_repeat[true_positive_large_mask],
-                )
-                false_positive_spikes[false_positive_large_mask] = (
-                    kilosort_spikes[false_positive_large_mask]
-                    - ground_truth_spikes_this_clust_repeat[false_positive_large_mask]
-                )
-                false_negative_spikes[false_negative_large_mask] = (
-                    ground_truth_spikes_this_clust_repeat[false_negative_large_mask]
-                    - kilosort_spikes[false_negative_large_mask]
-                )
+                    ground_truth_spikes = mu_GT.spikes[-1]
+                    kilosort_spikes = mu_KS.spikes[-1]
 
-                # Set NaN units to 0
-                true_positive_spikes[:, nan_units] = 0
-                false_positive_spikes[:, nan_units] = 0
-                false_negative_spikes[:, nan_units] = 0
+                    # convert to times with np.where followed by multiplication by bin_width, then
+                    # convert seconds to milliseconds by multiplying by 1000
+                    GT_spike_idxs = np.where(
+                        ground_truth_spikes[:, jCluster_GT, np.newaxis]
+                    )[0]
+                    KS_spike_idxs = np.where(kilosort_spikes)[0]
+                    GT_times = GT_spike_idxs * current_GT_bin_width * 1000
+                    KS_times = KS_spike_idxs * current_KS_bin_width * 1000
+
+                    # shape of this is (M x N), if M is the number of bins in the GT spikes and
+                    # N is the number of units in the KS spikes
+                    GT_repeated_times = np.tile(
+                        GT_times,
+                        (KS_times.shape[0], 1),
+                    ).T
+
+                    spike_dt = np.ma.masked_array(
+                        GT_repeated_times - KS_times,
+                        mask=np.zeros(GT_repeated_times.shape),
+                    )
+
+                    # initialize train arrays
+                    true_positive_spikes = np.zeros(kilosort_spikes.shape, dtype=int)
+                    false_positive_spikes = np.zeros(kilosort_spikes.shape, dtype=int)
+                    false_negative_spikes = np.zeros(kilosort_spikes.shape, dtype=int)
+
+                    # mask the spike_dt array to remove any spike times that are too far apart
+                    spike_dt_masked = np.ma.masked_greater_equal(
+                        abs(spike_dt), preaccuracy_rebin_width
+                    )
+                    # any columns with only masked values is a KS spike time with no GT match
+                    false_positive_spikes[
+                        KS_spike_idxs[np.where(spike_dt_masked.sum(0).mask)]
+                    ] = 1
+                    # any rows with only masked values is a GT spike time with no KS match
+                    false_negative_spikes[
+                        GT_spike_idxs[np.where(spike_dt_masked.sum(1).mask)]
+                    ] = 1
+
+                    match_coords = np.where(spike_dt_masked.mask == 0)
+                    for iMatch in np.unique(match_coords[0]):
+                        matches = np.ma.argsort(spike_dt_masked[iMatch])
+                        jMatch = matches[0]
+                        if jMatch is np.ma.masked:  # no match found
+                            continue
+                        if spike_dt[iMatch, jMatch] is np.ma.masked:
+                            continue
+                        spike_dt.mask[iMatch, :] = 1
+                        spike_dt.mask[:, jMatch] = 1
+                        true_positive_spikes[KS_spike_idxs[jMatch]] = 1
 
                 num_matches = np.sum(true_positive_spikes, axis=0)
                 num_kilosort_spikes = np.sum(kilosort_spikes, axis=0)
@@ -4187,7 +4797,7 @@ if __name__ == "__main__":
                 for iSort, sort_dstr in enumerate(sorts_from_each_path_to_load):
                     # # use MUsim object to load and rebin Kilosort data
                     # mu_KS = MUsim(random_seed_entropy)
-                    # mu_KS.sample_rate = 1 / ephys_fs
+                    # mu_KS.sample_rate = ephys_fs
                     # mu_KS.load_MUs(
                     #     # npy_file_path
                     #     list_of_paths_to_sorted_folders[0][iSort],
@@ -4261,6 +4871,9 @@ if __name__ == "__main__":
                                     time_frame,
                                     list_of_paths_to_sorted_folders[0][iSort],
                                     simulation_method,
+                                    use_bins_for_matching=(
+                                        True if iRepeat == 0 else False
+                                    ),
                                 )
                                 for jCluster_GT in range(len(GT_clusters_to_use))
                             ]
@@ -4316,6 +4929,7 @@ if __name__ == "__main__":
                                 time_frame,
                                 list_of_paths_to_sorted_folders[0][iSort],
                                 simulation_method,
+                                use_bins_for_matching=True if iRepeat == 0 else False,
                             )
                             print(
                                 f"Done computing accuracies for GT cluster {jCluster_GT} in sort {sort_dstr} ({iSort+1}/{len(sorts_from_each_path_to_load)} sorts)"
@@ -5087,6 +5701,7 @@ if __name__ == "__main__":
                 save_html_plot2,
                 # make figsize 1080p
                 figsize=(1920, 1080),
+                sort_index=iSort,
             )
 
     if show_plot3 or save_png_plot3 or save_html_plot3 or save_svg_plot3:
