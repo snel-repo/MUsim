@@ -2000,7 +2000,7 @@ if __name__ == "__main__":
     )  # choose bin widths as a range from 0.125 ms to 8 ms in log2 increments
     bin_widths_for_comparison = np.logspace(xstart, -xstart, num=13, base=2)
     bin_widths_for_comparison = [0.1]
-    spike_isolation_radius_ms = 1  # radius of isolation of a spike for it to be removed from consideration. set to positive float, integer, or set None to disable
+    spike_isolation_radius_ms = None  # radius of isolation of a spike for it to be removed from consideration. set to positive float, integer, or set None to disable
     iShow = 0  # index of which bin width of bin_widths_for_comparison to show in plots
 
     nt0 = 121  # number of time bins in the template, in ms it is 3.367, only used if method_for_automatic_cluster_mapping is "waves"
@@ -2013,19 +2013,19 @@ if __name__ == "__main__":
     show_plot1b = False
     show_plot2 = True
     show_plot3 = False
-    show_plot4 = False
+    show_plot4 = True
     show_plot5 = False
     save_png_plot1a = False
     save_png_plot1b = False
     save_png_plot2 = False
     save_png_plot3 = False
-    save_png_plot4 = True  #
+    save_png_plot4 = False  #
     save_png_plot5 = False
     save_svg_plot1a = False
     save_svg_plot1b = False
     save_svg_plot2 = False
     save_svg_plot3 = False
-    save_svg_plot4 = True  #
+    save_svg_plot4 = False  #
     save_svg_plot5 = False
     save_html_plot1a = False
     save_html_plot1b = False
@@ -2034,7 +2034,7 @@ if __name__ == "__main__":
     save_html_plot4 = False
     save_html_plot5 = False
     save_plot4_df_as_pickle = False  #
-    save_plot4_df_as_csv = True  #
+    save_plot4_df_as_csv = False  #
 
     ## TBD: NEED TO ADD FLAG FOR DATASET CHOICE, to flip all related variables
     ## paths with simulated data
@@ -3626,7 +3626,7 @@ if __name__ == "__main__":
         # "20240610_205951805102",  # Th_9,8_spkTh_4.5,_KS4
         # "20240610_205951877368",  # Th_10,4_spkTh_9,_KS4
         # "20240610_205952087384",  # Th_9,8_spkTh_9,_KS4
-        "20240610_205955006571",  # Th_7,3_spkTh_7.5,_KS4 $$$
+        # "20240610_205955006571",  # Th_7,3_spkTh_7.5,_KS4 $$$
         # "20240610_205955424268",  # Th_9,8_spkTh_6,_KS4
         # "20240610_205955427991",  # Th_9,8_spkTh_3,_KS4
         # "20240610_205955432490",  # Th_7,3_spkTh_9,_KS4
@@ -4090,6 +4090,188 @@ if __name__ == "__main__":
         # "20240731_164216227174",  # Th_2,1_spkTh_3_KS4
         # "20240731_164216405140",  # Th_2,1_spkTh_7.5_KS4
         # "20240731_164218400584",  # Th_2,1_spkTh_4.5_KS4
+        # ## 20240815 New LOF removal GMM EMUsort 8CH, 2.25 shape noise
+        # "20240815_135426166293",  # Th_10,4_spkTh_6,9,12
+        # "20240815_135428527819",  # Th_7,3_spkTh_6,9
+        # "20240815_135430029665",  # Th_10,4_spkTh_6,9,12,15
+        # "20240815_135430032514",  # Th_7,3_spkTh_6
+        # "20240815_135430073426",  # Th_10,4_spkTh_6,9
+        # "20240815_135431522092",  # Th_5,2_spkTh_6,9,12,15
+        # "20240815_135431550709",  # Th_10,4_spkTh_3,6,9
+        # "20240815_135431962282",  # Th_5,2_spkTh_6
+        # "20240815_135432970642",  # Th_10,4_spkTh_6
+        # "20240815_135433008326",  # Th_9,8_spkTh_6,9
+        # "20240815_135435469161",  # Th_7,3_spkTh_6,9,12,15
+        # "20240815_135435490534",  # Th_7,3_spkTh_3,6,9
+        # "20240815_135435494113",  # Th_7,3_spkTh_6,9,12
+        # "20240815_135435494110",  # Th_9,8_spkTh_3,6,9
+        # "20240815_135436993445",  # Th_5,2_spkTh_3,6,9
+        # "20240815_135437457800",  # Th_5,2_spkTh_6,9,12
+        # "20240815_135437461873",  # Th_9,8_spkTh_6
+        # "20240815_135437546299",  # Th_9,8_spkTh_6,9,12
+        # "20240815_135437630192",  # Th_5,2_spkTh_6,9
+        # "20240815_135442080980",  # Th_2,1_spkTh_3,6,9
+        # "20240815_135442920146",  # Th_2,1_spkTh_6,9
+        # "20240815_135442950342",  # Th_2,1_spkTh_6,9,12,15
+        # "20240815_135444685513",  # Th_9,8_spkTh_6,9,12,15
+        # "20240815_135444772600",  # Th_2,1_spkTh_6
+        # "20240815_135446823866",  # Th_2,1_spkTh_6,9,12
+        # ## 20240815 spikedetect_orig, duplicated thresholds, EMUsort 8CH, 2.25 shape noise
+        # "20240815_171552756333",  # Th_10,4_spkTh_6,9,12
+        # "20240815_171553752996",  # Th_10,4_spkTh_6,9,12,15
+        # "20240815_171554003032",  # Th_5,2_spkTh_6,9,12,15
+        # "20240815_171556859518",  # Th_7,3_spkTh_6,9,12
+        # "20240815_171557737488",  # Th_9,8_spkTh_6,9
+        # "20240815_171557776036",  # Th_5,2_spkTh_6,9,12
+        # "20240815_171557851521",  # Th_7,3_spkTh_3,6,9
+        # "20240815_171558035399",  # Th_7,3_spkTh_6,9
+        # "20240815_171558912477",  # Th_5,2_spkTh_6,9
+        # "20240815_171559548855",  # Th_7,3_spkTh_6
+        # "20240815_171559812430",  # Th_9,8_spkTh_6
+        # "20240815_171559940013",  # Th_7,3_spkTh_6,9,12,15
+        # "20240815_171601987528",  # Th_5,2_spkTh_6
+        # "20240815_171603252153",  # Th_9,8_spkTh_6,9,12,15
+        # "20240815_171604103320",  # Th_9,8_spkTh_6,9,12
+        # "20240815_171604504069",  # Th_2,1_spkTh_6,9,12
+        # "20240815_171604530051",  # Th_10,4_spkTh_6,9
+        # "20240815_171606317842",  # Th_2,1_spkTh_6
+        # "20240815_171606365924",  # Th_10,4_spkTh_6
+        # "20240815_171606370357",  # Th_10,4_spkTh_3,6,9
+        # "20240815_171607952320",  # Th_9,8_spkTh_3,6,9
+        # "20240815_171609128293",  # Th_2,1_spkTh_6,9
+        # "20240815_171611049601",  # Th_5,2_spkTh_3,6,9
+        # "20240815_171611933506",  # Th_2,1_spkTh_3,6,9
+        # "20240815_171612099781",  # Th_2,1_spkTh_6,9,12,15
+        # ## 20240815 spikedetect_orig, but new multithreshold, EMUsort 8CH, 2.25 shape noise
+        # "20240815_182228658014",  # Th_10,4_spkTh_6,9
+        # "20240815_182231077916",  # Th_10,4_spkTh_6
+        # "20240815_182232096484",  # Th_9,8_spkTh_6,9
+        # "20240815_182233253040",  # Th_5,2_spkTh_6,9,12,15
+        # "20240815_182233883947",  # Th_5,2_spkTh_6,9,12
+        # "20240815_182235363692",  # Th_5,2_spkTh_6
+        # "20240815_182237882421",  # Th_10,4_spkTh_6,9,12
+        # "20240815_182238696967",  # Th_7,3_spkTh_6
+        # "20240815_182244489714",  # Th_7,3_spkTh_6,9,12
+        # "20240815_182244690436",  # Th_9,8_spkTh_6
+        # "20240815_182245604285",  # Th_10,4_spkTh_6,9,12,15
+        # "20240815_182246217221",  # Th_10,4_spkTh_3,6,9
+        # "20240815_182246878572",  # Th_7,3_spkTh_6,9,12,15
+        # "20240815_182247047453",  # Th_7,3_spkTh_6,9
+        # "20240815_182247100868",  # Th_5,2_spkTh_3,6,9
+        # "20240815_182247107367",  # Th_9,8_spkTh_6,9,12,15
+        # "20240815_182249272599",  # Th_9,8_spkTh_6,9,12
+        # "20240815_182250493729",  # Th_7,3_spkTh_3,6,9
+        # "20240815_182251503401",  # Th_9,8_spkTh_3,6,9
+        # "20240815_182251794642",  # Th_5,2_spkTh_6,9
+        # "20240815_182252769322",  # Th_2,1_spkTh_6,9,12,15
+        # "20240815_182253031491",  # Th_2,1_spkTh_6,9
+        # "20240815_182253055137",  # Th_2,1_spkTh_6,9,12
+        # "20240815_182253066893",  # Th_2,1_spkTh_6
+        # "20240815_182255312648",  # Th_2,1_spkTh_3,6,9
+        # ## 20240815 New LOF removal Kmeans EMUsort 8CH, 2.25 shape noise
+        # "20240815_184458459195",  # Th_9,8_spkTh_3,6,9
+        # "20240815_184459640520",  # Th_7,3_spkTh_6,9,12
+        # "20240815_184501720853",  # Th_5,2_spkTh_6
+        # "20240815_184503657686",  # Th_7,3_spkTh_6,9,12,15
+        # "20240815_184504910787",  # Th_10,4_spkTh_6,9,12,15
+        # "20240815_184504910216",  # Th_10,4_spkTh_6,9,12
+        # "20240815_184505895777",  # Th_5,2_spkTh_3,6,9
+        # "20240815_184510049529",  # Th_7,3_spkTh_3,6,9
+        # "20240815_184510664338",  # Th_9,8_spkTh_6,9,12,15
+        # "20240815_184511527298",  # Th_10,4_spkTh_3,6,9
+        # "20240815_184512425088",  # Th_7,3_spkTh_6,9
+        # "20240815_184515128529",  # Th_5,2_spkTh_6,9
+        # "20240815_184516987910",  # Th_9,8_spkTh_6
+        # "20240815_184517876281",  # Th_9,8_spkTh_6,9
+        # "20240815_184518194288",  # Th_10,4_spkTh_6,9
+        # "20240815_184518265247",  # Th_7,3_spkTh_6
+        # "20240815_184519878705",  # Th_9,8_spkTh_6,9,12
+        # "20240815_184520038929",  # Th_2,1_spkTh_6,9
+        # "20240815_184520586598",  # Th_5,2_spkTh_6,9,12,15
+        # "20240815_184520603795",  # Th_5,2_spkTh_6,9,12
+        # "20240815_184520626109",  # Th_10,4_spkTh_6
+        # "20240815_184522539747",  # Th_2,1_spkTh_3,6,9
+        # "20240815_184523980141",  # Th_2,1_spkTh_6,9,12,15
+        # "20240815_184527375839",  # Th_2,1_spkTh_6,9,12
+        # "20240815_184529585442",  # Th_2,1_spkTh_6
+        # ## 20240815 spikedetect_orig, substituted thresholds, EMUsort 8CH, 2.25 shape noise
+        # "20240815_191437269809",  # Th_10,4_spkTh_10.5
+        # "20240815_191437333148",  # Th_10,4_spkTh_4.5
+        # "20240815_191439296205",  # Th_5,2_spkTh_9
+        # "20240815_191439296137",  # Th_10,4_spkTh_6
+        # "20240815_191440434038",  # Th_7,3_spkTh_9
+        # "20240815_191441476060",  # Th_9,8_spkTh_10.5
+        # "20240815_191442010721",  # Th_9,8_spkTh_6
+        # "20240815_191442461036",  # Th_7,3_spkTh_6
+        # "20240815_191443407876",  # Th_10,4_spkTh_9
+        # "20240815_191445382232",  # Th_5,2_spkTh_10.5
+        # "20240815_191446162752",  # Th_7,3_spkTh_7.5
+        # "20240815_191447020263",  # Th_7,3_spkTh_10.5
+        # "20240815_191450023979",  # Th_9,8_spkTh_9
+        # "20240815_191450107825",  # Th_10,4_spkTh_7.5
+        # "20240815_191450539183",  # Th_9,8_spkTh_4.5
+        # "20240815_191452726165",  # Th_7,3_spkTh_4.5
+        # "20240815_191453085931",  # Th_9,8_spkTh_7.5
+        # "20240815_191454161385",  # Th_5,2_spkTh_6
+        # "20240815_191454403584",  # Th_5,2_spkTh_4.5
+        # "20240815_191455545043",  # Th_2,1_spkTh_9
+        # "20240815_191456204399",  # Th_2,1_spkTh_7.5
+        # "20240815_191457217199",  # Th_5,2_spkTh_7.5
+        # "20240815_191500012582",  # Th_2,1_spkTh_6
+        # "20240815_191502404902",  # Th_2,1_spkTh_4.5
+        # "20240815_191503851038",  # Th_2,1_spkTh_10.5
+        ## KS4 with 8 channel dataset, 2.25 shape noise, substituted thresholds, worse perf than other reference set (with 20240610_205955006571)
+        # "20240815_195154718843",  # Th_10,4_spkTh_9_KS4
+        # "20240815_195155859002",  # Th_5,2_spkTh_10.5_KS4
+        # "20240815_195159617168",  # Th_9,8_spkTh_6_KS4
+        # "20240815_195206197698",  # Th_10,4_spkTh_6_KS4
+        # "20240815_195206614464",  # Th_7,3_spkTh_6_KS4
+        # "20240815_195208328443",  # Th_9,8_spkTh_9_KS4
+        # "20240815_195208651613",  # Th_10,4_spkTh_7.5_KS4
+        # "20240815_195208780396",  # Th_2,1_spkTh_6_KS4
+        # "20240815_195208780906",  # Th_5,2_spkTh_7.5_KS4
+        # "20240815_195210577885",  # Th_9,8_spkTh_4.5_KS4
+        # "20240815_195210644923",  # Th_7,3_spkTh_10.5_KS4
+        # "20240815_195210650540",  # Th_10,4_spkTh_4.5_KS4
+        # "20240815_195210851865",  # Th_10,4_spkTh_10.5_KS4
+        # "20240815_195213150845",  # Th_7,3_spkTh_9_KS4
+        # "20240815_195213156403",  # Th_5,2_spkTh_9_KS4
+        # "20240815_195213335217",  # Th_9,8_spkTh_10.5_KS4
+        # "20240815_195215436767",  # Th_7,3_spkTh_7.5_KS4
+        # "20240815_195216238256",  # Th_9,8_spkTh_7.5_KS4
+        # "20240815_195219056140",  # Th_2,1_spkTh_7.5_KS4
+        # "20240815_195222081080",  # Th_2,1_spkTh_9_KS4
+        # "20240815_195222620229",  # Th_5,2_spkTh_6_KS4
+        # "20240815_195223290221",  # Th_2,1_spkTh_10.5_KS4
+        # "20240815_195225535852",  # Th_5,2_spkTh_4.5_KS4
+        # "20240815_195226256096",  # Th_2,1_spkTh_4.5_KS4
+        # "20240815_195227064717",  # Th_7,3_spkTh_4.5_KS4
+        ## Monkey KS4 with 8 channel dataset, 2.25 shape noise, substituted thresholds, maybe new reference if perf is much diff
+        # "20240815_200404022653"  # Th_10,4_spkTh_4.5_KS4
+        # "20240815_200405708056"  # Th_9,8_spkTh_6_KS4
+        # "20240815_200409303251"  # Th_9,8_spkTh_7.5_KS4
+        # "20240815_200409341153"  # Th_10,4_spkTh_7.5_KS4
+        # "20240815_200410394373"  # Th_9,8_spkTh_4.5_KS4
+        # "20240815_200410862090"  # Th_10,4_spkTh_9_KS4
+        # "20240815_200410987944"  # Th_10,4_spkTh_6_KS4
+        # "20240815_200412862511"  # Th_10,4_spkTh_10.5_KS4
+        # "20240815_200414693906"  # Th_7,3_spkTh_10.5_KS4
+        # "20240815_200416779182"  # Th_9,8_spkTh_10.5_KS4
+        # "20240815_200417510389"  # Th_9,8_spkTh_9_KS4
+        # "20240815_200419026041"  # Th_7,3_spkTh_7.5_KS4
+        # "20240815_200420011955"  # Th_7,3_spkTh_6_KS4
+        # "20240815_200420073254"  # Th_5,2_spkTh_7.5_KS4
+        # "20240815_200421720884"  # Th_5,2_spkTh_9_KS4
+        # "20240815_200422005863"  # Th_7,3_spkTh_4.5_KS4
+        # "20240815_200422607861"  # Th_7,3_spkTh_9_KS4
+        # "20240815_200426785945"  # Th_5,2_spkTh_4.5_KS4
+        # "20240815_200428867325"  # Th_2,1_spkTh_10.5_KS4
+        # "20240815_200429129847"  # Th_2,1_spkTh_4.5_KS4
+        # "20240815_200429831866"  # Th_5,2_spkTh_10.5_KS4
+        # "20240815_200430288129"  # Th_2,1_spkTh_6_KS4
+        # "20240815_200432894285"  # Th_2,1_spkTh_7.5_KS4
+        # "20240815_200434728996"  # Th_5,2_spkTh_6_KS4
+        # "20240815_200435507544"  # Th_2,1_spkTh_9_KS4
     ]
     clusters_to_take_from = {
         # {
@@ -4527,11 +4709,16 @@ if __name__ == "__main__":
                     # spike_isolation_radius_ms of spikes from neighboring MUs
                     # print(f"GT bin_width: {mu_GT.bin_width}")
                     # print(f"KS bin_width: {mu_KS.bin_width}")
-                    GT_spike_count_before = mu_GT.spikes[-1].sum()
+                    GT_spike_counts_before = mu_GT.spikes[-1].sum(axis=0)
+                    GT_spike_count_before = GT_spike_counts_before[jCluster_GT]
                     mu_GT = remove_isolated_spikes(mu_GT, spike_isolation_radius_pts)
-                    GT_spike_count_after = mu_GT.spikes[-1].sum()
+                    GT_spike_counts_after = mu_GT.spikes[-1].sum(axis=0)
+                    GT_spike_count_after = GT_spike_counts_after[jCluster_GT]
                     print(
-                        f"Overlap fraction for this dataset with radius {spike_isolation_radius_pts} is:\n{GT_spike_count_after/GT_spike_count_before}"
+                        f"Overlap fraction for cluster {jCluster_GT} is {GT_spike_count_after / GT_spike_count_before} with {spike_isolation_radius_pts} pt radius"
+                    )
+                    print(
+                        f"Total average overlap fraction is {GT_spike_counts_before.sum() / GT_spike_counts_after.sum()}"
                     )
                     # concatenate the mu_KS_other spikes into mu_KS.spikes[-1] before removing isolated spikes
                     if all_matched_KS_clusters is not None:
@@ -4699,8 +4886,8 @@ if __name__ == "__main__":
                     GT_times = GT_spike_idxs * current_GT_bin_width * 1000
                     KS_times = KS_spike_idxs * current_KS_bin_width * 1000
 
-                    # shape of this is (M x N), if M is the number of bins in the GT spikes and
-                    # N is the number of units in the KS spikes
+                    # shape of this is (M x N), if M is the number of times in the GT spikes and
+                    # N is the number of times in the KS spikes
                     GT_repeated_times = np.tile(
                         GT_times,
                         (KS_times.shape[0], 1),

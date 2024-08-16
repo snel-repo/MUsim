@@ -16,6 +16,7 @@ from sklearn.decomposition import PCA
 from sklearn.mixture import GaussianMixture
 from sklearn.preprocessing import StandardScaler
 
+from compute_ground_truth_metrics import remove_isolated_spikes
 from MUsim import MUsim
 
 start_time = datetime.now()  # begin timer for script execution time
@@ -122,7 +123,21 @@ def blend_arrays(array_list, Nsamp):
 ## MUsim class initialization and simulation function
 def batch_run_MUsim(mu, force_profile, proc_num):
     """
-    Initialize an MUsim object, set number of units, and apply the inverted filtered array as the force profile
+    Run the MUsim object with a new force profile, simulate spikes, and return the object.
+
+    Parameters
+    ----------
+    mu : MUsim object
+        The MUsim object to run.
+    force_profile : numpy array
+        The new force profile to apply to the MUsim object.
+    proc_num : int
+        The process number to print to the console.
+
+    Returns
+    -------
+    mu : MUsim object
+        The MUsim object after running the simulation.
     """
     mu.apply_new_force(force_profile)
     mu.simulate_spikes()
@@ -132,36 +147,34 @@ def batch_run_MUsim(mu, force_profile, proc_num):
 
 
 ## WIP
-# def compute_overlap_fraction(spike_isolation_radius_ms, bin_width_ms, MUsim_obj1, MUsim_obj2):
-#     """
-#     Compute the fraction of overlapping spikes between two MUsim objects.
-#     """
-#     # get the spike times from each MUsim object
-#     spike_times1 = MUsim_obj1.spike_times
-#     spike_times2 = MUsim_obj2.spike_times
-#     # get the number of spikes from each MUsim object
-#     num_spikes1 = len(spike_times1)
-#     num_spikes2 = len(spike_times2)
-#     # set the bin width in seconds
-#     bin_width = bin_width_ms / 1000
-#     # set the spike isolation radius in seconds
-#     spike_isolation_radius = spike_isolation_radius_ms / 1000
-#     # set the number of bins
-#     num_bins = int(np.ceil((max(spike_times1[-1], spike_times2[-1]) + 2 * spike_isolation_radius) / bin_width))
-#     # create the spike count arrays
-#     spike_counts1 = np.zeros(num_bins)
-#     spike_counts2 = np.zeros(num_bins)
-#     # fill the spike count arrays
-#     for iBin in range(num_bins):
-#         spike_counts1[iBin] = np.sum((spike_times1 >= iBin * bin_width) & (spike_times1 < (iBin + 1) * bin_width))
-#         spike_counts2[iBin] = np.sum((spike_times2 >= iBin * bin_width) & (spike_times2 < (iBin + 1) * bin_width))
-#     # compute the overlapping spike count
-#     overlapping_spike_count = np.sum((spike_counts1 > 0) & (spike_counts2 > 0))
-#     # compute the total spike count
-#     total_spike_count = np.sum((spike_counts1 > 0) | (spike_counts2 > 0))
-#     # compute the fraction of overlapping spikes
-#     overlap_fraction = overlapping_spike_count / total_spike_count
-#     return overlap_fraction
+def compute_overlap_fraction(MUsim_obj, radius):
+    """
+    Compute the overlap fraction of the MUsim object before and after removing isolated spikes.
+
+    Parameters
+    ----------
+    MUsim_obj : MUsim object
+        The MUsim object to analyze. (Time x MUs)
+    radius : float
+        The radius of the window to search for isolated spikes.
+
+    Returns
+    -------
+    mean_overlap_fraction : float
+        The mean overlap fraction of the MUsim object.
+    overlap_fraction_per_MU : numpy array
+        The overlap fraction of each MU.
+    """
+    # sum across time for each MU
+    MUsim_spike_counts_before = MUsim_obj.spikes[-1].sum(axis=0)
+    MUsim_obj = remove_isolated_spikes(MUsim_obj, radius)
+    MUsim_spike_counts_after = MUsim_obj.spikes[-1].sum(axis=0)
+
+    overlap_fraction_per_MU = MUsim_spike_counts_after / MUsim_spike_counts_before
+
+    mean_overlap_fraction = overlap_fraction_per_MU.mean()
+    return mean_overlap_fraction, overlap_fraction_per_MU
+
 
 # set analysis parameters
 session_name = (
