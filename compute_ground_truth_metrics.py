@@ -1987,7 +1987,7 @@ def plot5(
 
 if __name__ == "__main__":
     # set parameters
-    parallel = True
+    parallel = True  # can set to True, False, and "duo", which executes 2 processes at a time, with a clever ordering of pairs to keep memory consumption down
     use_custom_merge_clusters = False
     from_spike_interface = True
     automatically_assign_cluster_mapping = True
@@ -4920,13 +4920,17 @@ if __name__ == "__main__":
                     for iMatch in np.unique(match_coords[0]):
                         matches = np.ma.argsort(spike_dt_masked[iMatch])
                         jMatch = matches[0]
-                        if jMatch is np.ma.masked:  # no match found
-                            continue
-                        if spike_dt[iMatch, jMatch] is np.ma.masked:
-                            continue
-                        spike_dt.mask[iMatch, :] = 1
-                        spike_dt.mask[:, jMatch] = 1
+                        if np.ma.masked in [jMatch, spike_dt[iMatch, jMatch]]:
+                            raise ValueError
+                        spike_dt.mask[iMatch, :] = (
+                            1  # mask the row to mark the matching KS spike as claimed
+                        )
                         true_positive_spikes[KS_spike_idxs[jMatch]] = 1
+                        # check column for remaining non-masked values (corresponding times are
+                        # false positive because GT spikes never violate refractory period)
+                        false_positive_spikes[
+                            KS_spike_idxs[np.where(spike_dt.mask[iMatch] == 0)]
+                        ] = 1
 
                 num_matches = np.sum(true_positive_spikes, axis=0)
                 num_kilosort_spikes = np.sum(kilosort_spikes, axis=0)
@@ -5032,8 +5036,19 @@ if __name__ == "__main__":
                             iRepeat
                         ]
                         correlation_alignment_element = correlation_alignment[iRepeat]
+                        if parallel == "duo":
+                            gtc2u = GT_clusters_to_use
+                            clust_iter = [
+                                i for j in zip(gtc2u, reversed(gtc2u)) for i in j
+                            ][: len(gtc2u)]
+                        else:
+                            clust_iter = range(len(GT_clusters_to_use))
                         with ProcessPoolExecutor(
-                            max_workers=min(mp.cpu_count() // 2, num_motor_units)
+                            max_workers=(
+                                2
+                                if parallel == "duo"
+                                else min(mp.cpu_count() // 2, num_motor_units)
+                            )
                         ) as executor:
                             futures = [
                                 executor.submit(
@@ -5062,7 +5077,7 @@ if __name__ == "__main__":
                                         True if iRepeat == 0 else False
                                     ),
                                 )
-                                for jCluster_GT in range(len(GT_clusters_to_use))
+                                for jCluster_GT in clust_iter
                             ]
                             results = dict()
                             for future in as_completed(futures):
@@ -5539,7 +5554,11 @@ if __name__ == "__main__":
 
             if parallel:
                 with ProcessPoolExecutor(
-                    max_workers=min(mp.cpu_count() // 2, num_motor_units)
+                    max_workers=(
+                        2
+                        if parallel == "duo"
+                        else min(mp.cpu_count() // 2, num_motor_units)
+                    )
                 ) as executor:
                     futures = [
                         executor.submit(
@@ -5607,9 +5626,10 @@ if __name__ == "__main__":
                 results_container = []
                 if parallel:
                     with ProcessPoolExecutor(
-                        max_workers=min(
-                            mp.cpu_count() // num_motor_units,
-                            len(clusters_in_sort_to_use),
+                        max_workers=(
+                            2
+                            if parallel == "duo"
+                            else min(mp.cpu_count() // 2, len(clusters_in_sort_to_use))
                         )
                     ) as executor:
                         futures = [
@@ -5646,7 +5666,11 @@ if __name__ == "__main__":
 
             if parallel:
                 with ProcessPoolExecutor(
-                    max_workers=min(mp.cpu_count() // num_motor_units, num_motor_units)
+                    max_workers=(
+                        2
+                        if parallel == "duo"
+                        else min(mp.cpu_count() // 2, num_motor_units)
+                    )
                 ) as executor:
                     futures = [
                         executor.submit(
