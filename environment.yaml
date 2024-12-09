@@ -15,5 +15,7 @@ dependencies:
   - scikit-learn
   - scipy
   - python-kaleido
-  pip:
+  - pip:
     - git+https://github.com/skjerns/mat7.3.git
+    - neuroconv[openephys]
+
