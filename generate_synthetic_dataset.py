@@ -177,10 +177,7 @@ def compute_overlap_fraction(MUsim_obj, radius):
 
 
 # set analysis parameters
-session_name = (
-    "monkey_20221202_6MU"  # "godzilla_20221117_10MU"  # "monkey_20221202_6MU"
-)
-cuda_device_number = "0"
+session_name = "godzilla_20221117_10MU"  # "monkey_20221202_6MU"  # "godzilla_20221117_10MU"  # "monkey_20221202_6MU"
 show_plotly_figures = False
 show_matplotlib_figures = False
 show_final_plotly_figure = True
@@ -196,15 +193,11 @@ use_KS_templates = True
 median_waveforms = False
 # (True if "monkey" in session_name else False
 # )  # set to True to use median waveforms from the Kilosort data to create waveform shapes, else use Kilosort templates
-num_duplicate_kinematics_to_add = 2  # number of duplicate kinematics files to add to the list, for generating longer simulations
-kinematics_shuffle_N = 2  # (
-# 1 if "monkey" in session_name else 0
-# )  # number of times to shuffle the kinematics files list, 0 for no shuffling (rat=0, monkey=1, konstantin=2)
 write_kinematics_to_mat = (
     False  # set to True to write the kinematics array to a .mat file
 )
 write_kinematics_to_npy = (
-    False  # set to True to write the kinematics array to a .npy file
+    True  # set to True to write the kinematics array to a .npy file
 )
 shift_MU_templates_along_channels = False
 kinematics_fs = 125
@@ -216,14 +209,34 @@ num_chans_in_output = 8  # desired real number of channels in the output data
 # number determines noise power added to channels (e.g. 50), or set None to disable
 SNR_mode = "from_data"  # 'power' to compute desired SNR with power,'from_data' simulates from the real data values, or 'constant' to add a constant amount of noise to all channels
 # target SNR value if "power", or factor to adjust SNR by if "from_data", or set None to disable
-adjust_SNR = 1  # None
+adjust_SNR = 4  # None
 # set 0 for no shape jitter, or a positive number for standard deviations of additive shape jitter
-shape_jitter_amount = 3.75
+shape_jitter_amount = 0.00
 shape_jitter_type = "multiplicative"  # "additive" or "multiplicative"
+
+num_duplicate_kinematics_to_add = 2  # number of duplicate kinematics files to add to the list, for generating longer simulations
+kinematics_shuffle_N = int(2 + (adjust_SNR * shape_jitter_amount))  # (
+# 1 if "monkey" in session_name else 0
+# )  # number of times to shuffle the kinematics files list, 0 for no shuffling (rat=0, monkey=1, konstantin=2)
+
+cuda_device_number = str(int(shape_jitter_amount // 2 + 1))  # "1"
+
+# random seeds used for the EMUsort benchmarking in the paper
+# random_seed_entropy = 17750944332329041344095472642137516706  # rat # 218530072159092100005306709809425040261  # 75092699954400878964964014863999053929  # None
+
+# random seeds used for the public LITMUS datasets
+if shape_jitter_amount == 0.00:
+    random_seed_entropy = 295921216980200951702345820409845315428  # 0.00 noise rat
+elif shape_jitter_amount == 2.00:
+    random_seed_entropy = 295921216980200951702345820409845315428  # 2.00 noise rat
+elif shape_jitter_amount == 4.00:
+    random_seed_entropy = 295921216980200951702345820409845315428  # 4.00 noise rat
+else:
+    raise ValueError("random_seed_entropy not set for this shape_jitter_amount")
+
 # set None for random behavior, or a previous entropy int value to reproduce
-random_seed_entropy = 17750944332329041344095472642137516706  # rat # 218530072159092100005306709809425040261  # 75092699954400878964964014863999053929  # None
-if random_seed_entropy is None:
-    random_seed_entropy = np.random.SeedSequence().entropy
+# if random_seed_entropy is None:
+#     random_seed_entropy = np.random.SeedSequence().entropy
 RNG = np.random.default_rng(random_seed_entropy)  # create a random number generator
 
 # add eventplot of spike times to the last subplot, vertically spacing times and coloring by unit
@@ -466,18 +479,18 @@ if "monkey" not in session_name:
     # save the force profile to a .mat file
     if write_kinematics_to_npy:
         np.save(
-            f"force_array_{datetime.now().strftime('%Y%m%d-%H%M%S')}_shuffled_{kinematics_shuffle_N}_times.npy",
+            f"force_array_{datetime.now().strftime('%Y%m%d-%H%M%S')}_shuffled_{kinematics_shuffle_N}_times_{shape_jitter_amount}_shape_noise_{adjust_SNR}_SNR.npy",
             interp_final_force_array,
         )
-        exit()
+        # exit()
     if write_kinematics_to_mat:
         from scipy.io import savemat
 
         savemat(
-            f"force_array_{datetime.now().strftime('%Y%m%d-%H%M%S')}_shuffled_{kinematics_shuffle_N}_times.mat",
+            f"force_array_{datetime.now().strftime('%Y%m%d-%H%M%S')}_shuffled_{kinematics_shuffle_N}_times_{shape_jitter_amount}_shape_noise_{adjust_SNR}_SNR.mat",
             {"force_array": interp_final_force_array},
         )
-        exit()
+        # exit()
 
 # if monkey, replace with a ramp up to max force, constant hold, and ramp down, then another hold,
 # then 1 Hz sine wave then repeat until 10 minutes
@@ -728,6 +741,9 @@ if "monkey" in session_name:
     ]
     clusters_to_take_from = [[6, 13, 24, 1, 23, 14]]
 else:
+    clusters_to_take_from_for_templates = [
+        [26, 13, 10, 3, 22, 32, 1, 15, 40, 27],  # godzilla, 20231027_163931
+    ]
     clusters_to_take_from = [
         [26, 13, 10, 3, 22, 32, 1, 15, 40, 27],  # godzilla, 20231027_163931
         # [9, 7, 8, 13],  # [12, 8, 14, 1, 13],  # inkblot, 20231218_181442825759
@@ -735,84 +751,122 @@ else:
     ]  # [[25, 3, 1, 5, 17, 18, 0, 22, 20, 30]]  # [[18, 2, 11, 0, 4, 10, 1, 9]]
 
 num_motor_units = sum([len(i) for i in clusters_to_take_from])
+last_unit_count = 0
 
-# create N MUsim objects, and run them in parallel on N processes,
-# one for each segment of the anipoise data
-# initialize 1 MUsim object, then create identical copies of it for each process
-mu = MUsim(random_seed_entropy)
-mu.num_units = num_motor_units  # set same number of motor units as in the Kilosort data
-mu.MUthresholds_dist = "exponential"  # set the distribution of motor unit thresholds
-mu.MUspike_dynamics = "spike_history"
-mu.kernel_interpolation_factor = 1  # 2 if "monkey" in session_name else 1
-mu.sample_rate = ephys_fs  # 30000 Hz
-# fixed minimum force threshold for the generated units' response curves. Tune this for lower
-# bound of force thresholds sampled in the distribution of MUs during MU_sample()
-mu.threshmin = np.percentile(interp_final_force_array, 35)  # 40 for rat, 35 for monkey
-# fixed maximum force threshold for the generated units' response curves. Tune this for upper
-# bound of force thresholds sampled in the distribution of MUs during MU_sample()
-mu.threshmax = 2.5 * np.max(  # 2.0 for rat, 2.5 for monkey
-    interp_final_force_array
-)  # np.percentile(interp_final_force_array, 99)
-mu.sample_MUs()
 
-# using multiprocess can introduce refractory period violations,
-# so now using multithreading in MUsim instead
-if False:  # multiprocess:
-    import multiprocessing
-
-    chunk_size = (
-        6 * 7500
-    )  # number of samples to process in each multiprocessing process
-    N_processes = int(np.ceil(np.hstack(chosen_bodypart_arrays).shape[0] / chunk_size))
-    if N_processes > 1:
-        print(f"Using {N_processes} processes to simulate spikes in parallel")
-    else:
-        print(f"Using {N_processes} process to simulate spikes")
-
-    # identical copies of the MUsim object, each multiprocessing process will have its own copy
-    mu_list = [mu.deepcopy() for i in range(N_processes)]
-
-    interp_final_force_array_segments = np.array_split(
-        interp_final_force_array, N_processes
+def sample_MUsim_obj(seed):
+    # create N MUsim objects, and run them in parallel on N processes,
+    # one for each segment of the anipoise data
+    # initialize 1 MUsim object, then create identical copies of it for each process
+    mu = MUsim(seed)
+    mu.num_units = (
+        num_motor_units  # set same number of motor units as in the Kilosort data
     )
-    with multiprocessing.Pool(processes=N_processes) as pool:
-        # cut interp_final_force_array into N processes segments
-        # use starmap to pass multiple arguments to the batch_run_MUsim function
-        results = pool.starmap(
-            batch_run_MUsim,
-            zip(
-                mu_list,
-                interp_final_force_array_segments,
-                range(N_processes),
-            ),
-        )
-
-    # now combine the results from each process into a single MUsim object
-    mu = MUsim(random_seed_entropy)
-    mu.num_units = num_motor_units
+    mu.MUthresholds_dist = (
+        "exponential"  # set the distribution of motor unit thresholds
+    )
     mu.MUspike_dynamics = "spike_history"
-    mu.force_profile = np.hstack([i.force_profile.flatten() for i in results])
-    # make sure all units have the same thresholds (units[0])
-    assert all([np.all(i.units[0] == results[0].units[0]) for i in results])
-    mu.units[0] = results[0].units[0]  # then use the first units[0] as the new units[0]
-    try:
-        mu.units[1] = np.hstack(
-            [i.units[1] for i in results]
-        )  # stack the unit response curves
-    except ValueError:
-        # concatenate the unit response curves if they are different lengths using minimum length
-        min_length = min([len(i.units[1]) for i in results])
-        mu.units[1] = np.hstack([i.units[1][:min_length] for i in results])
+    mu.kernel_interpolation_factor = 1  # 2 if "monkey" in session_name else 1
+    mu.sample_rate = ephys_fs  # 30000 Hz
+    # fixed minimum force threshold for the generated units' response curves. Tune this for lower
+    # bound of force thresholds sampled in the distribution of MUs during MU_sample()
+    mu.threshmin = np.percentile(
+        interp_final_force_array, 35
+    )  # 40 for rat, 35 for monkey
+    # fixed maximum force threshold for the generated units' response curves. Tune this for upper
+    # bound of force thresholds sampled in the distribution of MUs during MU_sample()
+    mu.threshmax = 2.5 * np.max(  # 2.0 for rat, 2.5 for monkey
+        interp_final_force_array
+    )  # np.percentile(interp_final_force_array, 99)
+    mu.sample_MUs()
+    return mu
 
-    # make sure all units have the same poisson lambdas (units[2])
-    assert all([np.all(i.units[2] == results[0].units[2]) for i in results])
-    mu.units[2] = np.hstack([i.units[2] for i in results])  # stack the poisson lambdas
-    mu.spikes = np.hstack([i.spikes for i in results])  # stack the spike responses
-else:
+
+iTrial = 0
+mu = sample_MUsim_obj(random_seed_entropy)
+while not (
+    last_unit_count <= 1000 * time_frame[1] and last_unit_count >= 500 * time_frame[1]
+):
+    iTrial += 1
+    # mu = sample_MUsim_obj(random_seed_entropy)
+
+    ## using multiprocess can introduce refractory period violations,
+    ## so now using multithreading in MUsim instead
+    # if False:  # multiprocess:
+    #     import multiprocessing
+
+    #     chunk_size = (
+    #         6 * 7500
+    #     )  # number of samples to process in each multiprocessing process
+    #     N_processes = int(
+    #         np.ceil(np.hstack(chosen_bodypart_arrays).shape[0] / chunk_size)
+    #     )
+    #     if N_processes > 1:
+    #         print(f"Using {N_processes} processes to simulate spikes in parallel")
+    #     else:
+    #         print(f"Using {N_processes} process to simulate spikes")
+
+    #     # identical copies of the MUsim object, each multiprocessing process will have its own copy
+    #     mu_list = [mu.deepcopy() for i in range(N_processes)]
+
+    #     interp_final_force_array_segments = np.array_split(
+    #         interp_final_force_array, N_processes
+    #     )
+    #     with multiprocessing.Pool(processes=N_processes) as pool:
+    #         # cut interp_final_force_array into N processes segments
+    #         # use starmap to pass multiple arguments to the batch_run_MUsim function
+    #         results = pool.starmap(
+    #             batch_run_MUsim,
+    #             zip(
+    #                 mu_list,
+    #                 interp_final_force_array_segments,
+    #                 range(N_processes),
+    #             ),
+    #         )
+
+    #     # now combine the results from each process into a single MUsim object
+    #     mu = MUsim(random_seed_entropy)
+    #     mu.num_units = num_motor_units
+    #     mu.MUspike_dynamics = "spike_history"
+    #     mu.force_profile = np.hstack([i.force_profile.flatten() for i in results])
+    #     # make sure all units have the same thresholds (units[0])
+    #     assert all([np.all(i.units[0] == results[0].units[0]) for i in results])
+    #     mu.units[0] = results[0].units[
+    #         0
+    #     ]  # then use the first units[0] as the new units[0]
+    #     try:
+    #         mu.units[1] = np.hstack(
+    #             [i.units[1] for i in results]
+    #         )  # stack the unit response curves
+    #     except ValueError:
+    #         # concatenate the unit response curves if they are different lengths using minimum length
+    #         min_length = min([len(i.units[1]) for i in results])
+    #         mu.units[1] = np.hstack([i.units[1][:min_length] for i in results])
+
+    #     # make sure all units have the same poisson lambdas (units[2])
+    #     assert all([np.all(i.units[2] == results[0].units[2]) for i in results])
+    #     mu.units[2] = np.hstack(
+    #         [i.units[2] for i in results]
+    #     )  # stack the poisson lambdas
+    #     mu.spikes = np.hstack([i.spikes for i in results])  # stack the spike responses
+    # else:
+    #     for ii in range(int(shape_jitter_amount + 1)):
+    #         mu = batch_run_MUsim(
+    #             mu,
+    #             interp_final_force_array[: interp_final_force_array.shape[0] // 20],
+    #             0,
+    #         )
+    #         mu = batch_run_MUsim(mu, interp_final_force_array, 0)
+    # print number of spikes in each unit
     mu = batch_run_MUsim(mu, interp_final_force_array, 0)
+    print(f"Number of spikes in each unit:\n {mu.spikes[-1].sum(axis=0)}")
 
-# print number of spikes in each unit
-print(f"Number of spikes in each unit:\n {mu.spikes[-1].sum(axis=0)}")
+    last_unit_count = mu.spikes[-1].sum(axis=0)[-1]
+    # random_seed_entropy += 1
+else:
+    # working_random_seed = random_seed_entropy - 1
+    # print(f"Random seed used: {working_random_seed}")
+    print("Final number of spikes in each unit:\n", mu.spikes[-1].sum(axis=0))
 
 if show_matplotlib_figures:
     mu.see("force")  # plot the force profile
@@ -843,10 +897,11 @@ else:
 if save_simulated_spikes:
     mu.save_spikes(
         # f"synthetic_spikes_from_{session_name}_using_{chosen_bodypart_to_load}.npy"
-        f"spikes_files/spikes_{datetime.now().strftime('%Y%m%d-%H%M%S')}_{session_name}_SNR-{adjust_SNR}-{SNR_mode}_jitter-{shape_jitter_amount}std_method-{method}_{len(kinematic_csv_file_paths)}-files.npy"
+        f"spikes_files/spikes_{datetime.now().strftime('%Y%m%d-%H%M%S')}_{session_name}_SNR-{adjust_SNR}-{SNR_mode}_jitter-{shape_jitter_amount}std_method-{method}_{len(kinematic_csv_file_paths)}-files",
+        save_as="indexes",
     )
-    # also save a copy with name "most_recent_synthetic_spikes.npy"
-    mu.save_spikes("spikes_files/most_recent_synthetic_spikes.npy")
+    # also save a copy with name "most_recent_synthetic_spikes"
+    # mu.save_spikes("spikes_files/most_recent_synthetic_spikes")
 
 ## next section will place real multichannel electrophysiological spike waveform shapes at each
 #  simulated spike time, onto multiple data channels. The final result will be an int16 binary file
@@ -1271,7 +1326,9 @@ if show_waveform_graph:
                     fig.add_trace(
                         go.Scatter(
                             x=np.arange(nt0) / ephys_fs * 1000,
-                            y=spike_snippets_to_place[iUnit, iSpike, :, iChan],
+                            y=spike_snippets_to_place[
+                                order_by_amplitude[iUnit], iSpike, :, iChan
+                            ],
                             name=f"Unit {iUnit}",
                             marker_color=MU_colors[iUnit],
                             line=dict(width=0.5),

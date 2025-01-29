@@ -739,108 +739,113 @@ def plot1(
     save_png_plot1b,
     save_svg_plot1b,
     save_html_plot1b,
+    spike_isolation_radius_ms,
     figsize=(1920, 1080),
 ):
     # search all the paths to sorted folders for the KS or EMUsort string, in the order of matches with sorts_from_each_path_to_load
-    sort_types = [None] * len(sorts_from_each_path_to_load)
-    for iS in range(len(sorts_from_each_path_to_load)):
-        for iP in range(len(list_of_paths_to_sorted_folders[0])):
-            if (
-                sorts_from_each_path_to_load[iS]
-                in list_of_paths_to_sorted_folders[0][iP].name
-            ):
-                sort_types[iS] = (
-                    "Kilosort"
-                    if list_of_paths_to_sorted_folders[0][iP].name.split("_")[-1]
-                    == "KS"
-                    else "EMUsort"
-                )
-                break
+    # sort_types = [None] * len(sorts_from_each_path_to_load)
+    # for iS in range(len(sorts_from_each_path_to_load)):
+    # for iP in range(len(list_of_paths_to_sorted_folders[0])):
+    #     if (
+    #         sorts_from_each_path_to_load[iS]
+    #         in list_of_paths_to_sorted_folders[0][iP].name
+    #     ):
+    sort_type = (
+        "Kilosort"
+        if "KS" in list_of_paths_to_sorted_folders[0][0].name.split("_")[-1]
+        else "EMUsort"
+    )
+    # break
     # make sure all sort_types were found
-    assert None not in sort_types, "Not all sort_types were found"
+    # assert None not in sort_types, "Not all sort_types were found"
 
-    for iSort in range(len(sorts_from_each_path_to_load)):
-        # get suffix after the KS folder name, which is the repo branch name for that sort
-        # PPP_branch_name = list_of_paths_to_sorted_folders[0][iSort].name.split("_")[-1]
-        # sort_type = "Kilosort" if "KS" in PPP_branch_name else "EMUsort"
+    # for iSort in range(len(sorts_from_each_path_to_load)):
+    # get suffix after the KS folder name, which is the repo branch name for that sort
+    # PPP_branch_name = list_of_paths_to_sorted_folders[0][iSort].name.split("_")[-1]
+    # sort_type = "Kilosort" if "KS" in PPP_branch_name else "EMUsort"
+    iSort = 0
+    if show_plot1a or save_png_plot1a or save_svg_plot1a or save_html_plot1a:
+        fig1a = go.Figure()
+        fig1a.add_trace(
+            go.Scatter(
+                x=np.arange(0, num_motor_units),
+                y=precision[iSort],
+                mode="lines+markers",
+                name="Precision",
+                line=dict(width=15, color="green"),
+                marker=dict(size=35),
+                # yaxis="y2",
+            )
+        )
+        fig1a.add_trace(
+            go.Scatter(
+                x=np.arange(0, num_motor_units),
+                y=recall[iSort],
+                mode="lines+markers",
+                name="Recall",
+                line=dict(width=15, color="crimson"),
+                marker=dict(size=35),
+                # yaxis="y2",
+            )
+        )
+        fig1a.add_trace(
+            go.Scatter(
+                x=np.arange(0, num_motor_units),
+                y=accuracy[iSort],
+                mode="lines+markers",
+                name="Accuracy",
+                line=dict(width=15, color="orange"),
+                marker=dict(size=35),
+                # yaxis="y2",
+            )
+        )
 
-        if show_plot1a or save_png_plot1a or save_svg_plot1a or save_html_plot1a:
-            fig1a = go.Figure()
-            fig1a.add_trace(
-                go.Scatter(
-                    x=np.arange(0, num_motor_units),
-                    y=precision[iSort],
-                    mode="lines+markers",
-                    name="Precision",
-                    line=dict(width=4, color="green"),
-                    # yaxis="y2",
-                )
-            )
-            fig1a.add_trace(
-                go.Scatter(
-                    x=np.arange(0, num_motor_units),
-                    y=recall[iSort],
-                    mode="lines+markers",
-                    name="Recall",
-                    line=dict(width=4, color="crimson"),
-                    # yaxis="y2",
-                )
-            )
-            fig1a.add_trace(
-                go.Scatter(
-                    x=np.arange(0, num_motor_units),
-                    y=accuracy[iSort],
-                    mode="lines+markers",
-                    name="Accuracy",
-                    line=dict(width=4, color="orange"),
-                    # yaxis="y2",
-                )
-            )
-
-            # make the title shifted higher up,
-            # make text much larger
-            fig1a.update_layout(
-                title={
-                    "text": f"<b>Comparison of {sort_types[iSort]} Performance to Ground Truth, {bin_width_for_comparison[0]} ms Bins</b><br><sup>Sort: {sorts_from_each_path_to_load[iSort]}</sup>",
-                    # "y": 0.95,
-                },
-                xaxis_title="<b>GT Cluster ID,<br>True Count</b>",
-                # legend_title="Ground Truth Metrics",
-                legend=dict(
-                    orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0
-                ),
-                template=plot_template,
-                yaxis=dict(
-                    title="<b>Metric Score</b>",
-                    title_standoff=1,
-                    range=[0, 1.1],
-                    # overlaying="y2",
-                ),
-                # yaxis2=dict(
-                #     title=bar_yaxis_title,
-                #     title_standoff=1,
-                #     # anchor="free",
-                #     # autoshift=True,
-                #     # shift=-30,
-                #     # side="right",
-                # ),
-            )
-            # update the x tick label of the bar graph to match the cluster ID
-            fig1a.update_xaxes(
-                ticktext=[
-                    f"Unit {GT_clusters_to_use[iUnit]},<br>{str(round(num_ground_truth_spikes[iSort][iUnit]/1000,1))}k"
-                    for iUnit in range(num_motor_units)
-                ],
-                tickvals=np.arange(0, num_motor_units),
-                # tickfont=dict(size=14, family="Arial"),
-            )
-
+        # make the title shifted higher up,
+        # make text much larger
+        fig1a.update_layout(
+            title={
+                "text": f"<b>Comparison of {sort_type} Performance to Ground Truth, {bin_width_for_comparison} ms Bins</b><br><sup>Sort: {sorts_from_each_path_to_load}</sup>",
+                # "y": 0.95,
+                # "font
+            },
+            xaxis_title="<b>GT Cluster ID,<br>True Count</b>",
+            # legend_title="Ground Truth Metrics",
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
+            template=plot_template,
+            yaxis=dict(
+                title="<b>Metric Score</b>",
+                title_standoff=1,
+                range=[0.55, 1.1],
+                # overlaying="y2",
+            ),
+            # tickfont=dict(size=32, family="Open Sans"),
+            # yaxis2=dict(
+            #     title=bar_yaxis_title,
+            #     title_standoff=1,
+            #     # anchor="free",
+            #     # autoshift=True,
+            #     # shift=-30,
+            #     # side="right",
+            # ),
+        )
+        # update the x tick label of the bar graph to match the cluster ID
+        fig1a.update_xaxes(
+            ticktext=[
+                f"<b>Unit {GT_clusters_to_use[iUnit]},<br>{str(round(num_ground_truth_spikes[iSort][iUnit]/1000,1))}k</b>"
+                for iUnit in range(num_motor_units)
+            ],
+            tickvals=np.arange(0, num_motor_units),
+            tickfont=dict(size=32, family="Open Sans", color="black", weight="bold"),
+        )
+        fig1a.update_yaxes(
+            tickfont=dict(size=32, family="Open Sans", color="black", weight="bold")
+        )
         if show_plot1b or save_png_plot1b or save_svg_plot1b or save_html_plot1b:
             # make text larger
             fig1b = go.Figure(
                 layout=go.Layout(
                     yaxis=dict(
-                        # title_font=dict(size=14, family="Arial"),
+                        # title_font=dict(size=14, family="Open Sans"),
                         title_standoff=10,
                     ),
                     # title_font=dict(size=18),
@@ -861,7 +866,7 @@ def plot1(
                     go.Bar(
                         x=np.arange(0, num_motor_units),
                         y=num_kilosort_spikes[iSort],
-                        name=sort_types,
+                        name=sort_type,
                         marker_color="rgb(26, 118, 255)",
                         opacity=0.5,
                     )
@@ -876,7 +881,7 @@ def plot1(
                         / num_ground_truth_spikes[iSort],
                         name="% True Spike Count",
                         # showlegend=False,
-                        marker_color="cornflowerblue",
+                        marker_color="black",
                         opacity=1,
                     )
                 )
@@ -887,16 +892,16 @@ def plot1(
             bar_yaxis_title = "<b>% True Spike Count</b>"
             fig1b.add_hline(
                 y=100,
-                line_width=3,
+                line_width=20,
                 line_dash="dash",
-                line_color="black",
+                line_color="firebrick",
                 # yref="y2",
                 name="100% Spike Count",
             )
             # make all the text way larger
             fig1b.update_layout(
                 title={
-                    "text": f"<b>True Spike Count Captured for Each Cluster Using {sort_types}, {bin_width_for_comparison} ms Bins</b><br><sup>Sort: {sorts_from_each_path_to_load[iSort]}</sup>",
+                    "text": f"<b>True Spike Count Captured for Each Cluster Using {sort_type}, {bin_width_for_comparison} ms Bins</b><br><sup>Sort: {sorts_from_each_path_to_load}</sup>",
                     # "y": 0.95,
                 },
                 xaxis_title="<b>GT Cluster ID,<br>True Count</b>",
@@ -916,6 +921,7 @@ def plot1(
                     # autoshift=True,
                     # shift=-30,
                     # side="right",
+                    showgrid=False,
                 ),
                 # make the title text larger
                 # title_font=dict(size=18),
@@ -924,37 +930,44 @@ def plot1(
             # update the x tick label of the bar graph to match the cluster ID
             fig1b.update_xaxes(
                 ticktext=[
-                    f"Unit {GT_clusters_to_use[iUnit]},<br>{str(round(num_ground_truth_spikes[iUnit]/1000,1))}k"
+                    f"<b>Unit {GT_clusters_to_use[iUnit]},<br>{str(np.round(num_ground_truth_spikes[iSort][iUnit]/1000,1))}k<b>"
                     for iUnit in range(num_motor_units)
                 ],
                 tickvals=np.arange(0, num_motor_units),
-                # tickfont=dict(size=14, family="Arial"),
+                tickfont=dict(size=32, family="Open Sans"),
             )
             fig1b.update_layout(yaxis_range=plot1_ylim)
-            # make y axis title smaller
-            # fig1b.update_yaxes(title_font=dict(size=14, family="Arial"))
+            # make y axis bold
+            fig1b.update_yaxes(
+                title_font=dict(
+                    size=32, family="Open Sans", color="black", weight="bold"
+                ),
+                tickfont=dict(
+                    size=32, family="Open Sans", color="black", weight="bold"
+                ),
+            )
 
             # move the y axis title closer to the y axis
-            fig1b.update_yaxes(title_standoff=10)
+            # fig1b.update_yaxes(title_standoff=10, ran
 
             # make subplot titles bigger
             # fig.update_annotations(font=dict(size=18))
 
         if save_png_plot1a:
             fig1a.write_image(
-                f"plot1/plot1a_KS_vs_GT_performance_metrics_{bin_width_for_comparison}ms_{sorts_from_each_path_to_load[iSort]}_{sort_types}.png",
+                f"plot1/plot1a_spkRad_{str(spike_isolation_radius_ms)}_{bin_width_for_comparison}ms_{sorts_from_each_path_to_load}_{sort_type}.png",
                 width=figsize[0],
                 height=figsize[1],
             )
         if save_svg_plot1a:
             fig1a.write_image(
-                f"plot1/plot1a_KS_vs_GT_performance_metrics_{bin_width_for_comparison}ms_{sorts_from_each_path_to_load[iSort]}_{sort_types}.svg",
+                f"plot1/plot1a_spkRad_{str(spike_isolation_radius_ms)}_{bin_width_for_comparison}ms_{sorts_from_each_path_to_load}_{sort_type}.svg",
                 width=figsize[0],
                 height=figsize[1],
             )
         if save_html_plot1a:
             fig1a.write_html(
-                f"plot1/plot1a_KS_vs_GT_performance_metrics_{bin_width_for_comparison}ms_{sorts_from_each_path_to_load[iSort]}_{sort_types}.html",
+                f"plot1/plot1a_spkRad_{str(spike_isolation_radius_ms)}_{bin_width_for_comparison}ms_{sorts_from_each_path_to_load}_{sort_type}.html",
                 include_plotlyjs="cdn",
                 full_html=False,
             )
@@ -963,19 +976,19 @@ def plot1(
 
         if save_png_plot1b:
             fig1b.write_image(
-                f"plot1/plot1b_KS_vs_GT_performance_metrics_{bin_width_for_comparison}ms_{sorts_from_each_path_to_load[iSort]}_{sort_types}.png",
+                f"plot1/plot1b_spkRad_{str(spike_isolation_radius_ms)}_{bin_width_for_comparison}ms_{sorts_from_each_path_to_load}_{sort_type}.png",
                 width=figsize[0],
                 height=figsize[1],
             )
         if save_svg_plot1b:
             fig1b.write_image(
-                f"plot1/plot1b_KS_vs_GT_performance_metrics_{bin_width_for_comparison}ms_{sorts_from_each_path_to_load[iSort]}_{sort_types}.svg",
+                f"plot1/plot1b_spkRad_{str(spike_isolation_radius_ms)}_{bin_width_for_comparison}ms_{sorts_from_each_path_to_load}_{sort_type}.svg",
                 width=figsize[0],
                 height=figsize[1],
             )
         if save_html_plot1b:
             fig1b.write_html(
-                f"plot1/plot1b_KS_vs_GT_performance_metrics_{bin_width_for_comparison}ms_{sorts_from_each_path_to_load[iSort]}_{sort_types}.html",
+                f"plot1/plot1b_spkRad_{str(spike_isolation_radius_ms)}_{bin_width_for_comparison}ms_{sorts_from_each_path_to_load}_{sort_type}.html",
                 include_plotlyjs="cdn",
                 full_html=False,
             )
@@ -1955,7 +1968,7 @@ def plot5(
 
     # make font size of tick labels smaller and bold
     fig.update_yaxes(
-        # tickfont=dict(size=14, family="Arial", color="white"),
+        # tickfont=dict(size=14, family="Open Sans", color="white"),
         title="Voltage (uV)",
         col=1,
         row=1,
@@ -1963,7 +1976,7 @@ def plot5(
 
     # make y axis title smaller
     # fig.update_yaxes(
-    #     title_font=dict(size=14, family="Arial", color="white"), col=1, row=1
+    #     title_font=dict(size=14, family="Open Sans", color="white"), col=1, row=1
     # )
 
     # move the y axis title closer to the y axis
@@ -1980,7 +1993,7 @@ def plot5(
         # height=500,
         # width=800,
         title_text="<b>Comparison of Ground Truth to Sorter Results</b>",
-        # font=dict(size=20, family="Arial", color="white"),
+        # font=dict(size=20, family="Open Sans", color="white"),
     )
     fig.show()
 
@@ -1999,40 +2012,46 @@ if __name__ == "__main__":
         0.125
     )  # choose bin widths as a range from 0.125 ms to 8 ms in log2 increments
     bin_widths_for_comparison = np.logspace(xstart, -xstart, num=13, base=2)
-    bin_widths_for_comparison = [0.1]
-    spike_isolation_radius_ms = None  # radius of isolation of a spike for it to be removed from consideration. set to positive float, integer, or set None to disable
+    bin_widths_for_comparison = [
+        0.1
+    ]  # only affects plotting, such as in plot2. should be [0.1] if using "accuracies"
+    spike_isolation_radius_ms = 1  # radius of isolation of a spike for it to be removed from consideration. set to positive float, integer, or set None to disable
     iShow = 0  # index of which bin width of bin_widths_for_comparison to show in plots
 
     nt0 = 121  # number of time bins in the template, in ms it is 3.367, only used if method_for_automatic_cluster_mapping is "waves"
     random_seed_entropy = 218530072159092100005306709809425040261  # 75092699954400878964964014863999053929  # int
     plot_template = "plotly_white"  # ['ggplot2', 'seaborn', 'simple_white', 'plotly', 'plotly_white', 'plotly_dark', 'presentation', 'xgridoff', 'ygridoff', 'gridon', 'none']
     plot1_bar_type = "percent"  # totals / percent
-    plot1_ylim = [0, 135]
+    plot1_ylim = [0, 120]
     plot2_xlim = [0, 0.006]
     show_plot1a = False
     show_plot1b = False
-    show_plot2 = True
+    show_plot2 = False
     show_plot3 = False
-    show_plot4 = True
+    show_plot4 = False
     show_plot5 = False
+    show_plot6 = False
     save_png_plot1a = False
     save_png_plot1b = False
     save_png_plot2 = False
     save_png_plot3 = False
     save_png_plot4 = False  #
     save_png_plot5 = False
-    save_svg_plot1a = False
-    save_svg_plot1b = False
+    save_png_plot6 = False
+    save_svg_plot1a = True
+    save_svg_plot1b = True
     save_svg_plot2 = False
     save_svg_plot3 = False
     save_svg_plot4 = False  #
     save_svg_plot5 = False
+    save_svg_plot6 = False
     save_html_plot1a = False
     save_html_plot1b = False
     save_html_plot2 = False
     save_html_plot3 = False
     save_html_plot4 = False
     save_html_plot5 = False
+    save_html_plot6 = False
     save_plot4_df_as_pickle = False  #
     save_plot4_df_as_csv = False  #
 
@@ -2088,6 +2107,7 @@ if __name__ == "__main__":
         ), "simulation_method must be 'konstantin' if ground_truth_path is not an .npy file"
     # set which ground truth clusters to compare with (a range from 0 to num_motor_units)
     num_motor_units = 6 if "monkey" in ground_truth_path.name else 10
+    # num_motor_units = 2
     GT_clusters_to_use = list(range(0, num_motor_units))
 
     ## load Kilosort data
@@ -3411,7 +3431,7 @@ if __name__ == "__main__":
         # "20240612_162948685329",  # Th_5,2_spkTh_3,6_EMUsort
         # "20240612_162955522948",  # Th_2,1_spkTh_6,9_EMUsort
         # "20240612_163005128853",  # Th_2,1_spkTh_6,_EMUsort
-        "20240612_163003203155",  # Th_2,1_spkTh_3,6_EMUsort $$$
+        # "20240612_163003203155",  # Th_2,1_spkTh_3,6_EMUsort $$$
         # "20240612_162957571579",  # Th_2,1_spkTh_9,_EMUsort
         # "20240612_163002704257",  # Th_2,1_spkTh_3,_EMUsort
         # ## EMUsort replication of "full" EMUsort with 8 channel rat, 2.25 noise
@@ -4272,6 +4292,198 @@ if __name__ == "__main__":
         # "20240815_200432894285"  # Th_2,1_spkTh_7.5_KS4
         # "20240815_200434728996"  # Th_5,2_spkTh_6_KS4
         # "20240815_200435507544"  # Th_2,1_spkTh_9_KS4
+        # ## 20240817 HDBSCAN EMUsort 8CH, 2.25 shape noise
+        # "20240817_124807112755",  # Th_10,4_spkTh_6
+        # "20240817_124811284141",  # Th_9,8_spkTh_6,9
+        # "20240817_124812860080",  # Th_7,3_spkTh_6
+        # "20240817_124812875118",  # Th_9,8_spkTh_6,9,12
+        # "20240817_124812975087",  # Th_10,4_spkTh_3,6,9
+        # "20240817_124814615817",  # Th_10,4_spkTh_6,9,12,15
+        # "20240817_124817643960",  # Th_9,8_spkTh_6,9,12,15
+        # "20240817_124817997286",  # Th_5,2_spkTh_6,9
+        # "20240817_124818995708",  # Th_5,2_spkTh_3,6,9
+        # "20240817_124820115170",  # Th_7,3_spkTh_3,6,9
+        # "20240817_124823369659",  # Th_5,2_spkTh_6
+        # "20240817_124823609910",  # Th_9,8_spkTh_3,6,9
+        # "20240817_124823614680",  # Th_7,3_spkTh_6,9,12,15
+        # "20240817_124824210142",  # Th_10,4_spkTh_6,9
+        # "20240817_124824602886",  # Th_2,1_spkTh_6
+        # "20240817_124824607865",  # Th_5,2_spkTh_6,9,12
+        # "20240817_124824916176",  # Th_10,4_spkTh_6,9,12
+        # "20240817_124826849920",  # Th_9,8_spkTh_6
+        # "20240817_124827981019",  # Th_7,3_spkTh_6,9
+        # "20240817_124828663477",  # Th_7,3_spkTh_6,9,12
+        # "20240817_124828727660",  # Th_5,2_spkTh_6,9,12,15
+        # "20240817_124829700945",  # Th_2,1_spkTh_6,9,12
+        # "20240817_124831457789",  # Th_2,1_spkTh_6,9,12,15
+        # "20240817_124832380288",  # Th_2,1_spkTh_6,9
+        # "20240817_124836809760",  # Th_2,1_spkTh_3,6,9
+        # ## 20240821 HDBSCAN, k=20, EMUsort 8CH, 2.25 shape noise
+        # "20240821_155408085787",  # Th_10,4_spkTh_6,9,12,15
+        # "20240821_155408527572",  # Th_10,4_spkTh_3,6,9
+        # "20240821_155413627217",  # Th_10,4_spkTh_6
+        # "20240821_155424427687",  # Th_10,4_spkTh_6,9
+        # "20240821_155424931879",  # Th_10,4_spkTh_6,9,12
+        # "20240821_155426747782",  # Th_9,8_spkTh_6
+        # "20240821_155431310132",  # Th_7,3_spkTh_6,9
+        # "20240821_155432433535",  # Th_5,2_spkTh_6
+        # "20240821_155432833820",  # Th_7,3_spkTh_3,6,9
+        # "20240821_155435209285",  # Th_5,2_spkTh_3,6,9
+        # "20240821_155435884742",  # Th_7,3_spkTh_6,9,12
+        # "20240821_155438063104",  # Th_7,3_spkTh_6,9,12,15
+        # "20240821_155439656097",  # Th_9,8_spkTh_6,9,12
+        # "20240821_155439658199",  # Th_9,8_spkTh_6,9
+        # "20240821_155440574892",  # Th_9,8_spkTh_3,6,9
+        # "20240821_155442531424",  # Th_5,2_spkTh_6,9
+        # "20240821_155445812878",  # Th_7,3_spkTh_6
+        # "20240821_155446138287",  # Th_9,8_spkTh_6,9,12,15
+        # "20240821_155451013984",  # Th_5,2_spkTh_6,9,12,15
+        # "20240821_155452120152",  # Th_5,2_spkTh_6,9,12
+        # "20240821_155454263171",  # Th_2,1_spkTh_6,9
+        # "20240821_155457417017",  # Th_2,1_spkTh_6,9,12,15
+        # "20240821_155457831888",  # Th_2,1_spkTh_6
+        # "20240821_155501453789",  # Th_2,1_spkTh_3,6,9
+        # "20240821_155501752044",  # Th_2,1_spkTh_6,9,12
+        # ## KS4 trivial, EMUsort 8CH, 2.25 shape noise
+        # "20240821_161116958591",  # Th_10,4_spkTh_9_KS4
+        # "20240821_161117765016",  # Th_9,8_spkTh_9_KS4
+        # "20240821_161117768019",  # Th_5,2_spkTh_9_KS4
+        # "20240821_161117995569",  # Th_7,3_spkTh_9_KS4
+        # "20240821_161124130734",  # Th_10,4_spkTh_7_KS4
+        # "20240821_161127014470",  # Th_9,8_spkTh_7_KS4
+        # "20240821_161128122947",  # Th_7,3_spkTh_7_KS4
+        # "20240821_161131905522",  # Th_5,2_spkTh_7_KS4
+        # "20240821_161133867267",  # Th_10,4_spkTh_6_KS4
+        # "20240821_161138930946",  # Th_2,1_spkTh_9_KS4
+        # "20240821_161148322733",  # Th_7,3_spkTh_6_KS4
+        # "20240821_161149974459",  # Th_9,8_spkTh_6_KS4
+        # "20240821_161151005263",  # Th_9,8_spkTh_4_KS4
+        # "20240821_161151074644",  # Th_7,3_spkTh_4_KS4
+        # "20240821_161152524702",  # Th_10,4_spkTh_4_KS4
+        # "20240821_161156552059",  # Th_2,1_spkTh_4_KS4
+        # "20240821_161157917908",  # Th_5,2_spkTh_6_KS4
+        # "20240821_161158227604",  # Th_10,4_spkTh_3_KS4
+        # "20240821_161159895330",  # Th_5,2_spkTh_4_KS4
+        # "20240821_161200461123",  # Th_2,1_spkTh_7_KS4
+        # "20240821_161203643105",  # Th_7,3_spkTh_3_KS4
+        # "20240821_161208868900",  # Th_9,8_spkTh_3_KS4
+        # "20240821_161211919669",  # Th_2,1_spkTh_6_KS4
+        # "20240821_161214454395",  # Th_2,1_spkTh_3_KS4
+        # "20240821_161217347178",  # Th_5,2_spkTh_3_KS4
+        # ## KS4 trivial, n_templates=n_pcs=9, n_EMUsort 8CH, 2.25 shape noise
+        # "20240821_173558909481",  # Th_5,2_spkTh_6_KS4
+        # "20240821_173600045290",  # Th_7,3_spkTh_7_KS4
+        # "20240821_173600081755",  # Th_5,2_spkTh_7_KS4
+        # "20240821_173601085259",  # Th_7,3_spkTh_6_KS4
+        # "20240821_173604677796",  # Th_10,4_spkTh_9_KS4
+        # "20240821_173606576948",  # Th_10,4_spkTh_7_KS4
+        # "20240821_173609577479",  # Th_7,3_spkTh_3_KS4
+        # "20240821_173609673852",  # Th_5,2_spkTh_9_KS4
+        # "20240821_173613145530",  # Th_7,3_spkTh_9_KS4
+        # "20240821_173613792048",  # Th_9,8_spkTh_7_KS4
+        # "20240821_173614993103",  # Th_10,4_spkTh_6_KS4
+        # "20240821_173618185525",  # Th_9,8_spkTh_9_KS4
+        # "20240821_173618198640",  # Th_5,2_spkTh_4_KS4
+        # "20240821_173618290692",  # Th_9,8_spkTh_3_KS4
+        # "20240821_173622960513",  # Th_10,4_spkTh_3_KS4
+        # "20240821_173624417937",  # Th_10,4_spkTh_4_KS4
+        # "20240821_173628025430",  # Th_5,2_spkTh_3_KS4
+        # "20240821_173629984669",  # Th_9,8_spkTh_4_KS4
+        # "20240821_173630110647",  # Th_7,3_spkTh_4_KS4
+        # "20240821_173635101464",  # Th_9,8_spkTh_6_KS4
+        # "20240821_173642836878",  # Th_2,1_spkTh_7_KS4
+        # "20240821_173647121999",  # Th_2,1_spkTh_9_KS4
+        # "20240821_173647816028",  # Th_2,1_spkTh_6_KS4
+        # "20240821_173650411718",  # Th_2,1_spkTh_4_KS4
+        # "20240821_173654608323",  # Th_2,1_spkTh_3_KS4
+        # ## EMUsort emulating KS4 by using spikedetect_orig, setting n_templates=n_pcs=6, but remove_chan_delays=True
+        # "20240821_180135925568",  # Th_10,4_spkTh_9
+        # "20240821_180141634519",  # Th_10,4_spkTh_7.5
+        # "20240821_180141663000",  # Th_7,3_spkTh_9
+        # "20240821_180142790139",  # Th_5,2_spkTh_7.5
+        # "20240821_180145586779",  # Th_10,4_spkTh_3
+        # "20240821_180150055027",  # Th_7,3_spkTh_3
+        # "20240821_180150359795",  # Th_10,4_spkTh_4.5
+        # "20240821_180150579390",  # Th_5,2_spkTh_9
+        # "20240821_180157228257",  # Th_7,3_spkTh_7.5
+        # "20240821_180205637884",  # Th_9,8_spkTh_9
+        # "20240821_180205949143",  # Th_9,8_spkTh_7.5
+        # "20240821_180206037379",  # Th_9,8_spkTh_6
+        # "20240821_180216376305",  # Th_10,4_spkTh_6
+        # "20240821_180217696769",  # Th_7,3_spkTh_4.5
+        # "20240821_180218215306",  # Th_7,3_spkTh_6
+        # "20240821_180219316599",  # Th_9,8_spkTh_4.5
+        # "20240821_180220908651",  # Th_5,2_spkTh_3
+        # "20240821_180225109760",  # Th_5,2_spkTh_6
+        # "20240821_180226890222",  # Th_5,2_spkTh_4.5
+        # "20240821_180226960795",  # Th_9,8_spkTh_3
+        # "20240821_180234624151",  # Th_2,1_spkTh_9
+        # "20240821_180236205951",  # Th_2,1_spkTh_6
+        # "20240821_180239833618",  # Th_2,1_spkTh_4.5
+        # "20240821_180240004942",  # Th_2,1_spkTh_7.5
+        # "20240821_180241532593",  # Th_2,1_spkTh_3
+        # ## Mature Beta EMUsort -- 20241001
+        ## single defaults
+        # "20241001_163951339255"
+        ## full run
+        # "20241001_181540407380",  # shape_noise_2.25_Th_10,4_spkTh_6,9,12
+        # "20241001_181542838119",  # shape_noise_2.25_Th_10,4_spkTh_6,9
+        # "20241001_181547690917",  # shape_noise_2.25_Th_10,4_spkTh_6,9,12,15
+        # "20241001_181555761601",  # shape_noise_2.25_Th_9,8_spkTh_6
+        # "20241001_181556079705",  # shape_noise_2.25_Th_7,3_spkTh_6,9
+        # "20241001_181557008258",  # shape_noise_2.25_Th_7,3_spkTh_3,6,9
+        # "20241001_181559241677",  # shape_noise_2.25_Th_10,4_spkTh_6
+        # "20241001_181606140479",  # shape_noise_2.25_Th_9,8_spkTh_6,9,12
+        # "20241001_181606537719",  # shape_noise_2.25_Th_5,2_spkTh_6,9,12
+        # "20241001_181611001333",  # shape_noise_2.25_Th_7,3_spkTh_6,9,12
+        # "20241001_181611638497",  # shape_noise_2.25_Th_10,4_spkTh_3,6,9
+        # "20241001_181612009377",  # shape_noise_2.25_Th_9,8_spkTh_6,9
+        # "20241001_181613501535",  # shape_noise_2.25_Th_5,2_spkTh_3,6,9
+        # "20241001_181615911860",  # shape_noise_2.25_Th_9,8_spkTh_3,6,9
+        # "20241001_181616307164",  # shape_noise_2.25_Th_7,3_spkTh_6,9,12,15
+        # "20241001_181616312680",  # shape_noise_2.25_Th_5,2_spkTh_6
+        # "20241001_181616599387",  # shape_noise_2.25_Th_2,1_spkTh_6,9
+        # "20241001_181616741665",  # shape_noise_2.25_Th_7,3_spkTh_6
+        # "20241001_181616770504",  # shape_noise_2.25_Th_5,2_spkTh_6,9
+        # "20241001_181616778559",  # shape_noise_2.25_Th_5,2_spkTh_6,9,12,15 $$$
+        # "20241001_181620835771",  # shape_noise_2.25_Th_2,1_spkTh_6
+        # "20241001_181621511388",  # shape_noise_2.25_Th_9,8_spkTh_6,9,12,15
+        # "20241001_181622996354",  # shape_noise_2.25_Th_2,1_spkTh_6,9,12
+        # "20241001_181627753121",  # shape_noise_2.25_Th_2,1_spkTh_6,9,12,15
+        # "20241001_181633308306",  # shape_noise_2.25_Th_2,1_spkTh_3,6,9
+        # ## KS4 branch -- 20241001
+        ## single defaults
+        # "20241001_173454970610"
+        ## full run
+        # "20241001_175006033752",  # Th_9,8_spkTh_9_KS4
+        # "20241001_175128430532",  # Th_9,8_spkTh_6_KS4
+        # "20241001_175130306556",  # Th_10,4_spkTh_9_KS4
+        # "20241001_175133974293",  # Th_9,8_spkTh_4_KS4
+        # "20241001_175135441395",  # Th_10,4_spkTh_10_KS4
+        # "20241001_175142884698",  # Th_10,4_spkTh_6_KS4
+        # "20241001_175148068952",  # Th_10,4_spkTh_4_KS4
+        # "20241001_175148074144",  # Th_7,3_spkTh_6_KS4
+        # "20241001_175341448587",  # Th_5,2_spkTh_10_KS4
+        # "20241001_175408632638",  # Th_9,8_spkTh_10_KS4
+        # "20241001_175409338475",  # Th_10,4_spkTh_7_KS4
+        # "20241001_175409342934",  # Th_5,2_spkTh_9_KS4
+        # "20241001_175409342418",  # Th_9,8_spkTh_7_KS4
+        # "20241001_175414372194",  # Th_5,2_spkTh_7_KS4
+        # "20241001_175414601217",  # Th_2,1_spkTh_9_KS4
+        # "20241001_175414795086",  # Th_7,3_spkTh_10_KS4
+        # "20241001_175416966091",  # Th_2,1_spkTh_10_KS4
+        # "20241001_175422018482",  # Th_5,2_spkTh_6_KS4
+        # "20241001_175427444877",  # Th_7,3_spkTh_7_KS4
+        # "20241001_175624492082",  # Th_7,3_spkTh_9_KS4
+        # "20241001_175631000412",  # Th_2,1_spkTh_7_KS4
+        "20241001_175710015736",  # Th_7,3_spkTh_4_KS4 $$$
+        # "20241001_175713404698",  # Th_5,2_spkTh_4_KS4
+        # "20241001_175713664167",  # Th_2,1_spkTh_4_KS4
+        # "20241001_175713664168",  # Th_2,1_spkTh_6_KS4
+        ## temp TEST with spk removal
+        # "20240826_144427953031",
+        ## temp TEST without spk removal
+        # "20240826_145317320791",
     ]
     clusters_to_take_from = {
         # {
@@ -4718,7 +4930,7 @@ if __name__ == "__main__":
                         f"Overlap fraction for cluster {jCluster_GT} is {GT_spike_count_after / GT_spike_count_before} with {spike_isolation_radius_pts} pt radius"
                     )
                     print(
-                        f"Total average overlap fraction is {GT_spike_counts_before.sum() / GT_spike_counts_after.sum()}"
+                        f"Total average overlap fraction is {GT_spike_counts_after.sum() / GT_spike_counts_before.sum()}"
                     )
                     # concatenate the mu_KS_other spikes into mu_KS.spikes[-1] before removing isolated spikes
                     if all_matched_KS_clusters is not None:
@@ -4897,7 +5109,7 @@ if __name__ == "__main__":
                         GT_repeated_times - KS_times,
                         mask=np.zeros(GT_repeated_times.shape),
                     )
-
+                    # set_trace()
                     # initialize train arrays
                     true_positive_spikes = np.zeros(kilosort_spikes.shape, dtype=int)
                     false_positive_spikes = np.zeros(kilosort_spikes.shape, dtype=int)
@@ -4966,8 +5178,8 @@ if __name__ == "__main__":
 
             # parameters for different settings across repeats
             # only do correlation alignment during 2nd pass
-            correlation_alignment = [False, True]
             precorrelation_rebin_width_ms_list = [None, 0.1]
+            correlation_alignment = [False, True]
             preaccuracy_rebin_width = [10, 1]
             num_repeats = len(correlation_alignment)
             # repeat twice to only compute the correlation alignment once
@@ -4985,6 +5197,7 @@ if __name__ == "__main__":
                 kilosort_spikes_list = []
                 ground_truth_spikes_list = []
                 sort_dstr_list = []
+                set_trace()
                 for iSort, sort_dstr in enumerate(sorts_from_each_path_to_load):
                     # # use MUsim object to load and rebin Kilosort data
                     # mu_KS = MUsim(random_seed_entropy)
@@ -5884,8 +6097,9 @@ if __name__ == "__main__":
                 save_png_plot1b,
                 save_svg_plot1b,
                 save_html_plot1b,
+                spike_isolation_radius_ms,
                 # make figsize 1080p
-                figsize=(1280, 1440),
+                figsize=(2000, 1000),
             )
 
     if show_plot2 or save_png_plot2 or save_html_plot2 or save_svg_plot2:
