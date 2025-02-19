@@ -2015,7 +2015,7 @@ if __name__ == "__main__":
     bin_widths_for_comparison = [
         0.1
     ]  # only affects plotting, such as in plot2. should be [0.1] if using "accuracies"
-    spike_isolation_radius_ms = 1  # radius of isolation of a spike for it to be removed from consideration. set to positive float, integer, or set None to disable
+    spike_isolation_radius_ms = None  # radius of isolation of a spike for it to be removed from consideration. set to positive float, integer, or set None to disable
     iShow = 0  # index of which bin width of bin_widths_for_comparison to show in plots
 
     nt0 = 121  # number of time bins in the template, in ms it is 3.367, only used if method_for_automatic_cluster_mapping is "waves"
@@ -2038,11 +2038,11 @@ if __name__ == "__main__":
     save_png_plot4 = False  #
     save_png_plot5 = False
     save_png_plot6 = False
-    save_svg_plot1a = True
-    save_svg_plot1b = True
+    save_svg_plot1a = False
+    save_svg_plot1b = False
     save_svg_plot2 = False
     save_svg_plot3 = False
-    save_svg_plot4 = False  #
+    save_svg_plot4 = True  #
     save_svg_plot5 = False
     save_svg_plot6 = False
     save_html_plot1a = False
@@ -2052,8 +2052,8 @@ if __name__ == "__main__":
     save_html_plot4 = False
     save_html_plot5 = False
     save_html_plot6 = False
-    save_plot4_df_as_pickle = False  #
-    save_plot4_df_as_csv = False  #
+    save_plot4_df_as_pickle = False
+    save_plot4_df_as_csv = True  #
 
     ## TBD: NEED TO ADD FLAG FOR DATASET CHOICE, to flip all related variables
     ## paths with simulated data
@@ -2099,6 +2099,8 @@ if __name__ == "__main__":
         "spikes_20240607-143039_godzilla_20221117_10MU_SNR-1-from_data_jitter-0std_method-KS_templates_12-files.npy"
         ## >= 20240731, monkey
         # "spikes_20240726-204919_monkey_20221202_6MU_SNR-1-from_data_jitter-0std_method-KS_templates_1-files.npy"
+        # monkey "paper_evals"
+        # "spikes_20240726-205017_monkey_20221202_6MU_SNR-1-from_data_jitter-2.25std_method-KS_templates_1-files.npy"
     )  # spikes_20221116_godzilla_SNR-None_jitter-0std_files-1.npy
     ground_truth_path = Path().joinpath("spikes_files", ground_truth_path)
     if ".npy" not in ground_truth_path.name:
@@ -4425,7 +4427,7 @@ if __name__ == "__main__":
         # ## Mature Beta EMUsort -- 20241001
         ## single defaults
         # "20241001_163951339255"
-        ## full run
+        ## full run, EMUsort, SfN results, godzilla
         # "20241001_181540407380",  # shape_noise_2.25_Th_10,4_spkTh_6,9,12
         # "20241001_181542838119",  # shape_noise_2.25_Th_10,4_spkTh_6,9
         # "20241001_181547690917",  # shape_noise_2.25_Th_10,4_spkTh_6,9,12,15
@@ -4454,7 +4456,7 @@ if __name__ == "__main__":
         # ## KS4 branch -- 20241001
         ## single defaults
         # "20241001_173454970610"
-        ## full run
+        ## full run, Kilosort, SfN results, godzilla
         # "20241001_175006033752",  # Th_9,8_spkTh_9_KS4
         # "20241001_175128430532",  # Th_9,8_spkTh_6_KS4
         # "20241001_175130306556",  # Th_10,4_spkTh_9_KS4
@@ -4476,7 +4478,7 @@ if __name__ == "__main__":
         # "20241001_175427444877",  # Th_7,3_spkTh_7_KS4
         # "20241001_175624492082",  # Th_7,3_spkTh_9_KS4
         # "20241001_175631000412",  # Th_2,1_spkTh_7_KS4
-        "20241001_175710015736",  # Th_7,3_spkTh_4_KS4 $$$
+        # "20241001_175710015736",  # Th_7,3_spkTh_4_KS4 $$$
         # "20241001_175713404698",  # Th_5,2_spkTh_4_KS4
         # "20241001_175713664167",  # Th_2,1_spkTh_4_KS4
         # "20241001_175713664168",  # Th_2,1_spkTh_6_KS4
@@ -4484,6 +4486,112 @@ if __name__ == "__main__":
         # "20240826_144427953031",
         ## temp TEST without spk removal
         # "20240826_145317320791",
+        ### Monkey "paper_evals"
+        # "20250206_161027056411",
+        ## EMUsort  2.25 noise, default thresholds
+        # "20250206_164129220660",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_9,8_spkTh_6
+        # "20250206_164130831924",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_9,8_spkTh_3,6,9
+        # "20250206_164130896320",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_9,8_spkTh_6,9,12,15
+        # "20250206_164131466293",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_9,8_spkTh_6,9,12
+        # "20250206_164132472220",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_9,8_spkTh_6,9
+        # "20250206_164210457988",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_10,4_spkTh_6,9,12,15
+        # "20250206_164211243745",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_10,4_spkTh_6,9
+        # "20250206_164211690831",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_10,4_spkTh_6
+        # "20250206_164212456824",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_10,4_spkTh_3,6,9
+        # "20250206_164212512371",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_10,4_spkTh_6,9,12
+        # "20250206_164256340973",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_7,3_spkTh_6,9,12
+        # "20250206_164256576029",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_7,3_spkTh_6,9
+        # "20250206_164258485598",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_7,3_spkTh_6
+        # "20250206_164259686366",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_7,3_spkTh_3,6,9
+        # "20250206_164301285915",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_7,3_spkTh_6,9,12,15
+        # "20250206_164344963545",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_5,2_spkTh_6
+        # "20250206_164346548442",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_5,2_spkTh_3,6,9
+        # "20250206_164347308128",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_5,2_spkTh_6,9
+        # "20250206_164347797458",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_5,2_spkTh_6,9,12,15
+        # "20250206_164348536536",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_5,2_spkTh_6,9,12
+        # "20250206_164436175809",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_2,1_spkTh_6,9
+        # "20250206_164437239940",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_2,1_spkTh_6,9,12
+        # "20250206_164438505238",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_2,1_spkTh_6,9,12,15
+        # "20250206_164438879893",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_2,1_spkTh_6
+        # "20250206_164441266254",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_2,1_spkTh_3,6,9
+        ## Kilosort4  2.25 noise, "standard" thresholds [4.5, 6, 7.5, 9, 10.5], not using anymore
+        # "20250206_174546307226",  # Th_10,4_spkTh_6_KS4
+        # "20250206_174546572421",  # Th_9,8_spkTh_6_KS4
+        # "20250206_174547649601",  # Th_10,4_spkTh_10_KS4
+        # "20250206_174547657095",  # Th_10,4_spkTh_9_KS4
+        # "20250206_174550220364",  # Th_9,8_spkTh_7_KS4
+        # "20250206_174552183591",  # Th_9,8_spkTh_10_KS4
+        # "20250206_174552453797",  # Th_10,4_spkTh_4_KS4
+        # "20250206_174552487391",  # Th_10,4_spkTh_7_KS4
+        # "20250206_174552564207",  # Th_9,8_spkTh_9_KS4
+        # "20250206_174553460714",  # Th_7,3_spkTh_10_KS4
+        # "20250206_174553617022",  # Th_7,3_spkTh_9_KS4
+        # "20250206_174553705620",  # Th_9,8_spkTh_4_KS4
+        # "20250206_174553709475",  # Th_7,3_spkTh_6_KS4
+        # "20250206_174555563321",  # Th_7,3_spkTh_7_KS4
+        # "20250206_174557014867",  # Th_7,3_spkTh_4_KS4
+        # "20250206_174557831406",  # Th_5,2_spkTh_7_KS4
+        # "20250206_174559840618",  # Th_2,1_spkTh_10_KS4
+        # "20250206_174600192683",  # Th_5,2_spkTh_6_KS4
+        # "20250206_174600950772",  # Th_5,2_spkTh_10_KS4
+        # "20250206_174602189639",  # Th_5,2_spkTh_9_KS4
+        # "20250206_174602227844",  # Th_2,1_spkTh_7_KS4
+        # "20250206_174604245154",  # Th_2,1_spkTh_4_KS4
+        # "20250206_174604580313",  # Th_5,2_spkTh_4_KS4
+        # "20250206_174607432417",  # Th_2,1_spkTh_9_KS4
+        # "20250206_174608733869",  # Th_2,1_spkTh_6_KS4
+        ## Kilosort4  2.25 noise, better thresholds [3,6,9,12,15], these performances were ~1% better on average
+        # "20250206_180325769459",  # Th_10,4_spkTh_6_KS4
+        # "20250206_180326011351",  # Th_10,4_spkTh_12_KS4
+        # "20250206_180326543452",  # Th_9,8_spkTh_15_KS4
+        # "20250206_180327258554",  # Th_10,4_spkTh_15_KS4
+        # "20250206_180327982944",  # Th_7,3_spkTh_12_KS4
+        # "20250206_180329146734",  # Th_10,4_spkTh_9_KS4
+        # "20250206_180330070698",  # Th_9,8_spkTh_6_KS4
+        # "20250206_180331248454",  # Th_10,4_spkTh_3_KS4
+        # "20250206_180331792123",  # Th_7,3_spkTh_9_KS4
+        # "20250206_180331924486",  # Th_9,8_spkTh_9_KS4
+        # "20250206_180332775901",  # Th_9,8_spkTh_3_KS4
+        # "20250206_180332867008",  # Th_9,8_spkTh_12_KS4
+        # "20250206_180334059510",  # Th_5,2_spkTh_3_KS4
+        # "20250206_180334172345",  # Th_7,3_spkTh_6_KS4
+        # "20250206_180334968460",  # Th_7,3_spkTh_15_KS4
+        # "20250206_180337050183",  # Th_5,2_spkTh_9_KS4
+        # "20250206_180338959583",  # Th_5,2_spkTh_6_KS4
+        # "20250206_180339151351",  # Th_5,2_spkTh_15_KS4
+        # "20250206_180340456388",  # Th_7,3_spkTh_3_KS4
+        # "20250206_180340572692",  # Th_2,1_spkTh_9_KS4
+        # "20250206_180341734216",  # Th_2,1_spkTh_15_KS4
+        # "20250206_180342585767",  # Th_5,2_spkTh_12_KS4
+        # "20250206_180343112132",  # Th_2,1_spkTh_12_KS4
+        # "20250206_180343780296",  # Th_2,1_spkTh_3_KS4
+        # "20250206_180345235906",  # Th_2,1_spkTh_6_KS4
+        ### godzilla  2.25 noise, "better" thresholds [3,6,9,12,15], testing
+        # "20250207_151023065415",  # Th_9,8_spkTh_9_KS4
+        # "20250207_151024849340",  # Th_10,4_spkTh_9_KS4
+        # "20250207_151027144600",  # Th_7,3_spkTh_12_KS4
+        # "20250207_151027146981",  # Th_7,3_spkTh_9_KS4
+        # "20250207_151029272736",  # Th_5,2_spkTh_12_KS4
+        # "20250207_151030201617",  # Th_10,4_spkTh_6_KS4
+        # "20250207_151031823527",  # Th_10,4_spkTh_15_KS4
+        # "20250207_151032483940",  # Th_7,3_spkTh_6_KS4
+        # "20250207_151032677279",  # Th_5,2_spkTh_6_KS4
+        # "20250207_151032736246",  # Th_10,4_spkTh_12_KS4
+        # "20250207_151035006351",  # Th_2,1_spkTh_9_KS4
+        # "20250207_151035204148",  # Th_9,8_spkTh_12_KS4
+        # "20250207_151035351013",  # Th_9,8_spkTh_3_KS4
+        # "20250207_151036471199",  # Th_5,2_spkTh_9_KS4
+        # "20250207_151037986372",  # Th_9,8_spkTh_15_KS4
+        # "20250207_151038052133",  # Th_10,4_spkTh_3_KS4
+        # "20250207_151040297902",  # Th_5,2_spkTh_15_KS4
+        # "20250207_151041193067",  # Th_2,1_spkTh_15_KS4
+        # "20250207_151041817924",  # Th_7,3_spkTh_15_KS4
+        # "20250207_151042065086",  # Th_5,2_spkTh_3_KS4
+        # "20250207_151043384056",  # Th_9,8_spkTh_6_KS4
+        # "20250207_151043877908",  # Th_7,3_spkTh_3_KS4
+        # "20250207_151045707569",  # Th_2,1_spkTh_3_KS4
+        # "20250207_151046537165",  # Th_2,1_spkTh_6_KS4
+        # "20250207_151047318538",  # Th_2,1_spkTh_12_KS4
     ]
     clusters_to_take_from = {
         # {
@@ -5197,7 +5305,7 @@ if __name__ == "__main__":
                 kilosort_spikes_list = []
                 ground_truth_spikes_list = []
                 sort_dstr_list = []
-                set_trace()
+                # set_trace()
                 for iSort, sort_dstr in enumerate(sorts_from_each_path_to_load):
                     # # use MUsim object to load and rebin Kilosort data
                     # mu_KS = MUsim(random_seed_entropy)

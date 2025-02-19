@@ -10,6 +10,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 import plotly.subplots as subplots
 import torch
+from ruamel.yaml import YAML
 from scipy import signal
 from scipy.io import loadmat
 from sklearn.decomposition import PCA
@@ -177,12 +178,14 @@ def compute_overlap_fraction(MUsim_obj, radius):
 
 
 # set analysis parameters
-session_name = "godzilla_20221117_10MU"  # "monkey_20221202_6MU"  # "godzilla_20221117_10MU"  # "monkey_20221202_6MU"
+session_name = "human_20231003_13MU"  # "godzilla_20221117_10MU"  # "monkey_20221202_6MU"  # "godzilla_20221117_10MU"  # "monkey_20221202_6MU"
+sorter = "ks4"
 show_plotly_figures = False
 show_matplotlib_figures = False
 show_final_plotly_figure = True
 save_final_plotly_figure = False
 show_waveform_graph = False
+chans_to_show = [2, 3, 8, 11]
 show_real_waveform_graph = False
 save_simulated_spikes = True
 save_continuous_dat = True
@@ -202,16 +205,16 @@ write_kinematics_to_npy = (
 shift_MU_templates_along_channels = False
 kinematics_fs = 125
 ephys_fs = 30000
-nt0 = 61  # 2.033 ms
+nt0 = 301  # 10.033 ms  # 61  # 2.033 ms
 SVD_dim = 9  # number of SVD components than were used in KiloSort
-num_chans_in_recording = 9  # number of channels in the recording
-num_chans_in_output = 8  # desired real number of channels in the output data
+num_chans_in_recording = 12  # 9  # number of channels in the recording
+num_chans_in_output = 12  # 8 # desired real number of channels in the output data
 # number determines noise power added to channels (e.g. 50), or set None to disable
 SNR_mode = "from_data"  # 'power' to compute desired SNR with power,'from_data' simulates from the real data values, or 'constant' to add a constant amount of noise to all channels
 # target SNR value if "power", or factor to adjust SNR by if "from_data", or set None to disable
-adjust_SNR = 4  # None
+adjust_SNR = 1  # None
 # set 0 for no shape jitter, or a positive number for standard deviations of additive shape jitter
-shape_jitter_amount = 0.00
+shape_jitter_amount = 0.3
 shape_jitter_type = "multiplicative"  # "additive" or "multiplicative"
 
 num_duplicate_kinematics_to_add = 2  # number of duplicate kinematics files to add to the list, for generating longer simulations
@@ -219,7 +222,8 @@ kinematics_shuffle_N = int(2 + (adjust_SNR * shape_jitter_amount))  # (
 # 1 if "monkey" in session_name else 0
 # )  # number of times to shuffle the kinematics files list, 0 for no shuffling (rat=0, monkey=1, konstantin=2)
 
-cuda_device_number = str(int(shape_jitter_amount // 2 + 1))  # "1"
+cuda_device_number = "3"  # str(int(shape_jitter_amount // 2 + 1))  # "1".keys()
+
 
 # random seeds used for the EMUsort benchmarking in the paper
 # random_seed_entropy = 17750944332329041344095472642137516706  # rat # 218530072159092100005306709809425040261  # 75092699954400878964964014863999053929  # None
@@ -232,7 +236,8 @@ elif shape_jitter_amount == 2.00:
 elif shape_jitter_amount == 4.00:
     random_seed_entropy = 295921216980200951702345820409845315428  # 4.00 noise rat
 else:
-    raise ValueError("random_seed_entropy not set for this shape_jitter_amount")
+    random_seed_entropy = 295921216980200951702345820409845315428
+    # raise ValueError("random_seed_entropy not set for this shape_jitter_amount")
 
 # set None for random behavior, or a previous entropy int value to reproduce
 # if random_seed_entropy is None:
@@ -294,7 +299,7 @@ if time_frame[1] > 0.1:
     show_final_plotly_figure = False
     save_final_plotly_figure = False
 
-plot_template = "plotly_white"
+plot_template = "presentation"  # "plotly"  # "plotly_dark"  # "plotly_white"
 
 # check inputs
 assert (
@@ -312,7 +317,7 @@ assert time_frame[0] >= 0 and time_frame[1] <= 1 and time_frame[0] < time_frame[
     "with the first number smaller"
 )
 
-if "monkey" not in session_name:
+if "monkey" not in session_name and "human" not in session_name:
     ## first load a 1D kinematic array from a csv file into a numpy array
     # format is YYYYMMDD-N, with N being the session number
     anipose_sessions_to_load = [
@@ -492,7 +497,7 @@ if "monkey" not in session_name:
         )
         # exit()
 
-# if monkey, replace with a ramp up to max force, constant hold, and ramp down, then another hold,
+# if monkey or human, replace with a ramp up to max force, constant hold, and ramp down, then another hold,
 # then 1 Hz sine wave then repeat until 10 minutes
 else:
     force_max = 20
@@ -643,6 +648,24 @@ if "monkey" in session_name:
         )
     ]
     sorts_from_each_path_to_load = ["20240131_172133542034"]
+elif "human" in session_name:
+    # load the Kilosort data
+    paths_to_proc_dat = [
+        Path(
+            # "/snel/share/data/rodent-ephys/open-ephys/human-finger/sean-pipeline/session20231003/sorted_20250214_001445260129_session20231003_Th_2,1_spkTh_6,9,12,15_SCORE_0.400"
+            # "/snel/share/data/rodent-ephys/open-ephys/human-finger/sean-pipeline/session20231003/sorted_20250217_211253048998_session20231003_Th_2,1_spkTh_6,12_SCORE_0.481"
+            "/snel/share/data/rodent-ephys/open-ephys/human-finger/sean-pipeline/session20231003/sorted_20250218_171800359130_session20231003_Th_2,1_spkTh_5,10,15_SCORE_0.480"
+        )
+    ]
+    paths_to_KS_session_folders = [
+        Path(
+            "/snel/share/data/rodent-ephys/open-ephys/human-finger/sean-pipeline/session20231003/"
+        )
+    ]
+    sorts_from_each_path_to_load = [
+        "20250218_171800359130"
+        # "20250217_211253048998"
+    ]  # ["20250214_001445260129"]
 else:
     # load the Kilosort data
     paths_to_proc_dat = [
@@ -673,77 +696,136 @@ else:
         # "20231214_104534576438",  # kitkat
     ]
 
-# find the folder name which ends in _myo and append to the paths_to_session_folders
-paths_to_each_myo_folder = []
-for iDir in paths_to_KS_session_folders:
-    myo = [f for f in iDir.iterdir() if (f.is_dir() and f.name.endswith("_myo"))]
-    assert len(myo) == 1, "There should only be one _myo folder in each session folder"
-    paths_to_each_myo_folder.append(myo[0])
-# inside each _myo folder, find the folder name which constains sort_from_each_path_to_load string
-list_of_paths_to_sorted_folders = []
-for iPath in paths_to_each_myo_folder:
-    matches = [
-        f
-        for f in iPath.iterdir()
-        if f.is_dir() and any(s in f.name for s in sorts_from_each_path_to_load)
+if sorter == "ks3":
+    # find the folder name which ends in _myo and append to the paths_to_session_folders
+    paths_to_each_myo_folder = []
+    for iDir in paths_to_KS_session_folders:
+        myo = [f for f in iDir.iterdir() if (f.is_dir() and f.name.endswith("_myo"))]
+        assert (
+            len(myo) == 1
+        ), "There should only be one _myo folder in each session folder"
+        paths_to_each_myo_folder.append(myo[0])
+    # inside each _myo folder, find the folder name which constains sort_from_each_path_to_load string
+    list_of_paths_to_sorted_folders = []
+    for iPath in paths_to_each_myo_folder:
+        matches = [
+            f
+            for f in iPath.iterdir()
+            if f.is_dir() and any(s in f.name for s in sorts_from_each_path_to_load)
+        ]
+        assert len(matches) == 1, (
+            f"There needs to be one sort folder match in each _myo folder, but the number was: "
+            f"{len(matches)}, for path {str(iPath)}"
+        )
+        list_of_paths_to_sorted_folders.append(matches[0])
+
+    rez_list = [
+        loadmat(str(path_to_sorted_folder.joinpath("rez.mat")))
+        for path_to_sorted_folder in list_of_paths_to_sorted_folders
     ]
-    assert len(matches) == 1, (
-        f"There needs to be one sort folder match in each _myo folder, but the number was: "
-        f"{len(matches)}, for path {str(iPath)}"
+    ops_list = [
+        loadmat(str(path_to_sorted_folder.joinpath("ops.mat")))
+        for path_to_sorted_folder in list_of_paths_to_sorted_folders
+    ]
+
+    spike_times_list = [
+        np.load(str(path_to_sorted_folder.joinpath("spike_times.npy"))).flatten()
+        for path_to_sorted_folder in list_of_paths_to_sorted_folders
+    ]
+
+    spike_clusters_list = [
+        np.load(str(path_to_sorted_folder.joinpath("spike_clusters.npy"))).flatten()
+        for path_to_sorted_folder in list_of_paths_to_sorted_folders
+    ]
+    # load and reshape into numchans x whatever (2d array) the data.bin file
+    ephys_data_list = [
+        np.memmap(
+            str(path_to_proc_folder.joinpath("proc.dat")),
+            dtype="int16",
+            mode="r",
+        ).reshape(-1, num_chans_in_recording)
+        for path_to_proc_folder in paths_to_proc_dat
+    ]
+
+    chan_map_adj_list = [
+        loadmat(str(path_to_sorted_folder.joinpath("chanMapAdjusted.mat")))
+        for path_to_sorted_folder in list_of_paths_to_sorted_folders
+    ]
+
+    amplitudes_df_list = [
+        pd.read_csv(
+            str(path_to_sorted_folder.joinpath("cluster_Amplitude.tsv")), sep="\t"
+        )
+        for path_to_sorted_folder in list_of_paths_to_sorted_folders
+    ]
+    # set index as the cluster_id column
+    amplitudes_df_list = amplitudes_df_list[0].set_index("cluster_id")
+elif sorter == "ks4":
+    paths_to_each_session_folder = paths_to_KS_session_folders
+    list_of_paths_to_sorted_folders = []
+    for iPath in paths_to_each_session_folder:
+        matches = [
+            f
+            for f in iPath.iterdir()
+            if f.is_dir() and any(s in f.name for s in sorts_from_each_path_to_load)
+        ]
+        assert len(matches) == 1, (
+            f"There needs to be one sort folder match in each _myo folder, but the number was: "
+            f"{len(matches)}, for path {str(iPath)}"
+        )
+        list_of_paths_to_sorted_folders.append(matches[0])
+    assert len(list_of_paths_to_sorted_folders) == 1, (
+        f"There should only be one sorted folder in each session folder, but the number was: "
+        f"{len(list_of_paths_to_sorted_folders)}"
     )
-    list_of_paths_to_sorted_folders.append(matches[0])
+    # load emu_config.yaml, ops.npy, Wall.npy, and amplitudes.npy
+    emusort_config_path = list_of_paths_to_sorted_folders[0].joinpath("emu_config.yaml")
+    yaml = YAML()
+    emu_config = yaml.load(emusort_config_path)
+    ops = np.load(
+        str(list_of_paths_to_sorted_folders[0].joinpath("ops.npy")), allow_pickle=True
+    ).item()
+    Wall = np.load(
+        str(list_of_paths_to_sorted_folders[0].joinpath("Wall.npy")), allow_pickle=True
+    )
+    amplitudes = np.load(
+        str(list_of_paths_to_sorted_folders[0].joinpath("amplitudes.npy")),
+        allow_pickle=True,
+    )
+    amplitudes_df_list = [
+        pd.read_csv(
+            str(path_to_sorted_folder.joinpath("cluster_Amplitude.tsv")), sep="\t"
+        )
+        for path_to_sorted_folder in list_of_paths_to_sorted_folders
+    ]
+    # set index as the cluster_id column
+    amplitudes_df_list = amplitudes_df_list[0].set_index("cluster_id")
+    # load the spike times and clusters
+    spike_times = np.load(
+        str(list_of_paths_to_sorted_folders[0].joinpath("spike_times.npy"))
+    )
+    spike_clusters = np.load(
+        str(list_of_paths_to_sorted_folders[0].joinpath("spike_clusters.npy"))
+    )
 
-rez_list = [
-    loadmat(str(path_to_sorted_folder.joinpath("rez.mat")))
-    for path_to_sorted_folder in list_of_paths_to_sorted_folders
-]
-ops_list = [
-    loadmat(str(path_to_sorted_folder.joinpath("ops.mat")))
-    for path_to_sorted_folder in list_of_paths_to_sorted_folders
-]
-
-spike_times_list = [
-    np.load(str(path_to_sorted_folder.joinpath("spike_times.npy"))).flatten()
-    for path_to_sorted_folder in list_of_paths_to_sorted_folders
-]
-
-spike_clusters_list = [
-    np.load(str(path_to_sorted_folder.joinpath("spike_clusters.npy"))).flatten()
-    for path_to_sorted_folder in list_of_paths_to_sorted_folders
-]
-# load and reshape into numchans x whatever (2d array) the data.bin file
-ephys_data_list = [
-    np.memmap(
-        str(path_to_proc_folder.joinpath("proc.dat")),
-        dtype="int16",
-        mode="r",
-    ).reshape(-1, num_chans_in_recording)
-    for path_to_proc_folder in paths_to_proc_dat
-]
-
-chan_map_adj_list = [
-    loadmat(str(path_to_sorted_folder.joinpath("chanMapAdjusted.mat")))
-    for path_to_sorted_folder in list_of_paths_to_sorted_folders
-]
-
-amplitudes_df_list = [
-    pd.read_csv(str(path_to_sorted_folder.joinpath("cluster_Amplitude.tsv")), sep="\t")
-    for path_to_sorted_folder in list_of_paths_to_sorted_folders
-]
-# set index as the cluster_id column
-amplitudes_df_list = amplitudes_df_list[0].set_index("cluster_id")
+    ks_templates = np.load(
+        str(list_of_paths_to_sorted_folders[0].joinpath("templates.npy"))
+    )
+    whiten_inv = np.load(
+        str(list_of_paths_to_sorted_folders[0].joinpath("whitening_mat_inv.npy"))
+    )
 
 # list of lists of good clusters to take from each rez_list
 # place units in order of total spike count, from highest to lowest
 if "monkey" in session_name:
-    clusters_to_take_from_for_templates = [
-        [6, 13, 0, 1, 16, 14],  # monkey, 20240131_172133542034
-    ]
-    clusters_to_take_from = [[6, 13, 24, 1, 23, 14]]
+    clusters_to_take_from = [[6, 13, 24, 1, 23, 14]]  # monkey, 20240131_172133542034
+elif "human" in session_name:
+    # clusters_to_take_from = [[13, 29, 24, 25, 56, 57, 28, 53, 59, 65, 49, 5, 34]], 20250214_001445260129
+    clusters_to_take_from = [
+        [18, 23, 28, 11, 12, 22, 54, 43, 42, 14, 47, 44, 64]
+    ]  # human, 20250218_171800359130
+    # [[18, 23, 7, 9, 8 , 17, 48, 25, 19, 47, 40, 67, 65, 3]] # best human, 20250217_211253048998
 else:
-    clusters_to_take_from_for_templates = [
-        [26, 13, 10, 3, 22, 32, 1, 15, 40, 27],  # godzilla, 20231027_163931
-    ]
     clusters_to_take_from = [
         [26, 13, 10, 3, 22, 32, 1, 15, 40, 27],  # godzilla, 20231027_163931
         # [9, 7, 8, 13],  # [12, 8, 14, 1, 13],  # inkblot, 20231218_181442825759
@@ -766,7 +848,9 @@ def sample_MUsim_obj(seed):
         "exponential"  # set the distribution of motor unit thresholds
     )
     mu.MUspike_dynamics = "spike_history"
-    mu.kernel_interpolation_factor = 1  # 2 if "monkey" in session_name else 1
+    mu.kernel_interpolation_factor = (
+        3  # 2 if "monkey" or "human" in session_name else 1
+    )
     mu.sample_rate = ephys_fs  # 30000 Hz
     # fixed minimum force threshold for the generated units' response curves. Tune this for lower
     # bound of force thresholds sampled in the distribution of MUs during MU_sample()
@@ -784,8 +868,10 @@ def sample_MUsim_obj(seed):
 
 iTrial = 0
 mu = sample_MUsim_obj(random_seed_entropy)
-while not (
-    last_unit_count <= 1000 * time_frame[1] and last_unit_count >= 500 * time_frame[1]
+while (
+    iTrial
+    < 1  # not (
+    # last_unit_count <= 1000 * time_frame[1] and last_unit_count >= 500 * time_frame[1]
 ):
     iTrial += 1
     # mu = sample_MUsim_obj(random_seed_entropy)
@@ -911,7 +997,10 @@ if save_simulated_spikes:
 #  these will then be placed at the simulated spike times for num_chans channels, and the resulting
 #  array will be saved as continuous.dat
 if use_KS_templates:
-    num_dummy_chans = chan_map_adj_list[0]["numDummy"][0][0]
+    try:
+        num_dummy_chans = chan_map_adj_list[0]["numDummy"][0][0]
+    except NameError:
+        num_dummy_chans = 0
     num_chans_with_data = int(num_chans_in_recording - num_dummy_chans)
 else:
     num_dummy_chans = 0
@@ -933,7 +1022,7 @@ padded_tukey_window = zeros_for_padding
 
 # this chunk uses KS templates to create waveform shapes for each spike time
 spike_counts_for_each_unit = mu.spikes[-1].sum(axis=0).astype(int)
-if use_KS_templates:
+if use_KS_templates and sorter == "ks3":
     # W are the temporal components to be used to reconstruct unique temporal components
     # U are the weights of each temporal component distrubuted across channels
     W = rez_list[0]["W"]  # shape is (nt0, mu.num_units, SVD_dim)
@@ -974,8 +1063,8 @@ if use_KS_templates:
     # take the W and U matrixes from each recording in rez_list, and only take the good clusters
     # then get SVD_dim standard deviation values across all
     for ii, iRec in enumerate(rez_list):
-        W_good.append(iRec["W"][:, clusters_to_take_from_for_templates[ii], :])
-        U_good.append(iRec["U"][:, clusters_to_take_from_for_templates[ii], :])
+        W_good.append(iRec["W"][:, clusters_to_take_from[ii], :])
+        U_good.append(iRec["U"][:, clusters_to_take_from[ii], :])
         # take mean and std of all elements in U_good
         U_mean.append(np.mean(U_good[ii]))
         U_std.append(np.std(U_good[ii]))
@@ -1029,12 +1118,77 @@ if use_KS_templates:
                 iSpike, :, :
             ]  # get the weights for each channel for this spike
             # now project from the templates to create the waveform shape for each spike time
-            # multiply by 200 to convert from mV to uV
+            # multiply by 200 to convert from KS3 scale to uV
             spike_snippets_to_place[iUnit, iSpike, :, :] = 200 * np.dot(
                 W_good[0][:, iUnit, :], iSpike_U.T
             )  # shape is (num_units, num_spikes, nt0, num_chans_in_recording)
     median_spikes_array = np.median(spike_snippets_to_place, axis=1)
     order_by_amplitude = np.max(np.abs(median_spikes_array), axis=(1, 2)).argsort()
+elif use_KS_templates and sorter == "ks4":
+    Wall_good = Wall[clusters_to_take_from[0]]
+    # spatial_std = Wall_good.std()
+    # templates = (np.expand_dims(Wall_good, -1) * ops["wPCA"]).sum(axis=-2)
+    # templates = templates.transpose(0, 2, 1)
+    # scaled_templates = []
+    clust_amplitudes = {}
+    for ii, iUnit in enumerate(clusters_to_take_from[0]):
+        clust_amplitudes[iUnit] = np.median(amplitudes[spike_clusters == iUnit])
+        # scaled_templates.append(clust_amplitudes[iUnit] * templates[ii] @ whiten_inv)
+    # f0 = px.line(scaled_templates[0])
+    # f0.show()
+    # f1 = px.line(scaled_templates[1])
+    # f1.show()
+    # f2 = px.line(scaled_templates[2])
+    # f2.show()
+    # set_trace()
+    # scaled_templates = templates * ampl
+    # first, create a new array of zeros to hold the new multichannel waveform shapes
+    spike_snippets_to_place = np.nan * np.ones(
+        (mu.num_units, np.max(spike_counts_for_each_unit), nt0, num_chans_in_recording)
+    )
+    for ii, iUnit in enumerate(clusters_to_take_from[0]):
+        # add the jitter to each U_good element, and create a new waveform shape for each spike time
+        # use jittermat to change the waveform shape slightly for each spike example (at each time)
+        jitter_mat = np.zeros(
+            (np.max(spike_counts_for_each_unit), num_chans_in_recording, SVD_dim)
+        )
+        jitter_mat_to_chans_with_data = RNG.normal(
+            0,
+            shape_jitter_amount,
+            (np.max(spike_counts_for_each_unit), num_chans_with_data, SVD_dim),
+        )
+        jitter_mat[:, :num_chans_with_data, :] = jitter_mat_to_chans_with_data
+
+        # jitter and scale by amplitude for this unit
+        # scale, then divide by ten as units are unrealistically large
+        scaled_iUnit_wgts = clust_amplitudes[iUnit] * Wall_good[ii, :, :] / 200
+
+        if shape_jitter_type == "additive":
+            iUnit_U = np.tile(
+                scaled_iUnit_wgts, (np.max(spike_counts_for_each_unit), 1, 1)
+            ) + (
+                jitter_mat if shape_jitter_amount else 0
+            )  # additive shape jitte
+        elif shape_jitter_type == "multiplicative":
+            iUnit_U = np.tile(
+                scaled_iUnit_wgts, (np.max(spike_counts_for_each_unit), 1, 1)
+            ) * (
+                1 + jitter_mat if shape_jitter_amount else 1
+            )  # multiplicative shape jitter
+
+        for iSpike in range(np.max(spike_counts_for_each_unit)):
+            iSpike_U = iUnit_U[
+                iSpike, :, :
+            ]  # get the weights for each channel for this spike
+            # now project from the templates to create the waveform shape for each spike time
+            spike_snippets_to_place[ii, iSpike, :, :] = (
+                np.dot(iSpike_U, ops["wPCA"]).T @ whiten_inv
+            )  # shape is (num_units, num_spikes, nt0, num_chans_in_recording)
+    median_spikes_array = np.median(spike_snippets_to_place, axis=1)
+    if not "human" in session_name:
+        order_by_amplitude = np.max(np.abs(median_spikes_array), axis=(1, 2)).argsort()
+    else:
+        order_by_amplitude = range(mu.num_units)  # don't reorder for human data
 else:  # this chunk uses the real data from proc.dat to create waveform shapes for each spike time,
     # use spike times for each cluster to extract median waveform shape, with -nt0//2 and +nt0//2 + 1
     ## first, extract all spikes at each corresponding spike time from each proc.dat file, and place them in a combined array
@@ -1290,20 +1444,20 @@ if show_waveform_graph:
     # plot the unit by color
     # concatenate the median waveform shapes for each cluster into a single array
     # sort the median_spikes_array in order of lowest unit amplitude to highest
-
+    num_chans_for_plot = len(chans_to_show)
     fig = subplots.make_subplots(
-        rows=num_chans_in_recording,
+        rows=num_chans_for_plot,
         cols=num_motor_units,
         subplot_titles=[
             f"Unit {iUnit} Ch. {iChan}"
-            for iChan in range(num_chans_in_recording)
+            for iChan in chans_to_show
             for iUnit in range(num_motor_units)
         ],
         shared_xaxes=True,
         shared_yaxes=True,
     )
     if median_waveforms:
-        for iChan in range(num_chans_in_recording):
+        for ii, iChan in enumerate(chans_to_show):
             for iUnit in range(num_motor_units):
                 fig.add_trace(
                     go.Scatter(
@@ -1312,11 +1466,11 @@ if show_waveform_graph:
                         name=f"Unit {iUnit}",
                         marker_color=MU_colors[iUnit],
                     ),
-                    row=iChan + 1,
+                    row=ii + 1,
                     col=iUnit + 1,
                 )
     else:
-        for iChan in range(num_chans_in_recording):
+        for ii, iChan in enumerate(chans_to_show):
             for iUnit in range(num_motor_units):
                 for iSpike in np.unique(
                     np.linspace(0, spike_counts_for_each_unit[iUnit] - 1, 100).astype(
@@ -1331,10 +1485,10 @@ if show_waveform_graph:
                             ],
                             name=f"Unit {iUnit}",
                             marker_color=MU_colors[iUnit],
-                            line=dict(width=0.5),
-                            opacity=0.25,
+                            line=dict(width=0.7),
+                            opacity=0.4,
                         ),
-                        row=iChan + 1,
+                        row=ii + 1,
                         col=iUnit + 1,
                     )
     # add title and axis labels
@@ -1343,7 +1497,7 @@ if show_waveform_graph:
         template=plot_template,
     )
     fig.update_yaxes(title_text="Voltage (uV)", row=1, col=1)
-    fig.update_xaxes(title_text="Time (ms)", row=num_chans_in_recording, col=1)
+    fig.update_xaxes(title_text="Time (ms)", row=num_chans_for_plot, col=1)
     # make y-axis range shared across all voltage subplots
     fig.update_yaxes(matches="y")
     fig.show()
@@ -1500,14 +1654,29 @@ for iUnit, iCount in enumerate(spike_counts_for_each_unit):
 
 # get spike band power of the data using the bandpass filter on range (300,1000) Hz
 # first, filter the data
-spike_filtered_dat = np.zeros((len(continuous_dat), num_chans_with_data))
-for iChan in range(num_chans_with_data):
-    spike_filtered_dat[:, iChan] = butter_bandpass_filter(
-        continuous_dat[:, iChan], 300, 1000, ephys_fs, order=2
-    )  # 2nd order butterworth bandpass filter
-# now square then average to get power
-spike_band_power = np.mean(np.square(spike_filtered_dat), axis=0)
-print(f"Spike Band Power: {spike_band_power}")
+if sorter == "ks3":
+    spike_filtered_dat = np.zeros((len(continuous_dat), num_chans_with_data))
+    for iChan in range(num_chans_with_data):
+        spike_filtered_dat[:, iChan] = butter_bandpass_filter(
+            continuous_dat[:, iChan], 300, 1000, ephys_fs, order=2
+        )  # 2nd order butterworth bandpass filter
+    # now square then average to get power
+    spike_band_power = np.mean(np.square(spike_filtered_dat), axis=0)
+    print(f"Spike Band Power: {spike_band_power}")
+    force_below_percentile = np.ones(len(interp_final_force_array), dtype=bool)
+elif sorter == "ks4":
+    # compute the MAD of the data, but only for slices of the data where the force is below 25th percentile
+    # of the force data
+    # force_percentile = np.percentile(interp_final_force_array, 25)
+    # force_below_percentile = interp_final_force_array < force_percentile
+    MAD_k = np.median(
+        np.abs(continuous_dat - np.median(continuous_dat, axis=0)),
+        axis=0,
+    )
+    # get the Gaussian noise standard deviation of the data
+    Gaussian_STDs_of_sim = MAD_k / 0.6745  # dims are (num_chans_in_recording,)
+    print(f"Gaussian_STDs_of_sim at Start: {Gaussian_STDs_of_sim}")
+
 if adjust_SNR is not None:
     if SNR_mode == "from_data":
         os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
@@ -1515,10 +1684,16 @@ if adjust_SNR is not None:
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         print(f"DEVICE: {device}")
         torch_continuous_dat = torch.tensor(continuous_dat, device=device)
-        # get Gaussian_STDs variable from chanMapAdjusted.mat file
-        Gaussian_STDs_of_data = torch.tensor(
-            chan_map_adj_list[0]["Gaussian_STDs"][0], device=device
-        )
+        # regions = torch.tensor(force_below_percentile, device=device)
+        # get Gaussian_STDs variable from chanMapAdjusted.mat file or emu_config.yaml
+        try:
+            Gaussian_STDs_of_data = torch.tensor(
+                chan_map_adj_list[0]["Gaussian_STDs"][0], device=device
+            )
+        except:
+            Gaussian_STDs_of_data = torch.tensor(
+                emu_config["emg_chan_noise"], device=device  # microvolts already
+            )
         Gaussian_STDs_of_data = (
             Gaussian_STDs_of_data[0 : num_chans_with_data + num_dummy_chans]
             * adjust_SNR
@@ -1526,38 +1701,38 @@ if adjust_SNR is not None:
         Gaussian_STDs_of_data[num_chans_with_data:] = 0
         # target MAD of data should be to get within 1% of Gaussian_STDs_of_data values
         # initialize it
-        MAD_k = torch.median(
-            torch.abs(torch_continuous_dat - torch.mean(torch_continuous_dat, axis=0)),
-            axis=0,
-        )
+        MAD_k_torch = torch.from_numpy(MAD_k).to(device)
         # get the Gaussian noise standard deviation of the data
         Gaussian_STDs_of_sim = (
-            MAD_k.values / 0.6745 / 200
-        )  # 200 to scale into Kilosort internal units
+            MAD_k_torch / 0.6745 / (200 if sorter == "ks3" else 1)
+        )  # 200 to scale into Kilosort3 internal units
 
         # make this shape of torch_continuous_dat
         new_noise_STD = torch.tensor(
-            np.zeros(num_chans_in_recording), requires_grad=True, device=device
+            np.ones(num_chans_in_recording), requires_grad=True, device=device
         )
 
-        def forward(torch_continuous_dat):
+        def forward(torch_continuous_dat, regions=None):
             # add Gaussian noise to the data
             torch_continuous_dat_out = (
                 torch_continuous_dat
                 + torch.randn_like(torch_continuous_dat, device=device) * new_noise_STD
             )
-            # get the median absolute deviation of the data
+            # get the subsampled median absolute deviation of the data only during desired regions
+            continuous_dat_chunked = torch.chunk(torch_continuous_dat_out, 100, dim=0)
+            chk_medians = []
+            for ii, iChunk in enumerate(continuous_dat_chunked):
+                if ii % 10 == 0:
+                    chk_medians.append(torch.median(iChunk, axis=0).values)
+            med = torch.mean(torch.stack(chk_medians), axis=0)
             MAD_k = torch.median(
-                torch.abs(
-                    torch_continuous_dat_out
-                    - torch.mean(torch_continuous_dat_out, axis=0)
-                ),
+                torch.abs(torch_continuous_dat_out - med),
                 axis=0,
             )
             # get the Gaussian noise standard deviation of the data
             Gaussian_STDs_of_sim = (
-                MAD_k.values / 0.6745 / 200
-            )  # 200 to scale into Kilosort internal units
+                MAD_k.values / 0.6745 / (200 if sorter == "ks3" else 1)
+            )  # 200 to scale into Kilosort3 internal units
             return Gaussian_STDs_of_sim, torch_continuous_dat_out
 
         def criterion(Gaussian_STDs_of_sim, Gaussian_STDs_of_data):
@@ -1569,7 +1744,7 @@ if adjust_SNR is not None:
         # goal is to make Gaussian_STDs_of_sim within 1% of Gaussian_STDs_of_data for all channels
         # now use optimizer to change learning rate
         print(f"Target Noise STD: {Gaussian_STDs_of_data}")
-        optimizer = torch.optim.Adam([new_noise_STD], lr=0.03)
+        optimizer = torch.optim.Adam([new_noise_STD], lr=1)
         loss_BGD = []
 
         for i in range(3000):
@@ -1672,7 +1847,13 @@ computed_SNR = spike_band_power / outside_spike_band_power
 print(f"Computed SNR: {computed_SNR}")
 
 # finally use ops variable channelDelays to reapply the original channel delays to the data
-channel_delays_to_apply = (ops_list[0]["channelDelays"][0]).astype(int)
+if sorter == "ks3":
+    channel_delays_to_apply = (ops_list[0]["channelDelays"][0]).astype(int)
+elif sorter == "ks4":
+    channel_delays_to_apply = ops["preprocessing"]["chan_delays"]
+else:
+    raise ValueError(f"Sorter '{sorter}' not recognized")
+
 for iChan in range(num_chans_with_data):
     continuous_dat[:, iChan] = np.roll(
         continuous_dat[:, iChan], -channel_delays_to_apply[iChan]
