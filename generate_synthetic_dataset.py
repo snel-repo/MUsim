@@ -222,7 +222,7 @@ kinematics_shuffle_N = int(2 + (adjust_SNR * shape_jitter_amount))  # (
 # 1 if "monkey" in session_name else 0
 # )  # number of times to shuffle the kinematics files list, 0 for no shuffling (rat=0, monkey=1, konstantin=2)
 
-cuda_device_number = "3"  # str(int(shape_jitter_amount // 2 + 1))  # "1".keys()
+cuda_device_number = "4"  # str(int(shape_jitter_amount // 2 + 1))  # "1".keys()
 
 
 # random seeds used for the EMUsort benchmarking in the paper
@@ -1712,7 +1712,7 @@ if adjust_SNR is not None:
             np.ones(num_chans_in_recording), requires_grad=True, device=device
         )
 
-        def forward(torch_continuous_dat, regions=None):
+        def forward(torch_continuous_dat):
             # add Gaussian noise to the data
             torch_continuous_dat_out = (
                 torch_continuous_dat
@@ -1725,6 +1725,7 @@ if adjust_SNR is not None:
                 if ii % 10 == 0:
                     chk_medians.append(torch.median(iChunk, axis=0).values)
             med = torch.mean(torch.stack(chk_medians), axis=0)
+            del continuous_dat_chunked, chk_medians  # free up memory
             MAD_k = torch.median(
                 torch.abs(torch_continuous_dat_out - med),
                 axis=0,

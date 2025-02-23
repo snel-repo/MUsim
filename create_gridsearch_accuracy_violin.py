@@ -10,7 +10,9 @@ print(csv_folder)
 
 # Get CSV files which contain the datestring in the filename
 # text_to_filter = "combined_performances_20241001-193"
-text_to_filter = "20250207-162455"  # "20250206-202428"  # "20241002-015642"
+text_to_filter = (
+    "20250219-191941"  # "20250207-162455"  # "20250206-202428"  # "20241002-015642"
+)
 csv_files = list(csv_folder.glob(f"*{text_to_filter}*.csv"))
 print(csv_files)
 
@@ -91,7 +93,7 @@ fig.update_layout(
 )
 
 # fig.update_yaxes(range=[0.55, 1])
-fig.update_yaxes(range=[x - 0.3 for x in [0.55, 1]])
+fig.update_yaxes(range=[x - 0 for x in [0.55, 1]])
 
 if Path(cwd / "plot7").is_dir() is False:
     Path(cwd / "plot7").mkdir()
