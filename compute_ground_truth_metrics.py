@@ -725,7 +725,6 @@ def plot1(
     recall,
     accuracy,
     bin_width_for_comparison,
-    clusters_in_sort_to_use,
     GT_clusters_to_use,
     sorts_from_each_path_to_load,
     plot_template,
@@ -740,6 +739,7 @@ def plot1(
     save_svg_plot1b,
     save_html_plot1b,
     spike_isolation_radius_ms,
+    iSort,
     figsize=(1920, 1080),
 ):
     # search all the paths to sorted folders for the KS or EMUsort string, in the order of matches with sorts_from_each_path_to_load
@@ -750,11 +750,62 @@ def plot1(
     #         sorts_from_each_path_to_load[iS]
     #         in list_of_paths_to_sorted_folders[0][iP].name
     #     ):
-    sort_type = (
-        "Kilosort"
-        if "KS" in list_of_paths_to_sorted_folders[0][0].name.split("_")[-1]
-        else "EMUsort"
-    )
+    # search all the paths to sorted folders for the KS or EMUsort string, in the order of matches with sorts_from_each_path_to_load
+    sort_types = [None] * len(sorts_from_each_path_to_load)
+    noise_levels = [None] * len(sorts_from_each_path_to_load)
+    for iiSort in range(len(sorts_from_each_path_to_load)):
+        for iPath in range(len(list_of_paths_to_sorted_folders[0])):
+            if (
+                sorts_from_each_path_to_load[iiSort]
+                in list_of_paths_to_sorted_folders[0][iPath].name
+            ):
+                suffix = list_of_paths_to_sorted_folders[0][iPath].name.split("_")[-1]
+            elif (
+                sorts_from_each_path_to_load[iiSort]
+                in list_of_paths_to_sorted_folders[0][iPath].parent.name
+            ):
+                suffix = list_of_paths_to_sorted_folders[0][iPath].parent.name.split(
+                    "_"
+                )[-1]
+            else:
+                continue  # keep searching
+            if suffix == "KS":
+                sort_types[iiSort] = "Kilosort3"
+            elif suffix == "KS4":
+                sort_types[iiSort] = "Kilosort4"
+            else:
+                sort_types[iiSort] = "EMUsort"
+            # for each match, extract the noise level from the path, which will be revealed by splitting the parent path by underscores and taking the last index
+            # will be a number of format x.xx, such as 3.00, and convert to string
+            try:
+                noise_levels[iiSort] = [
+                    np.round(float(noise_lvl), 2)
+                    for noise_lvl in list_of_paths_to_sorted_folders[0][
+                        iPath
+                    ].parent.parent.name.split("_")
+                    if "." in noise_lvl
+                ][0]
+            except:
+                noise_levels[iiSort] = [
+                    np.round(float(noise_lvl), 2)
+                    for noise_lvl in list_of_paths_to_sorted_folders[0][
+                        iPath
+                    ].parent.name.split("_")
+                    if "." in noise_lvl
+                ][0]
+
+            break  # found a match with the datestring, label and break out of the loop
+    # make sure all sort_types were found
+    assert None not in sort_types, "Not all sort_types were found"
+    # make sure all noise levels were the same and not None
+    assert (None not in noise_levels) and (
+        len(set(noise_levels)) == 1
+    ), "Noise levels did not match across folders"
+    # sort_type = (
+    #     "Kilosort"
+    #     if "KS" in list_of_paths_to_sorted_folders[0][0].name.split("_")[-1]
+    #     else "EMUsort"
+    # )
     # break
     # make sure all sort_types were found
     # assert None not in sort_types, "Not all sort_types were found"
@@ -763,7 +814,6 @@ def plot1(
     # get suffix after the KS folder name, which is the repo branch name for that sort
     # PPP_branch_name = list_of_paths_to_sorted_folders[0][iSort].name.split("_")[-1]
     # sort_type = "Kilosort" if "KS" in PPP_branch_name else "EMUsort"
-    iSort = 0
     if show_plot1a or save_png_plot1a or save_svg_plot1a or save_html_plot1a:
         fig1a = go.Figure()
         fig1a.add_trace(
@@ -804,7 +854,7 @@ def plot1(
         # make text much larger
         fig1a.update_layout(
             title={
-                "text": f"<b>Comparison of {sort_type} Performance to Ground Truth, {bin_width_for_comparison} ms Bins</b><br><sup>Sort: {sorts_from_each_path_to_load}</sup>",
+                "text": f"<b>Comparison of {sort_types[iSort]} Performance to Ground Truth, {bin_width_for_comparison} ms Bins</b><br><sup>Sort: {sorts_from_each_path_to_load[iSort]}</sup>",
                 # "y": 0.95,
                 # "font
             },
@@ -866,7 +916,7 @@ def plot1(
                     go.Bar(
                         x=np.arange(0, num_motor_units),
                         y=num_kilosort_spikes[iSort],
-                        name=sort_type,
+                        name=sort_types[iSort],
                         marker_color="rgb(26, 118, 255)",
                         opacity=0.5,
                     )
@@ -901,7 +951,7 @@ def plot1(
             # make all the text way larger
             fig1b.update_layout(
                 title={
-                    "text": f"<b>True Spike Count Captured for Each Cluster Using {sort_type}, {bin_width_for_comparison} ms Bins</b><br><sup>Sort: {sorts_from_each_path_to_load}</sup>",
+                    "text": f"<b>True Spike Count Captured for Each Cluster Using {sort_types[iSort]}, {bin_width_for_comparison} ms Bins</b><br><sup>Sort: {sorts_from_each_path_to_load[iSort]}</sup>",
                     # "y": 0.95,
                 },
                 xaxis_title="<b>GT Cluster ID,<br>True Count</b>",
@@ -955,19 +1005,19 @@ def plot1(
 
         if save_png_plot1a:
             fig1a.write_image(
-                f"plot1/plot1a_spkRad_{str(spike_isolation_radius_ms)}_{bin_width_for_comparison}ms_{sorts_from_each_path_to_load}_{sort_type}.png",
+                f"plot1/plot1a_spkRad_{str(spike_isolation_radius_ms)}_{bin_width_for_comparison}ms_{sorts_from_each_path_to_load[iSort]}_{sort_types[iSort]}.png",
                 width=figsize[0],
                 height=figsize[1],
             )
         if save_svg_plot1a:
             fig1a.write_image(
-                f"plot1/plot1a_spkRad_{str(spike_isolation_radius_ms)}_{bin_width_for_comparison}ms_{sorts_from_each_path_to_load}_{sort_type}.svg",
+                f"plot1/plot1a_spkRad_{str(spike_isolation_radius_ms)}_{bin_width_for_comparison}ms_{sorts_from_each_path_to_load[iSort]}_{sort_types[iSort]}.svg",
                 width=figsize[0],
                 height=figsize[1],
             )
         if save_html_plot1a:
             fig1a.write_html(
-                f"plot1/plot1a_spkRad_{str(spike_isolation_radius_ms)}_{bin_width_for_comparison}ms_{sorts_from_each_path_to_load}_{sort_type}.html",
+                f"plot1/plot1a_spkRad_{str(spike_isolation_radius_ms)}_{bin_width_for_comparison}ms_{sorts_from_each_path_to_load[iSort]}_{sort_types[iSort]}.html",
                 include_plotlyjs="cdn",
                 full_html=False,
             )
@@ -976,19 +1026,19 @@ def plot1(
 
         if save_png_plot1b:
             fig1b.write_image(
-                f"plot1/plot1b_spkRad_{str(spike_isolation_radius_ms)}_{bin_width_for_comparison}ms_{sorts_from_each_path_to_load}_{sort_type}.png",
+                f"plot1/plot1b_spkRad_{str(spike_isolation_radius_ms)}_{bin_width_for_comparison}ms_{sorts_from_each_path_to_load[iSort]}_{sort_types[iSort]}.png",
                 width=figsize[0],
                 height=figsize[1],
             )
         if save_svg_plot1b:
             fig1b.write_image(
-                f"plot1/plot1b_spkRad_{str(spike_isolation_radius_ms)}_{bin_width_for_comparison}ms_{sorts_from_each_path_to_load}_{sort_type}.svg",
+                f"plot1/plot1b_spkRad_{str(spike_isolation_radius_ms)}_{bin_width_for_comparison}ms_{sorts_from_each_path_to_load[iSort]}_{sort_types[iSort]}.svg",
                 width=figsize[0],
                 height=figsize[1],
             )
         if save_html_plot1b:
             fig1b.write_html(
-                f"plot1/plot1b_spkRad_{str(spike_isolation_radius_ms)}_{bin_width_for_comparison}ms_{sorts_from_each_path_to_load}_{sort_type}.html",
+                f"plot1/plot1b_spkRad_{str(spike_isolation_radius_ms)}_{bin_width_for_comparison}ms_{sorts_from_each_path_to_load[iSort]}_{sort_types[iSort]}.html",
                 include_plotlyjs="cdn",
                 full_html=False,
             )
@@ -2035,14 +2085,14 @@ if __name__ == "__main__":
     save_png_plot1b = False
     save_png_plot2 = False
     save_png_plot3 = False
-    save_png_plot4 = False  #
+    save_png_plot4 = False
     save_png_plot5 = False
     save_png_plot6 = False
-    save_svg_plot1a = False
-    save_svg_plot1b = False
+    save_svg_plot1a = False  #
+    save_svg_plot1b = False  #
     save_svg_plot2 = False
     save_svg_plot3 = False
-    save_svg_plot4 = True  #
+    save_svg_plot4 = True  ##
     save_svg_plot5 = False
     save_svg_plot6 = False
     save_html_plot1a = False
@@ -2053,8 +2103,8 @@ if __name__ == "__main__":
     save_html_plot5 = False
     save_html_plot6 = False
     save_plot4_df_as_pickle = False
-    save_plot4_df_as_csv = True  #
-
+    save_plot4_df_as_csv = True  ##
+    print("UPDATEDnow2")
     ## TBD: NEED TO ADD FLAG FOR DATASET CHOICE, to flip all related variables
     ## paths with simulated data
     path_to_sim_dat = Path(
@@ -4514,7 +4564,7 @@ if __name__ == "__main__":
         # "20250206_164438505238",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_2,1_spkTh_6,9,12,15
         # "20250206_164438879893",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_2,1_spkTh_6
         # "20250206_164441266254",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_2,1_spkTh_3,6,9
-        ## EMUsort  2.25 noise, default thresholds, after bugfix with Th
+        ## godzilla EMUsort  2.25 noise, default thresholds, after bugfix with Th
         # "20250219_143443063341",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_9,8_spkTh_6,9,12,15_SCORE_0.443
         # "20250219_143443143987",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_9,8_spkTh_6,9,12_SCORE_0.467
         # "20250219_143518054270",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_9,8_spkTh_6,9_SCORE_0.473
@@ -4645,31 +4695,161 @@ if __name__ == "__main__":
         # "20250219_152754600416",  # Th_2,1_spkTh_9_KS4
         # "20250219_152801488117",  # Th_2,1_spkTh_15_KS4
         ### godzilla  2.25 noise, "better" thresholds [3,6,9,12,15], after bugfix with Th, trying main branch
-        "20250219_214048830054",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_9,8_spkTh_3_SCORE_0.205_KS4
-        "20250219_214049032044",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_9,8_spkTh_15_SCORE_0.167_KS4
-        "20250219_214049123121",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_9,8_spkTh_12_SCORE_0.362_KS4
-        "20250219_214049179984",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_9,8_spkTh_6_SCORE_0.256_KS4
-        "20250219_214112812479",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_10,4_spkTh_6_SCORE_0.311_KS4
-        "20250219_214112938873",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_10,4_spkTh_3_SCORE_0.211_KS4
-        "20250219_214113122162",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_10,4_spkTh_15_SCORE_0.162_KS4
-        "20250219_214113243105",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_10,4_spkTh_9_SCORE_0.332_KS4
-        "20250219_214113405316",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_10,4_spkTh_12_SCORE_0.291_KS4
-        "20250219_214138126553",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_7,3_spkTh_12_SCORE_0.326_KS4
-        "20250219_214138170459",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_7,3_spkTh_3_SCORE_0.165_KS4
-        "20250219_214138355190",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_7,3_spkTh_6_SCORE_0.234_KS4
-        "20250219_214138506359",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_7,3_spkTh_9_SCORE_0.275_KS4
-        "20250219_214138570102",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_7,3_spkTh_15_SCORE_0.141_KS4
-        "20250219_214209871719",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_5,2_spkTh_6_SCORE_0.319_KS4
-        "20250219_214210540569",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_5,2_spkTh_9_SCORE_0.262_KS4
-        "20250219_214210840073",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_5,2_spkTh_12_SCORE_0.284_KS4
-        "20250219_214211156266",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_5,2_spkTh_15_SCORE_0.228_KS4
-        "20250219_214211395082",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_5,2_spkTh_3_SCORE_0.128_KS4
-        "20250219_214235146371",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_2,1_spkTh_9_SCORE_0.201_KS4
-        "20250219_214235770179",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_2,1_spkTh_6_SCORE_0.180_KS4
-        "20250219_214236084168",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_2,1_spkTh_12_SCORE_0.233_KS4
-        "20250219_214236157633",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_2,1_spkTh_3_SCORE_0.144_KS4
-        "20250219_214236759883",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_2,1_spkTh_15_SCORE_0.174_KS4
-        "20250219_214049320508",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_9,8_spkTh_9_SCORE_0.377_KS4
+        # "20250219_214048830054",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_9,8_spkTh_3_SCORE_0.205_KS4
+        # "20250219_214049032044",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_9,8_spkTh_15_SCORE_0.167_KS4
+        # "20250219_214049123121",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_9,8_spkTh_12_SCORE_0.362_KS4
+        # "20250219_214049179984",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_9,8_spkTh_6_SCORE_0.256_KS4
+        # "20250219_214112812479",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_10,4_spkTh_6_SCORE_0.311_KS4
+        # "20250219_214112938873",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_10,4_spkTh_3_SCORE_0.211_KS4
+        # "20250219_214113122162",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_10,4_spkTh_15_SCORE_0.162_KS4
+        # "20250219_214113243105",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_10,4_spkTh_9_SCORE_0.332_KS4
+        # "20250219_214113405316",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_10,4_spkTh_12_SCORE_0.291_KS4
+        # "20250219_214138126553",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_7,3_spkTh_12_SCORE_0.326_KS4
+        # "20250219_214138170459",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_7,3_spkTh_3_SCORE_0.165_KS4
+        # "20250219_214138355190",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_7,3_spkTh_6_SCORE_0.234_KS4
+        # "20250219_214138506359",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_7,3_spkTh_9_SCORE_0.275_KS4
+        # "20250219_214138570102",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_7,3_spkTh_15_SCORE_0.141_KS4
+        # "20250219_214209871719",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_5,2_spkTh_6_SCORE_0.319_KS4
+        # "20250219_214210540569",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_5,2_spkTh_9_SCORE_0.262_KS4
+        # "20250219_214210840073",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_5,2_spkTh_12_SCORE_0.284_KS4
+        # "20250219_214211156266",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_5,2_spkTh_15_SCORE_0.228_KS4
+        # "20250219_214211395082",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_5,2_spkTh_3_SCORE_0.128_KS4
+        # "20250219_214235146371",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_2,1_spkTh_9_SCORE_0.201_KS4
+        # "20250219_214235770179",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_2,1_spkTh_6_SCORE_0.180_KS4
+        # "20250219_214236084168",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_2,1_spkTh_12_SCORE_0.233_KS4
+        # "20250219_214236157633",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_2,1_spkTh_3_SCORE_0.144_KS4
+        # "20250219_214236759883",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_2,1_spkTh_15_SCORE_0.174_KS4
+        # "20250219_214049320508",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_9,8_spkTh_9_SCORE_0.377_KS4
+        ### godzilla 2.25 noise, after Th bugfix, EMUsort
+        # "20250224_170933008715",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_9,8_spkTh_6,9,12,15_SCORE_0.506
+        # "20250224_170933372878",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_9,8_spkTh_6_SCORE_0.461
+        # "20250224_170933392109",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_9,8_spkTh_6,9_SCORE_0.421
+        # "20250224_170933812317",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_9,8_spkTh_6,9,12_SCORE_0.479
+        # "20250224_170934011678",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_9,8_spkTh_3,6,9_SCORE_0.480
+        # "20250224_170955422302",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_10,4_spkTh_6,9,12,15_SCORE_0.491
+        # "20250224_170955542053",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_10,4_spkTh_3,6,9_SCORE_0.516
+        # "20250224_170955719127",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_10,4_spkTh_6,9,12_SCORE_0.464
+        # "20250224_170955828967",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_10,4_spkTh_6_SCORE_0.507
+        # "20250224_170956079505",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_10,4_spkTh_6,9_SCORE_0.591
+        # "20250224_171016669374",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_7,3_spkTh_6,9,12,15_SCORE_0.522
+        # "20250224_171018082719",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_7,3_spkTh_6,9,12_SCORE_0.559
+        # "20250224_171018167207",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_7,3_spkTh_6_SCORE_0.490
+        # "20250224_171018199809",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_7,3_spkTh_3,6,9_SCORE_0.569
+        # "20250224_171018366594",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_7,3_spkTh_6,9_SCORE_0.553
+        # "20250224_171039763907",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_5,2_spkTh_6,9,12,15_SCORE_0.573
+        "20250224_171039931888",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_5,2_spkTh_6,9_SCORE_0.540 $$$
+        # "20250224_171040072285",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_5,2_spkTh_6,9,12_SCORE_0.548
+        # "20250224_171040667490",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_5,2_spkTh_6_SCORE_0.547
+        # "20250224_171040937295",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_5,2_spkTh_3,6,9_SCORE_0.496
+        # "20250224_171101236037",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_2,1_spkTh_6,9,12,15_SCORE_0.367
+        # "20250224_171102048404",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_2,1_spkTh_6,9_SCORE_0.407
+        # "20250224_171102753505",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_2,1_spkTh_6_SCORE_0.398
+        # "20250224_171103486171",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_2,1_spkTh_6,9,12_SCORE_0.392
+        # "20250224_171103525132",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_2,1_spkTh_3,6,9_SCORE_0.422
+        ### godzilla 2.25 noise, after Th bugfix, Kilosort4
+        # "20250224_171852332929",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_9,8_spkTh_9_SCORE_0.377_KS4 $$$
+        # "20250224_171852480584",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_9,8_spkTh_12_SCORE_0.267_KS4
+        # "20250224_171852697443",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_9,8_spkTh_6_SCORE_0.336_KS4
+        # "20250224_171853128252",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_9,8_spkTh_15_SCORE_0.190_KS4
+        # "20250224_171853466447",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_9,8_spkTh_3_SCORE_0.236_KS4
+        # "20250224_171914491521",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_10,4_spkTh_6_SCORE_0.298_KS4
+        # "20250224_171915619157",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_10,4_spkTh_12_SCORE_0.335_KS4
+        # "20250224_171915769862",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_10,4_spkTh_3_SCORE_0.197_KS4
+        # "20250224_171915981632",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_10,4_spkTh_15_SCORE_0.163_KS4
+        # "20250224_171916033041",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_10,4_spkTh_9_SCORE_0.331_KS4
+        # "20250224_171936888026",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_7,3_spkTh_9_SCORE_0.327_KS4
+        # "20250224_171936955282",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_7,3_spkTh_15_SCORE_0.185_KS4
+        # "20250224_171937056056",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_7,3_spkTh_3_SCORE_0.161_KS4
+        # "20250224_171937109787",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_7,3_spkTh_12_SCORE_0.276_KS4
+        # "20250224_171937158132",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_7,3_spkTh_6_SCORE_0.280_KS4
+        # "20250224_171957329124",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_5,2_spkTh_9_SCORE_0.261_KS4
+        # "20250224_171958404607",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_5,2_spkTh_6_SCORE_0.316_KS4
+        # "20250224_171958550209",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_5,2_spkTh_3_SCORE_0.154_KS4
+        # "20250224_171958596495",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_5,2_spkTh_12_SCORE_0.239_KS4
+        # "20250224_171959063135",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_5,2_spkTh_15_SCORE_0.229_KS4
+        # "20250224_172018580356",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_2,1_spkTh_6_SCORE_0.223_KS4
+        # "20250224_172020987693",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_2,1_spkTh_12_SCORE_0.221_KS4
+        # "20250224_172021177557",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_2,1_spkTh_3_SCORE_0.133_KS4
+        # "20250224_172021362505",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_2,1_spkTh_15_SCORE_0.142_KS4
+        # "20250224_172021609448",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_2,1_spkTh_9_SCORE_0.195_KS4
+        ### monkey 2.25 noise, after Th bugfix, EMUsort,  nt0=121
+        # "20250224_173830784247",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_9,8_spkTh_3,6,9_SCORE_0.577
+        # "20250224_173831761385",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_9,8_spkTh_6_SCORE_0.538
+        # "20250224_173832177395",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_9,8_spkTh_6,9,12,15_SCORE_0.377
+        # "20250224_173832280243",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_9,8_spkTh_6,9_SCORE_0.550
+        # "20250224_173832466839",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_9,8_spkTh_6,9,12_SCORE_0.613
+        # "20250224_173913919669",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_10,4_spkTh_6_SCORE_0.594
+        # "20250224_173914422122",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_10,4_spkTh_6,9,12,15_SCORE_0.591
+        # "20250224_173914442250",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_10,4_spkTh_6,9_SCORE_0.537 $$$
+        # "20250224_173914632250",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_10,4_spkTh_6,9,12_SCORE_0.557
+        # "20250224_173914861656",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_10,4_spkTh_3,6,9_SCORE_0.556
+        # "20250224_174013006980",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_7,3_spkTh_6,9,12_SCORE_0.401
+        # "20250224_174017568631",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_7,3_spkTh_6_SCORE_0.381
+        # "20250224_174018928174",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_7,3_spkTh_6,9,12,15_SCORE_0.483
+        # "20250224_174019431632",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_7,3_spkTh_6,9_SCORE_0.397
+        # "20250224_174022574481",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_7,3_spkTh_3,6,9_SCORE_0.395
+        # "20250224_174103388227",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_5,2_spkTh_6,9,12_SCORE_0.406
+        # "20250224_174104669884",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_5,2_spkTh_6,9,12,15_SCORE_0.339
+        # "20250224_174104778362",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_5,2_spkTh_3,6,9_SCORE_0.396
+        # "20250224_174105104977",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_5,2_spkTh_6,9_SCORE_0.374
+        # "20250224_174105336656",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_5,2_spkTh_6_SCORE_0.326
+        # "20250224_174147490207",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_2,1_spkTh_3,6,9_SCORE_0.383
+        # "20250224_174147603059",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_2,1_spkTh_6,9,12,15_SCORE_0.484
+        # "20250224_174147680099",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_2,1_spkTh_6,9,12_SCORE_0.433
+        # "20250224_174148510152",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_2,1_spkTh_6_SCORE_0.340
+        # "20250224_174148738234",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_2,1_spkTh_6,9_SCORE_0.273
+        ### monkey 2.25 noise, after Th bugfix, Kilosort4, nt0=61
+        # "20250224_191631244961",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_9,8_spkTh_15_SCORE_0.465_KS4
+        # "20250224_191631718649",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_9,8_spkTh_12_SCORE_0.508_KS4
+        # "20250224_191631840467",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_9,8_spkTh_6_SCORE_0.562_KS4
+        # "20250224_191632007366",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_9,8_spkTh_3_SCORE_0.386_KS4
+        # "20250224_191632292561",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_9,8_spkTh_9_SCORE_0.444_KS4
+        # "20250224_191735709462",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_10,4_spkTh_6_SCORE_0.553_KS4
+        # "20250224_191736012747",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_10,4_spkTh_9_SCORE_0.386_KS4
+        # "20250224_191736338291",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_10,4_spkTh_12_SCORE_0.505_KS4
+        # "20250224_191736415234",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_10,4_spkTh_15_SCORE_0.522_KS4
+        # "20250224_191738052086",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_10,4_spkTh_3_SCORE_0.315_KS4
+        # "20250224_191834918161",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_7,3_spkTh_15_SCORE_0.414_KS4
+        # "20250224_191836516727",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_7,3_spkTh_12_SCORE_0.412_KS4
+        # "20250224_191837585532",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_7,3_spkTh_9_SCORE_0.502_KS4
+        # "20250224_191838314319",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_7,3_spkTh_6_SCORE_0.462_KS4
+        # "20250224_191838589924",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_7,3_spkTh_3_SCORE_0.382_KS4
+        # "20250224_191936471039",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_5,2_spkTh_3_SCORE_0.267_KS4
+        # "20250224_191936689762",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_5,2_spkTh_6_SCORE_0.423_KS4
+        # "20250224_191937638714",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_5,2_spkTh_12_SCORE_0.298_KS4
+        # "20250224_191938020896",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_5,2_spkTh_9_SCORE_0.356_KS4
+        # "20250224_191938070162",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_5,2_spkTh_15_SCORE_0.415_KS4
+        # "20250224_192026359803",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_2,1_spkTh_6_SCORE_0.238_KS4
+        # "20250224_192026419248",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_2,1_spkTh_12_SCORE_0.306_KS4
+        # "20250224_192027016445",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_2,1_spkTh_15_SCORE_0.333_KS4
+        # "20250224_192027231196",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_2,1_spkTh_3_SCORE_0.253_KS4
+        # "20250224_192027583613",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_2,1_spkTh_9_SCORE_0.344_KS4
+        ### monkey 2.25 noise, after Th bugfix, Kilosort4, nt0=121
+        # "20250224_195002555736",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_9,8_spkTh_12_SCORE_0.410_KS4
+        # "20250224_195002616763",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_9,8_spkTh_15_SCORE_0.489_KS4
+        # "20250224_195004033916",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_9,8_spkTh_9_SCORE_0.525_KS4
+        # "20250224_195004134401",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_9,8_spkTh_6_SCORE_0.408_KS4
+        # "20250224_195004997788",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_9,8_spkTh_3_SCORE_0.354_KS4
+        # "20250224_195052213521",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_10,4_spkTh_3_SCORE_0.287_KS4
+        # "20250224_195053302085",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_10,4_spkTh_9_SCORE_0.495_KS4
+        # "20250224_195054834939",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_10,4_spkTh_12_SCORE_0.612_KS4
+        # "20250224_195055006995",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_10,4_spkTh_6_SCORE_0.482_KS4
+        # "20250224_195055654709",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_10,4_spkTh_15_SCORE_0.501_KS4
+        # "20250224_195145355702",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_7,3_spkTh_6_SCORE_0.325_KS4
+        # "20250224_195146573006",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_7,3_spkTh_12_SCORE_0.430_KS4 $$$
+        # "20250224_195146607281",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_7,3_spkTh_15_SCORE_0.377_KS4 $
+        # "20250224_195146941479",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_7,3_spkTh_3_SCORE_0.282_KS4
+        # "20250224_195147106859",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_7,3_spkTh_9_SCORE_0.411_KS4 $$$$
+        # "20250224_195237828406",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_5,2_spkTh_6_SCORE_0.350_KS4
+        # "20250224_195238403108",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_5,2_spkTh_3_SCORE_0.241_KS4
+        # "20250224_195239085505",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_5,2_spkTh_9_SCORE_0.357_KS4
+        # "20250224_195239241838",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_5,2_spkTh_12_SCORE_0.383_KS4
+        # "20250224_195240202577",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_5,2_spkTh_15_SCORE_0.376_KS4 $$
+        # "20250224_195329562272",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_2,1_spkTh_3_SCORE_0.153_KS4
+        # "20250224_195330899739",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_2,1_spkTh_15_SCORE_0.274_KS4
+        # "20250224_195330965578",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_2,1_spkTh_9_SCORE_0.248_KS4
+        # "20250224_195331214710",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_2,1_spkTh_6_SCORE_0.207_KS4
+        # "20250224_195332333435",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_2,1_spkTh_12_SCORE_0.331_KS4
     ]
     clusters_to_take_from = {
         # {
@@ -4909,6 +5089,12 @@ if __name__ == "__main__":
                     slice=time_frame,
                     load_type=simulation_method,
                 )
+                # mu_GT.save_spikes(
+                #     # f"synthetic_spikes_from_{session_name}_using_{chosen_bodypart_to_load}.npy"
+                #     f"spikes_files/{ground_truth_path.stem}_{datetime.now().strftime('%Y%m%d-%H%M%S')}",
+                #     save_as="indexes",
+                # )
+                # exit
                 mu_GT_bin_width_ms_orig = mu_GT.bin_width * 1000
                 if simulation_method == "konstantin":
                     # load the .mat variables from the ground truth path:
@@ -6269,9 +6455,8 @@ if __name__ == "__main__":
                 recalls,
                 accuracies,
                 bin_widths_for_comparison[0],
-                clusters_in_sort_to_use[iSort],
                 GT_clusters_to_use,
-                sorts_from_each_path_to_load[iSort],
+                sorts_from_each_path_to_load,
                 plot_template,
                 plot1_bar_type,
                 plot1_ylim,
@@ -6284,6 +6469,7 @@ if __name__ == "__main__":
                 save_svg_plot1b,
                 save_html_plot1b,
                 spike_isolation_radius_ms,
+                iSort,
                 # make figsize 1080p
                 figsize=(2000, 1000),
             )

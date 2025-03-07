@@ -78,6 +78,14 @@ def load_npy_files_from_folder(folder_path, memmap=False):
         if memmap
         else np.load(spike_clusters_path)
     )
+    # add axis if not at least 2D
+    if len(spike_times.shape) < 2 and len(spike_clusters.shape) < 2:
+        print("correcting dim's of loaded data, adding a dimension")
+        spike_times = np.expand_dims(spike_times, axis=-1)
+        spike_clusters = np.expand_dims(spike_clusters, axis=-1)
+        print(f"new shapes are")
+        print("spike_times", spike_times.shape)
+        print("spike_clusters", spike_clusters.shape)
     return spike_times, spike_clusters
 
 
@@ -933,7 +941,6 @@ def compute_accuracy_for_each_GT_cluster(
             GT_repeated_times - KS_times,
             mask=np.zeros(GT_repeated_times.shape),
         )
-        # set_trace()
         # initialize train arrays
         true_positive_spikes = np.zeros(kilosort_spikes.shape, dtype=int)
         false_positive_spikes = np.zeros(kilosort_spikes.shape, dtype=int)
@@ -1268,6 +1275,7 @@ def plot1(
     save_svg_plot1b,
     save_html_plot1b,
     spike_isolation_radius_ms,
+    sort_type,
     figsize=(1920, 1080),
 ):
     iSort = 0
@@ -1308,7 +1316,7 @@ def plot1(
         # make text much larger
         fig1a.update_layout(
             title={
-                "text": f"<b>Comparison of EMUsort Performance to Ground Truth, {bin_width_for_comparison} ms Bins</b>",
+                "text": f"<b>Comparison of {sort_type} Performance to Ground Truth, {bin_width_for_comparison} ms Bins</b>",
             },
             xaxis_title="<b>GT Cluster ID,<br>True Count</b>",
             legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
@@ -1316,7 +1324,7 @@ def plot1(
             yaxis=dict(
                 title="<b>Metric Score</b>",
                 title_standoff=1,
-                range=[0.55, 1.1],
+                range=[i / 100 for i in plot1_ylim],
             ),
         )
         # update the x tick label of the bar graph to match the cluster ID
@@ -1327,9 +1335,13 @@ def plot1(
             ],
             tickvals=np.arange(0, num_motor_units),
             tickfont=dict(size=32, family="Open Sans", color="black", weight="bold"),
+            showgrid=True,
+            gridcolor="grey",
         )
         fig1a.update_yaxes(
-            tickfont=dict(size=32, family="Open Sans", color="black", weight="bold")
+            tickfont=dict(size=32, family="Open Sans", color="black", weight="bold"),
+            showgrid=True,
+            gridcolor="grey",
         )
         if show_plot1b or save_png_plot1b or save_svg_plot1b or save_html_plot1b:
             # make text larger
@@ -1355,7 +1367,7 @@ def plot1(
                     go.Bar(
                         x=np.arange(0, num_motor_units),
                         y=num_kilosort_spikes[iSort],
-                        name="EMUsort",
+                        name=sort_type,
                         marker_color="rgb(26, 118, 255)",
                         opacity=0.5,
                     )
@@ -1389,7 +1401,7 @@ def plot1(
             # make all the text way larger
             fig1b.update_layout(
                 title={
-                    "text": f"<b>True Spike Count Captured for Each Cluster Using EMUsort, {bin_width_for_comparison} ms Bins</b><br>",
+                    "text": f"<b>True Spike Count Captured for Each Cluster Using {sort_type}, {bin_width_for_comparison} ms Bins</b><br>",
                     # "y": 0.95,
                 },
                 xaxis_title="<b>GT Cluster ID,<br>True Count</b>",
@@ -1422,19 +1434,19 @@ def plot1(
 
         if save_png_plot1a:
             fig1a.write_image(
-                f"plot1/plot1a_spkRad_{str(spike_isolation_radius_ms)}_{bin_width_for_comparison}ms_EMUsort.png",
+                f"plot1/plot1a_spkRad_{str(spike_isolation_radius_ms)}_{bin_width_for_comparison}ms_{sort_type}.png",
                 width=figsize[0],
                 height=figsize[1],
             )
         if save_svg_plot1a:
             fig1a.write_image(
-                f"plot1/plot1a_spkRad_{str(spike_isolation_radius_ms)}_{bin_width_for_comparison}ms_EMUsort.svg",
+                f"plot1/plot1a_spkRad_{str(spike_isolation_radius_ms)}_{bin_width_for_comparison}ms_{sort_type}.svg",
                 width=figsize[0],
                 height=figsize[1],
             )
         if save_html_plot1a:
             fig1a.write_html(
-                f"plot1/plot1a_spkRad_{str(spike_isolation_radius_ms)}_{bin_width_for_comparison}ms_EMUsort.html",
+                f"plot1/plot1a_spkRad_{str(spike_isolation_radius_ms)}_{bin_width_for_comparison}ms_{sort_type}.html",
                 include_plotlyjs="cdn",
                 full_html=False,
             )
@@ -1443,19 +1455,19 @@ def plot1(
 
         if save_png_plot1b:
             fig1b.write_image(
-                f"plot1/plot1b_spkRad_{str(spike_isolation_radius_ms)}_{bin_width_for_comparison}ms_EMUsort.png",
+                f"plot1/plot1b_spkRad_{str(spike_isolation_radius_ms)}_{bin_width_for_comparison}ms_{sort_type}.png",
                 width=figsize[0],
                 height=figsize[1],
             )
         if save_svg_plot1b:
             fig1b.write_image(
-                f"plot1/plot1b_spkRad_{str(spike_isolation_radius_ms)}_{bin_width_for_comparison}ms_EMUsort.svg",
+                f"plot1/plot1b_spkRad_{str(spike_isolation_radius_ms)}_{bin_width_for_comparison}ms_{sort_type}.svg",
                 width=figsize[0],
                 height=figsize[1],
             )
         if save_html_plot1b:
             fig1b.write_html(
-                f"plot1/plot1b_spkRad_{str(spike_isolation_radius_ms)}_{bin_width_for_comparison}ms_EMUsort.html",
+                f"plot1/plot1b_spkRad_{str(spike_isolation_radius_ms)}_{bin_width_for_comparison}ms_{sort_type}.html",
                 include_plotlyjs="cdn",
                 full_html=False,
             )
@@ -1475,22 +1487,27 @@ if __name__ == "__main__":
     random_seed_entropy = 218530072159092100005306709809425040261  # 75092699954400878964964014863999053929  # int
 
     ## plot settings
+    sort_type = "MUedit"
     plot_template = "plotly_white"  # ['ggplot2', 'seaborn', 'simple_white', 'plotly', 'plotly_white', 'plotly_dark', 'presentation', 'xgridoff', 'ygridoff', 'gridon', 'none']
     plot1_bar_type = "percent"  # totals / percent
-    plot1_ylim = [0, 120]
-    show_plot1a = True
-    show_plot1b = True
-    save_png_plot1a = False
-    save_png_plot1b = False
-    save_svg_plot1a = False
-    save_svg_plot1b = False
+    plot1_ylim = [-10, 120]
+    show_plot1a = False
+    show_plot1b = False
+    save_png_plot1a = True
+    save_png_plot1b = True
+    save_svg_plot1a = True
+    save_svg_plot1b = True
     save_html_plot1a = False
     save_html_plot1b = False
 
     ## set ground truth data folder path
     GT_folder = Path(
-        "/home/smoconn/git/MUsim/spikes_files/spikes_20241203-120158_godzilla_20221117_10MU_SNR-1-from_data_jitter-2.0std_method-KS_templates_12-files"
+        # "/home/smoconn/git/MUsim/spikes_files/spikes_20241203-120158_godzilla_20221117_10MU_SNR-1-from_data_jitter-2.0std_method-KS_templates_12-files"
+        "/home/smamid3/MUEdit Convert/MUEdit Convert/ground_truth_2.25"
+        # "/home/smoconn/git/MUsim/spikes_files/spikes_20240607-143039_godzilla_20221117_10MU_SNR-1-from_data_jitter-0std_method-KS_templates_12-files_20250306-180027"
     )
+    # if ".npy" in GT_folder:
+    #     GT_folder = Path().joinpath("spikes_files", GT_folder)
     # set which ground truth clusters to compare with (a range from 0 to num_motor_units)
     num_motor_units = 10
     GT_clusters_to_use = list(range(0, num_motor_units))
@@ -1498,14 +1515,30 @@ if __name__ == "__main__":
     ## load Kilosort data
     # paths to the folders containing the Kilosort data
     KS_session_folder = Path(
-        "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/godzilla/litmus2/sorted_20241203_153703193461_litmus2"
+        # "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/godzilla/litmus2/sorted_20241203_153703193461_litmus2"
+        "/home/smamid3/MUEdit Convert/MUEdit Convert/mu_edit_2.25_sort"
+        # "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/godzilla/siemu_test/sim_2022-11-17_17-08-07_shape_noise_2.25/sorted_20250224_171039931888_sim_2022-11-17_17-08-07_shape_noise_2.25_Th_5,2_spkTh_6,9_SCORE_0.540"
     )
     # clusters_to_take_from = [24, 2, 3, 1, 23, 26, 0, 4, 32, 27]  # 0-indexed
 
     # load the spike times and clusters from the ground truth and Kilosort data folders
     GT_spike_times, GT_spike_clusters = load_npy_files_from_folder(GT_folder)
     KS_spike_times, KS_spike_clusters = load_npy_files_from_folder(KS_session_folder)
-
+    print("updated")
+    # add dummies to KS if below GT
+    num_dummies = len(np.unique(GT_spike_clusters)) - len(np.unique(KS_spike_clusters))
+    if num_dummies > 0:
+        highest_KS_cluster = np.max(np.unique(KS_spike_clusters))
+        dum_clusters = (
+            0  # np.arange(highest_KS_cluster + 1, highest_KS_cluster + num_dummies + 1)
+        )
+        dum_times = int(1e4) * np.ones_like(
+            dum_clusters
+        )  # np.random.randint(np.max(GT_spike_times), size=dum_clusters.shape)
+        KS_spike_clusters = np.expand_dims(
+            np.insert(KS_spike_clusters, 0, dum_clusters), -1
+        )
+        KS_spike_times = np.expand_dims(np.insert(KS_spike_times, 0, dum_times), -1)
     # parameters for different settings across repeats
     # only do correlation alignment during 2nd pass
     precorrelation_rebin_width_ms_list = [None, 0.1]
@@ -1580,6 +1613,7 @@ if __name__ == "__main__":
             save_html_plot1b,
             spike_isolation_radius_ms,
             # make figsize 1080p
+            sort_type,
             figsize=(2000, 1000),
         )
 
