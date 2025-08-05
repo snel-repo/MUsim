@@ -78,6 +78,8 @@ def load_npy_files_from_folder(folder_path, memmap=False):
         if memmap
         else np.load(spike_clusters_path)
     )
+    if 0 not in np.unique(spike_clusters):
+        spike_clusters -= 1
     # add axis if not at least 2D
     if len(spike_times.shape) < 2 and len(spike_clusters.shape) < 2:
         print("correcting dim's of loaded data, adding a dimension")
@@ -679,8 +681,8 @@ def compute_accuracy_for_each_GT_cluster(
     # use the aligned spike trains to compute the metrics
     if correlation_alignment:
 
-        min_delay_ms = -1  # ms
-        max_delay_ms = 1  # ms
+        min_delay_ms = -2  # ms
+        max_delay_ms = 2  # ms
 
         if precorrelation_rebin_width_ms is not None:
             # precorrelation alignment rebinning
@@ -1274,8 +1276,13 @@ def plot1(
     save_png_plot1b,
     save_svg_plot1b,
     save_html_plot1b,
+    show_plot1c,
+    save_png_plot1c,
+    save_svg_plot1c,
+    save_html_plot1c,
     spike_isolation_radius_ms,
     sort_type,
+    KS_session_folder,
     figsize=(1920, 1080),
 ):
     iSort = 0
@@ -1343,136 +1350,230 @@ def plot1(
             showgrid=True,
             gridcolor="grey",
         )
-        if show_plot1b or save_png_plot1b or save_svg_plot1b or save_html_plot1b:
-            # make text larger
-            fig1b = go.Figure(
-                layout=go.Layout(
-                    yaxis=dict(
-                        title_standoff=10,
-                    ),
-                )
-            )
-
-            if plot1_bar_type == "totals":
-                fig1b.add_trace(
-                    go.Bar(
-                        x=np.arange(0, num_motor_units),
-                        y=num_ground_truth_spikes[iSort],
-                        name="Ground Truth",
-                        marker_color="rgb(55, 83, 109)",
-                        opacity=0.5,
-                    )
-                )
-                fig1b.add_trace(
-                    go.Bar(
-                        x=np.arange(0, num_motor_units),
-                        y=num_kilosort_spikes[iSort],
-                        name=sort_type,
-                        marker_color="rgb(26, 118, 255)",
-                        opacity=0.5,
-                    )
-                )
-                bar_yaxis_title = "<b>Spike Count</b>"
-            elif plot1_bar_type == "percent":
-                fig1b.add_trace(
-                    go.Bar(
-                        x=np.arange(0, num_motor_units),
-                        y=100
-                        * num_kilosort_spikes[iSort]
-                        / num_ground_truth_spikes[iSort],
-                        name="% True Spike Count",
-                        marker_color="black",
-                        opacity=1,
-                    )
-                )
-            else:
-                raise ValueError(
-                    f"plot1_bar_type must be 'totals' or 'percent', not {plot1_bar_type}"
-                )
-            bar_yaxis_title = "<b>% True Spike Count</b>"
-            fig1b.add_hline(
-                y=100,
-                line_width=20,
-                line_dash="dash",
-                line_color="firebrick",
-                # yref="y2",
-                name="100% Spike Count",
-            )
-            # make all the text way larger
-            fig1b.update_layout(
-                title={
-                    "text": f"<b>True Spike Count Captured for Each Cluster Using {sort_type}, {bin_width_for_comparison} ms Bins</b><br>",
-                    # "y": 0.95,
-                },
-                xaxis_title="<b>GT Cluster ID,<br>True Count</b>",
-                template=plot_template,
+    if show_plot1b or save_png_plot1b or save_svg_plot1b or save_html_plot1b:
+        # make text larger
+        fig1b = go.Figure(
+            layout=go.Layout(
                 yaxis=dict(
-                    title=bar_yaxis_title,
-                    showgrid=False,
+                    title_standoff=10,
                 ),
             )
+        )
 
-            # update the x tick label of the bar graph to match the cluster ID
-            fig1b.update_xaxes(
-                ticktext=[
-                    f"<b>Unit {GT_clusters_to_use[iUnit]},<br>{str(np.round(num_ground_truth_spikes[iSort][iUnit]/1000,1))}k<b>"
-                    for iUnit in range(num_motor_units)
-                ],
-                tickvals=np.arange(0, num_motor_units),
-                tickfont=dict(size=32, family="Open Sans"),
+        if plot1_bar_type == "totals":
+            fig1b.add_trace(
+                go.Bar(
+                    x=np.arange(0, num_motor_units),
+                    y=num_ground_truth_spikes[iSort],
+                    name="Ground Truth",
+                    marker_color="rgb(55, 83, 109)",
+                    opacity=0.5,
+                )
             )
-            fig1b.update_layout(yaxis_range=plot1_ylim)
-            # make y axis bold
-            fig1b.update_yaxes(
-                title_font=dict(
-                    size=32, family="Open Sans", color="black", weight="bold"
+            fig1b.add_trace(
+                go.Bar(
+                    x=np.arange(0, num_motor_units),
+                    y=num_kilosort_spikes[iSort],
+                    name=sort_type,
+                    marker_color="rgb(26, 118, 255)",
+                    opacity=0.5,
+                )
+            )
+            bar_yaxis_title = "<b>Spike Count</b>"
+        elif plot1_bar_type == "percent":
+            fig1b.add_trace(
+                go.Bar(
+                    x=np.arange(0, num_motor_units),
+                    y=100
+                    * num_kilosort_spikes[iSort]
+                    / num_ground_truth_spikes[iSort],
+                    name="% True Spike Count",
+                    marker_color="black",
+                    opacity=1,
+                )
+            )
+        else:
+            raise ValueError(
+                f"plot1_bar_type must be 'totals' or 'percent', not {plot1_bar_type}"
+            )
+        bar_yaxis_title = "<b>% True Spike Count</b>"
+        fig1b.add_hline(
+            y=100,
+            line_width=20,
+            line_dash="dash",
+            line_color="firebrick",
+            # yref="y2",
+            name="100% Spike Count",
+        )
+        # make all the text way larger
+        fig1b.update_layout(
+            title={
+                "text": f"<b>True Spike Count Captured for Each Cluster Using {sort_type}, {bin_width_for_comparison} ms Bins</b><br>",
+                # "y": 0.95,
+            },
+            xaxis_title="<b>GT Cluster ID,<br>True Count</b>",
+            template=plot_template,
+            yaxis=dict(
+                title=bar_yaxis_title,
+                showgrid=False,
+            ),
+        )
+
+        # update the x tick label of the bar graph to match the cluster ID
+        fig1b.update_xaxes(
+            ticktext=[
+                f"<b>Unit {GT_clusters_to_use[iUnit]},<br>{str(np.round(num_ground_truth_spikes[iSort][iUnit]/1000,1))}k<b>"
+                for iUnit in range(num_motor_units)
+            ],
+            tickvals=np.arange(0, num_motor_units),
+            tickfont=dict(size=32, family="Open Sans"),
+        )
+        fig1b.update_layout(yaxis_range=plot1_ylim)
+        # make y axis bold
+        fig1b.update_yaxes(
+            title_font=dict(
+                size=32, family="Open Sans", color="black", weight="bold"
+            ),
+            tickfont=dict(
+                size=32, family="Open Sans", color="black", weight="bold"
+            ),
+        )
+    if show_plot1c or save_png_plot1c or save_svg_plot1c or save_html_plot1c:
+        # make text larger
+        fig1c = go.Figure(
+            layout=go.Layout(
+                yaxis=dict(
+                    # title_font=dict(size=14, family="Open Sans"),
+                    title_standoff=10,
                 ),
-                tickfont=dict(
-                    size=32, family="Open Sans", color="black", weight="bold"
+                # title_font=dict(size=18),
+            )
+        )
+
+        fig1c.add_shape(
+            type="line",
+            xref="x",
+            yref="y",
+            x0=0,  # num_ground_truth_spikes[iSort].min(),
+            y0=0,  # num_ground_truth_spikes[iSort].min(),
+            x1=num_ground_truth_spikes[iSort].max(),
+            y1=num_ground_truth_spikes[iSort].max(),
+            line=dict(
+                color="black",
+                width=10,
+                dash="dot",
+            ),
+        )
+
+        fig1c.add_trace(
+            go.Scatter(
+                x=num_ground_truth_spikes[iSort],
+                y=num_kilosort_spikes[iSort],
+                mode="markers",
+                name="Count",
+                marker=dict(
+                    size=35,
+                    color=("firebrick" if sort_type == "EMUsort" else "black"),
                 ),
+                # yaxis="y2",
             )
+        )
+        axis_type = "linear"
+        fig1c.update_xaxes(type=axis_type, showgrid=True)
+        fig1c.update_yaxes(
+            type=axis_type,
+            showgrid=True,
+            scaleanchor="x",
+            scaleratio=1,
+        )
+        fig1c.update_layout(
+            title={
+                "text": f"<b>Spike Counts Captured for Each Cluster</b>",
+                # "y": 0.95,
+            },
+            xaxis=dict(title="<b>True Spike Count</b>"),
+            # legend_title="Ground Truth Metrics",
+            # legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
+            template=plot_template,
+            # yaxis=dict(
+            #     title="<b>Metric Score</b>",
+            #     title_standoff=1,
+            #     range=[0, 1],
+            #     # overlaying="y2",
+            # ),
+            yaxis=dict(
+                title="<b>Sorted Spike Count</b>",
+                # title_standoff=1,
+                # anchor="free",
+                # autoshift=True,
+                # shift=-30,
+                # side="right",
+                # showgrid=False,
+            ),
+        )
 
-        if save_png_plot1a:
-            fig1a.write_image(
-                f"plot1/plot1a_spkRad_{str(spike_isolation_radius_ms)}_{bin_width_for_comparison}ms_{sort_type}.png",
-                width=figsize[0],
-                height=figsize[1],
-            )
-        if save_svg_plot1a:
-            fig1a.write_image(
-                f"plot1/plot1a_spkRad_{str(spike_isolation_radius_ms)}_{bin_width_for_comparison}ms_{sort_type}.svg",
-                width=figsize[0],
-                height=figsize[1],
-            )
-        if save_html_plot1a:
-            fig1a.write_html(
-                f"plot1/plot1a_spkRad_{str(spike_isolation_radius_ms)}_{bin_width_for_comparison}ms_{sort_type}.html",
-                include_plotlyjs="cdn",
-                full_html=False,
-            )
-        if show_plot1a:
-            fig1a.show()
+    if save_png_plot1a:
+        fig1a.write_image(
+            f"plot1/plot1a_spkRad_{str(spike_isolation_radius_ms)}_{bin_width_for_comparison}ms_{sort_type}_{KS_session_folder.name}.png",
+            width=figsize[0],
+            height=figsize[1],
+        )
+    if save_svg_plot1a:
+        fig1a.write_image(
+            f"plot1/plot1a_spkRad_{str(spike_isolation_radius_ms)}_{bin_width_for_comparison}ms_{sort_type}_{KS_session_folder.name}.svg",
+            width=figsize[0],
+            height=figsize[1],
+        )
+    if save_html_plot1a:
+        fig1a.write_html(
+            f"plot1/plot1a_spkRad_{str(spike_isolation_radius_ms)}_{bin_width_for_comparison}ms_{sort_type}_{KS_session_folder.name}.html",
+            include_plotlyjs="cdn",
+            full_html=False,
+        )
+    if show_plot1a:
+        fig1a.show()
 
-        if save_png_plot1b:
-            fig1b.write_image(
-                f"plot1/plot1b_spkRad_{str(spike_isolation_radius_ms)}_{bin_width_for_comparison}ms_{sort_type}.png",
-                width=figsize[0],
-                height=figsize[1],
-            )
-        if save_svg_plot1b:
-            fig1b.write_image(
-                f"plot1/plot1b_spkRad_{str(spike_isolation_radius_ms)}_{bin_width_for_comparison}ms_{sort_type}.svg",
-                width=figsize[0],
-                height=figsize[1],
-            )
-        if save_html_plot1b:
-            fig1b.write_html(
-                f"plot1/plot1b_spkRad_{str(spike_isolation_radius_ms)}_{bin_width_for_comparison}ms_{sort_type}.html",
-                include_plotlyjs="cdn",
-                full_html=False,
-            )
-        if show_plot1b:
-            fig1b.show()
+    if save_png_plot1b:
+        fig1b.write_image(
+            f"plot1/plot1b_spkRad_{str(spike_isolation_radius_ms)}_{bin_width_for_comparison}ms_{sort_type}_{KS_session_folder.name}.png",
+            width=figsize[0],
+            height=figsize[1],
+        )
+    if save_svg_plot1b:
+        fig1b.write_image(
+            f"plot1/plot1b_spkRad_{str(spike_isolation_radius_ms)}_{bin_width_for_comparison}ms_{sort_type}_{KS_session_folder.name}.svg",
+            width=figsize[0],
+            height=figsize[1],
+        )
+    if save_html_plot1b:
+        fig1b.write_html(
+            f"plot1/plot1b_spkRad_{str(spike_isolation_radius_ms)}_{bin_width_for_comparison}ms_{sort_type}_{KS_session_folder.name}.html",
+            include_plotlyjs="cdn",
+            full_html=False,
+        )
+    if show_plot1b:
+        fig1b.show()
+
+    if save_png_plot1c:
+        fig1c.write_image(
+            f"plot1/plot1c_spkRad_{str(spike_isolation_radius_ms)}_{bin_width_for_comparison}ms_{sort_type}_{KS_session_folder.name}_{axis_type}.png",
+            width=figsize[0],
+            height=figsize[1],
+        )
+    if save_svg_plot1c:
+        fig1c.write_image(
+            f"plot1/plot1c_spkRad_{str(spike_isolation_radius_ms)}_{bin_width_for_comparison}ms_{sort_type}_{KS_session_folder.name}_{axis_type}.svg",
+            width=figsize[0],
+            height=figsize[1],
+        )
+    if save_html_plot1c:
+        fig1c.write_html(
+            f"plot1/plot1c_spkRad_{str(spike_isolation_radius_ms)}_{bin_width_for_comparison}ms_{sort_type}_{KS_session_folder.name}_{axis_type}.html",
+            include_plotlyjs="cdn",
+            full_html=False,
+        )
+    if show_plot1c:
+        fig1c.show()
 
 
 if __name__ == "__main__":
@@ -1481,7 +1582,7 @@ if __name__ == "__main__":
     time_frame = [0, 1]  # must be between 0 and 1
     ephys_fs = 30000  # Hz
     bin_widths_for_comparison = [0.1]  # only affects plotting
-    spike_isolation_radius_ms = None  # radius of isolation of a spike for it to be removed from consideration. set to positive float, integer, or set None to disable
+    spike_isolation_radius_ms = 1  # radius of isolation of a spike for it to be removed from consideration. set to positive float, integer, or set None to disable
 
     nt0 = 121  # number of time bins in the template, in ms it is 3.367, only used if method_for_automatic_cluster_mapping is "waves"
     random_seed_entropy = 218530072159092100005306709809425040261  # 75092699954400878964964014863999053929  # int
@@ -1493,17 +1594,22 @@ if __name__ == "__main__":
     plot1_ylim = [-10, 120]
     show_plot1a = False
     show_plot1b = False
-    save_png_plot1a = True
-    save_png_plot1b = True
-    save_svg_plot1a = True
-    save_svg_plot1b = True
+    show_plot1c = True
+    save_png_plot1a = False
+    save_png_plot1b = False
+    save_png_plot1c = False
+    save_svg_plot1a = False
+    save_svg_plot1b = False
+    save_svg_plot1c = True
     save_html_plot1a = False
     save_html_plot1b = False
+    save_html_plot1c = False
 
     ## set ground truth data folder path
     GT_folder = Path(
+        "./spikes_files/spikes_20250429-202657_godzilla_20221116_10MU_8CH_SNR-1-from_data_jitter-0.2std_method-KS_templates_12-files" # test of sameness with boolean .npy file
         # "/home/smoconn/git/MUsim/spikes_files/spikes_20241203-120158_godzilla_20221117_10MU_SNR-1-from_data_jitter-2.0std_method-KS_templates_12-files"
-        "/home/smamid3/MUEdit Convert/MUEdit Convert/ground_truth_2.25"
+        # "/home/smamid3/MUEdit Convert/MUEdit Convert/ground_truth_2.25"
         # "/home/smoconn/git/MUsim/spikes_files/spikes_20240607-143039_godzilla_20221117_10MU_SNR-1-from_data_jitter-0std_method-KS_templates_12-files_20250306-180027"
     )
     # if ".npy" in GT_folder:
@@ -1515,8 +1621,11 @@ if __name__ == "__main__":
     ## load Kilosort data
     # paths to the folders containing the Kilosort data
     KS_session_folder = Path(
+        # "./MUedit/run1/20250429-202658" # MUedit paper results
+        "./MUedit/run2" # MUedit paper results
+        # "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/godzilla/paper_evals/CHs_8_MUs_10/sim_noise_0.2_orig_CHs/sorted_20250429_205402741549_sim_noise_0.2_orig_CHs_Th_5,2_spkTh_6,9_SCORE_0.523"
         # "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/godzilla/litmus2/sorted_20241203_153703193461_litmus2"
-        "/home/smamid3/MUEdit Convert/MUEdit Convert/mu_edit_2.25_sort"
+        # "/home/smamid3/MUEdit Convert/MUEdit Convert/mu_edit_2.25_sort"
         # "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/godzilla/siemu_test/sim_2022-11-17_17-08-07_shape_noise_2.25/sorted_20250224_171039931888_sim_2022-11-17_17-08-07_shape_noise_2.25_Th_5,2_spkTh_6,9_SCORE_0.540"
     )
     # clusters_to_take_from = [24, 2, 3, 1, 23, 26, 0, 4, 32, 27]  # 0-indexed
@@ -1527,18 +1636,20 @@ if __name__ == "__main__":
     print("updated")
     # add dummies to KS if below GT
     num_dummies = len(np.unique(GT_spike_clusters)) - len(np.unique(KS_spike_clusters))
+    print(f"number of dummy clusters is {num_dummies}")
     if num_dummies > 0:
         highest_KS_cluster = np.max(np.unique(KS_spike_clusters))
         dum_clusters = (
-            0  # np.arange(highest_KS_cluster + 1, highest_KS_cluster + num_dummies + 1)
+            np.arange(highest_KS_cluster + 1, highest_KS_cluster + num_dummies + 1)
         )
-        dum_times = int(1e4) * np.ones_like(
+        dum_times = int(60000)+np.zeros_like(
             dum_clusters
-        )  # np.random.randint(np.max(GT_spike_times), size=dum_clusters.shape)
+        ).astype(int)  # np.random.randint(np.max(GT_spike_times), size=dum_clusters.shape)
         KS_spike_clusters = np.expand_dims(
             np.insert(KS_spike_clusters, 0, dum_clusters), -1
         )
         KS_spike_times = np.expand_dims(np.insert(KS_spike_times, 0, dum_times), -1)
+    # set_trace()
     # parameters for different settings across repeats
     # only do correlation alignment during 2nd pass
     precorrelation_rebin_width_ms_list = [None, 0.1]
@@ -1588,6 +1699,10 @@ if __name__ == "__main__":
         or save_png_plot1b
         or save_html_plot1b
         or save_svg_plot1b
+        or show_plot1c
+        or save_png_plot1c
+        or save_html_plot1c
+        or save_svg_plot1c
     ):
         ### plot 1: bar plot of spike counts
         # now create an overlay plot of the two plots above. Do not use subplots, but use two y axes
@@ -1611,10 +1726,15 @@ if __name__ == "__main__":
             save_png_plot1b,
             save_svg_plot1b,
             save_html_plot1b,
+            show_plot1c,
+            save_png_plot1c,
+            save_svg_plot1c,
+            save_html_plot1c,
             spike_isolation_radius_ms,
             # make figsize 1080p
             sort_type,
-            figsize=(2000, 1000),
+            KS_session_folder,
+            figsize=(1000, 1000),
         )
 
     finish_time = datetime.now()

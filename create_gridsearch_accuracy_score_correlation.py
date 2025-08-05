@@ -10,13 +10,15 @@ cwd = Path.cwd()
 csv_folder = cwd / "plot4"
 print(csv_folder)
 sort_folder = Path(
-    "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/godzilla/siemu_test/sim_2022-11-17_17-08-07_shape_noise_2.25"
-    # "/snel/share/data/rodent-ephys/open-ephys/monkey/paper_evals/sim_2022-12-02_10-14-45_shape_noise_2.25"
+    # "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/godzilla/paper_evals/CHs_8_MUs_10/sim_noise_0.2_orig_CHs" # PAPER, godz new, corrected amplitudes dataset
+    # "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/godzilla/siemu_test/sim_2022-11-17_17-08-07_shape_noise_2.25" # PAPER, godz older, bad amplitudes dataset
+    "/snel/share/data/rodent-ephys/open-ephys/monkey/paper_evals/sim_2022-12-02_10-14-45_shape_noise_2.25" #
+    # "/snel/share/data/rodent-ephys/open-ephys/human-finger/paper_evals/CHs_16_MUs_10/sim_noise_0.2"
 )
 
 # Get CSV files which contain the datestring in the filename
 # text_to_filter = "combined_performances_20241001-193"
-text_to_filter = "20250224-200121"  # "20250224-200121"  # "20250224-235951"  # "20250225-001122"  # "20250224-200121"  # "20250225-162650"  # "20250224-200121"  # "20250224-222435" # "20250220-000001"  # "20250207-162455"  # "20250206-202428"  # "20241002-015642"
+text_to_filter = "20250224-235951" #"20250430-005648" # "20250412-024057" #"20250319-160232"  # "20250319-184844"  # "20250319-160232"  # "20250224-200121"  # "20250224-235951"  # "20250225-001122"  # "20250224-200121"  # "20250225-162650"  # "20250224-200121"  # "20250224-222435" # "20250220-000001"  # "20250207-162455"  # "20250206-202428"  # "20241002-015642"
 csv_files = list(csv_folder.glob(f"*{text_to_filter}*.csv"))
 print(csv_files)
 
@@ -203,7 +205,7 @@ fig.add_trace(
     go.Scatter(
         x=Kilosort4_scores,
         y=Kilosort4_vals["accuracy"],
-        line_color="firebrick",
+        line_color="#666565",
         name="Kilosort4",
         mode="markers",
         marker_size=30,
@@ -215,7 +217,7 @@ fig.add_trace(
     go.Scatter(
         x=EMUsort_scores,
         y=EMUsort_vals["accuracy"],
-        line_color="#666565",
+        line_color="firebrick",
         name="EMUsort",
         mode="markers",
         marker_size=30,
@@ -228,7 +230,7 @@ fig.add_trace(
         x=sorted(matching_sort_folder_score_arr),
         y=poly1d_fn(sorted(matching_sort_folder_score_arr)),
         line_color="black",
-        name=f"Pearson r: {R}",
+        name=f"Pearson R:<br>{R}",
         mode="lines",
         line_dash="dash",
         line_width=10,
@@ -240,15 +242,15 @@ fig.update_layout(
     template="plotly_white",
     font=dict(family="Open Sans", size=24, color="black", weight="bold"),
     title_font=dict(size=36, color="black", family="Open Sans", weight="bold"),
-    title="EMUsort Scores Predict Accuracy",  # "Overlapping Spikes Only",
+    title="EMUsort Score and Sort Accuracy Correlation",  # "Overlapping Spikes Only",
     # title="All Spikes Evaluated",
     # title="Sort Accuracy Distributions (All Spikes Evaluated)<br><sup>25 parameter combinations each</sup>",
     xaxis_title="EMUsort Score",
     yaxis_title="Sort Accuracy",
     # showlegend=False,
     # showgrid=True,
-    # autosize=False,
-    width=900,
+    # autosize=True,
+    width=1000,
     height=800,
 )
 
@@ -266,3 +268,4 @@ fig.update_yaxes(
 # Save the plot
 fig.write_image(f"plot8/violin_accuracy_EMUsort_vs_Kilosort4_{text_to_filter}.svg")
 # fig.show()
+# set_trace()

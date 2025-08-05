@@ -291,6 +291,7 @@ class MUsim:
         spike times and spike clusters from spike_times.npy and spike_clusters.npy, respectively.
         It will then create a MUsim format trial from this data.
         """
+        kilosort_path = Path(kilosort_path)
         spike_times = np.load(
             kilosort_path.joinpath("spike_times.npy"), mmap_mode="r"
         ).ravel()
@@ -620,8 +621,8 @@ class MUsim:
         """
         save_path = Path(save_path).resolve()
         if save_as == "boolean":
-            if save_path[-4:] != ".npy":
-                save_path = save_path + ".npy"
+            if not str(save_path).endswith(".npy"):
+                save_path = save_path.with_name(save_path.name + ".npy")
             np.save(save_path, self.spikes[spikes_index], allow_pickle=False)
         elif save_as == "indexes":
             spike_times, spike_clusters = np.asarray(
