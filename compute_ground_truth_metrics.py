@@ -668,13 +668,28 @@ def find_best_cluster_matches(
         unit_df = df()
         unit_df["Unit"] = np.array(clusters_in_sort_to_use_list[iSort]).astype(int)
         unit_df["True Count"] = num_ground_truth_spikes[iSort][GT_clusters_to_use]
-        unit_df["KS Count"] = num_kilosort_spikes[iSort]
+        unit_df["Sorter Count"] = num_kilosort_spikes[iSort]
         unit_df["Precision"] = precisions[iSort]
         unit_df["Recall"] = recalls[iSort]
         unit_df["Accuracy"] = accuracies[iSort]
         # unit_df["Unit"].astype(int)
         unit_df.set_index("Unit", inplace=True)
         print(unit_df)
+        if save_cluster_acc_stats_as_csv and KS_clusters_to_consider is not None:
+            timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+            unit_df.to_csv(
+                f"plot9/values_{sorts_from_each_path_to_load[iSort]}_{timestamp}.csv"
+            )
+            summary_df = unit_df.agg(
+                {
+                    "Precision": ["median", "mean", "std"],
+                    "Recall": ["median", "mean", "std"],
+                    "Accuracy": ["median", "mean", "std"],
+                }
+            )
+            summary_df.to_csv(
+                f"plot9/summary_{sorts_from_each_path_to_load[iSort]}_{timestamp}.csv"
+            )
         print("\n")  # add a newline for readability
         # print lowest and highest accuracies, limit to 3 decimal places
         print(
@@ -688,6 +703,8 @@ def find_best_cluster_matches(
         print(
             f"Average accuracy: {unit_df['Accuracy'].mean():.3f} +/- {unit_df['Accuracy'].std():.3f}"
         )
+        # print median accuracy
+        print(f"Median accuracy: {unit_df['Accuracy'].median():.3f}")
         # print average accuracy weighted by number of spikes in each unit
         print(
             f"Weighted average accuracy: {np.average(unit_df['Accuracy'], weights=unit_df['True Count']):.3f}"
@@ -700,6 +717,9 @@ def find_best_cluster_matches(
         print(
             f"Average recall: {unit_df['Recall'].mean():.3f} +/- {unit_df['Recall'].std():.3f}"
         )
+        if save_cluster_acc_stats_as_csv and KS_clusters_to_consider is not None:
+            print("\n")
+            print(f"Summary: \n{summary_df}")
 
         print("\n")  # add a newline for readability
     return (
@@ -725,7 +745,6 @@ def plot1(
     recall,
     accuracy,
     bin_width_for_comparison,
-    clusters_in_sort_to_use,
     GT_clusters_to_use,
     sorts_from_each_path_to_load,
     plot_template,
@@ -739,248 +758,424 @@ def plot1(
     save_png_plot1b,
     save_svg_plot1b,
     save_html_plot1b,
+    show_plot1c,
+    save_png_plot1c,
+    save_svg_plot1c,
+    save_html_plot1c,
+    spike_isolation_radius_ms,
+    iSort,
     figsize=(1920, 1080),
 ):
     # search all the paths to sorted folders for the KS or EMUsort string, in the order of matches with sorts_from_each_path_to_load
+    # sort_types = [None] * len(sorts_from_each_path_to_load)
+    # for iS in range(len(sorts_from_each_path_to_load)):
+    # for iP in range(len(list_of_paths_to_sorted_folders[0])):
+    #     if (
+    #         sorts_from_each_path_to_load[iS]
+    #         in list_of_paths_to_sorted_folders[0][iP].name
+    #     ):
+    # search all the paths to sorted folders for the KS or EMUsort string, in the order of matches with sorts_from_each_path_to_load
     sort_types = [None] * len(sorts_from_each_path_to_load)
-    for iS in range(len(sorts_from_each_path_to_load)):
-        for iP in range(len(list_of_paths_to_sorted_folders[0])):
+    noise_levels = [None] * len(sorts_from_each_path_to_load)
+    for iiSort in range(len(sorts_from_each_path_to_load)):
+        for iPath in range(len(list_of_paths_to_sorted_folders[0])):
             if (
-                sorts_from_each_path_to_load[iS]
-                in list_of_paths_to_sorted_folders[0][iP].name
+                sorts_from_each_path_to_load[iiSort]
+                in list_of_paths_to_sorted_folders[0][iPath].name
             ):
-                sort_types[iS] = (
-                    "Kilosort"
-                    if list_of_paths_to_sorted_folders[0][iP].name.split("_")[-1]
-                    == "KS"
-                    else "EMUsort"
-                )
-                break
+                suffix = list_of_paths_to_sorted_folders[0][iPath].name.split("_")[-1]
+            elif (
+                sorts_from_each_path_to_load[iiSort]
+                in list_of_paths_to_sorted_folders[0][iPath].parent.name
+            ):
+                suffix = list_of_paths_to_sorted_folders[0][iPath].parent.name.split(
+                    "_"
+                )[-1]
+            else:
+                continue  # keep searching
+            if suffix == "KS":
+                sort_types[iiSort] = "Kilosort3"
+            elif suffix == "KS4":
+                sort_types[iiSort] = "Kilosort4"
+            else:
+                sort_types[iiSort] = "EMUsort"
+            # for each match, extract the noise level from the path, which will be revealed by splitting the parent path by underscores and taking the last index
+            # will be a number of format x.xx, such as 3.00, and convert to string
+            try:
+                noise_levels[iiSort] = [
+                    np.round(float(noise_lvl), 2)
+                    for noise_lvl in list_of_paths_to_sorted_folders[0][
+                        iPath
+                    ].parent.parent.name.split("_")
+                    if "." in noise_lvl
+                ][0]
+            except:
+                noise_levels[iiSort] = [
+                    np.round(float(noise_lvl), 2)
+                    for noise_lvl in list_of_paths_to_sorted_folders[0][
+                        iPath
+                    ].parent.name.split("_")
+                    if "." in noise_lvl
+                ][0]
+
+            break  # found a match with the datestring, label and break out of the loop
     # make sure all sort_types were found
     assert None not in sort_types, "Not all sort_types were found"
+    # make sure all noise levels were the same and not None
+    assert (None not in noise_levels) and (
+        len(set(noise_levels)) == 1
+    ), "Noise levels did not match across folders"
+    # sort_type = (
+    #     "Kilosort"
+    #     if "KS" in list_of_paths_to_sorted_folders[0][0].name.split("_")[-1]
+    #     else "EMUsort"
+    # )
+    # break
+    # make sure all sort_types were found
+    # assert None not in sort_types, "Not all sort_types were found"
 
-    for iSort in range(len(sorts_from_each_path_to_load)):
-        # get suffix after the KS folder name, which is the repo branch name for that sort
-        # PPP_branch_name = list_of_paths_to_sorted_folders[0][iSort].name.split("_")[-1]
-        # sort_type = "Kilosort" if "KS" in PPP_branch_name else "EMUsort"
+    # for iSort in range(len(sorts_from_each_path_to_load)):
+    # get suffix after the KS folder name, which is the repo branch name for that sort
+    # PPP_branch_name = list_of_paths_to_sorted_folders[0][iSort].name.split("_")[-1]
+    # sort_type = "Kilosort" if "KS" in PPP_branch_name else "EMUsort"
+    if (
+        show_plot1a
+        or save_png_plot1a
+        or save_svg_plot1a
+        or save_html_plot1a
+        or show_plot1b
+        or save_png_plot1b
+        or save_svg_plot1b
+        or save_html_plot1b
+        or show_plot1c
+        or save_png_plot1c
+        or save_svg_plot1c
+        or save_html_plot1c
+    ):
+        fig1a = go.Figure()
+        fig1a.add_trace(
+            go.Scatter(
+                x=np.arange(0, num_motor_units),
+                y=precision[iSort],
+                mode="markers+lines",
+                name="Precision",
+                line=dict(width=15, color="green"),
+                marker=dict(size=35),
+                # yaxis="y2",
+            )
+        )
+        fig1a.add_trace(
+            go.Scatter(
+                x=np.arange(0, num_motor_units),
+                y=recall[iSort],
+                mode="markers+lines",
+                name="Recall",
+                line=dict(width=15, color="crimson"),
+                marker=dict(size=35),
+                # yaxis="y2",
+            )
+        )
+        fig1a.add_trace(
+            go.Scatter(
+                x=np.arange(0, num_motor_units),
+                y=accuracy[iSort],
+                mode="markers+lines",
+                name="Accuracy",
+                line=dict(width=15, color="orange"),
+                marker=dict(size=35),
+                # yaxis="y2",
+            )
+        )
 
-        if show_plot1a or save_png_plot1a or save_svg_plot1a or save_html_plot1a:
-            fig1a = go.Figure()
-            fig1a.add_trace(
-                go.Scatter(
-                    x=np.arange(0, num_motor_units),
-                    y=precision[iSort],
-                    mode="lines+markers",
-                    name="Precision",
-                    line=dict(width=4, color="green"),
-                    # yaxis="y2",
-                )
-            )
-            fig1a.add_trace(
-                go.Scatter(
-                    x=np.arange(0, num_motor_units),
-                    y=recall[iSort],
-                    mode="lines+markers",
-                    name="Recall",
-                    line=dict(width=4, color="crimson"),
-                    # yaxis="y2",
-                )
-            )
-            fig1a.add_trace(
-                go.Scatter(
-                    x=np.arange(0, num_motor_units),
-                    y=accuracy[iSort],
-                    mode="lines+markers",
-                    name="Accuracy",
-                    line=dict(width=4, color="orange"),
-                    # yaxis="y2",
-                )
-            )
-
-            # make the title shifted higher up,
-            # make text much larger
-            fig1a.update_layout(
-                title={
-                    "text": f"<b>Comparison of {sort_types[iSort]} Performance to Ground Truth, {bin_width_for_comparison[0]} ms Bins</b><br><sup>Sort: {sorts_from_each_path_to_load[iSort]}</sup>",
-                    # "y": 0.95,
-                },
-                xaxis_title="<b>GT Cluster ID,<br>True Count</b>",
-                # legend_title="Ground Truth Metrics",
-                legend=dict(
-                    orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0
-                ),
-                template=plot_template,
+        # make the title shifted higher up,
+        # make text much larger
+        fig1a.update_layout(
+            title={
+                "text": f"<b>Comparison of {sort_types[iSort]} Performance to Ground Truth, {bin_width_for_comparison} ms Bins</b><br><sup>Sort: {sorts_from_each_path_to_load[iSort]}</sup>",
+                # "y": 0.95,
+                # "font
+            },
+            xaxis_title="<b>GT Cluster ID,<br>True Count</b>",
+            # legend_title="Ground Truth Metrics",
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
+            template=plot_template,
+            yaxis=dict(
+                title="<b>Metric Score</b>",
+                title_standoff=1,
+                range=[i / 100 for i in plot1_ylim],
+                # overlaying="y2",
+            ),
+            # tickfont=dict(size=32, family="Open Sans"),
+            # yaxis2=dict(
+            #     title=bar_yaxis_title,
+            #     title_standoff=1,
+            #     # anchor="free",
+            #     # autoshift=True,
+            #     # shift=-30,
+            #     # side="right",
+            # ),
+        )
+        # update the x tick label of the bar graph to match the cluster ID
+        fig1a.update_xaxes(
+            ticktext=[
+                f"<b>Unit {GT_clusters_to_use[iUnit]},<br>{str(round(num_ground_truth_spikes[iSort][iUnit]/1000,1))}k</b>"
+                for iUnit in range(num_motor_units)
+            ],
+            tickvals=np.arange(0, num_motor_units),
+            tickfont=dict(size=32, family="Open Sans", color="black", weight="bold"),
+            showgrid=True,
+            gridcolor="grey",
+        )
+        fig1a.update_yaxes(
+            tickfont=dict(size=32, family="Open Sans", color="black", weight="bold"),
+            showgrid=True,
+            gridcolor="grey",
+        )
+    if show_plot1b or save_png_plot1b or save_svg_plot1b or save_html_plot1b:
+        # make text larger
+        fig1b = go.Figure(
+            layout=go.Layout(
                 yaxis=dict(
-                    title="<b>Metric Score</b>",
-                    title_standoff=1,
-                    range=[0, 1.1],
-                    # overlaying="y2",
+                    # title_font=dict(size=14, family="Open Sans"),
+                    title_standoff=10,
                 ),
-                # yaxis2=dict(
-                #     title=bar_yaxis_title,
-                #     title_standoff=1,
-                #     # anchor="free",
-                #     # autoshift=True,
-                #     # shift=-30,
-                #     # side="right",
-                # ),
-            )
-            # update the x tick label of the bar graph to match the cluster ID
-            fig1a.update_xaxes(
-                ticktext=[
-                    f"Unit {GT_clusters_to_use[iUnit]},<br>{str(round(num_ground_truth_spikes[iSort][iUnit]/1000,1))}k"
-                    for iUnit in range(num_motor_units)
-                ],
-                tickvals=np.arange(0, num_motor_units),
-                # tickfont=dict(size=14, family="Arial"),
-            )
-
-        if show_plot1b or save_png_plot1b or save_svg_plot1b or save_html_plot1b:
-            # make text larger
-            fig1b = go.Figure(
-                layout=go.Layout(
-                    yaxis=dict(
-                        # title_font=dict(size=14, family="Arial"),
-                        title_standoff=10,
-                    ),
-                    # title_font=dict(size=18),
-                )
-            )
-
-            if plot1_bar_type == "totals":
-                fig1b.add_trace(
-                    go.Bar(
-                        x=np.arange(0, num_motor_units),
-                        y=num_ground_truth_spikes[iSort],
-                        name="Ground Truth",
-                        marker_color="rgb(55, 83, 109)",
-                        opacity=0.5,
-                    )
-                )
-                fig1b.add_trace(
-                    go.Bar(
-                        x=np.arange(0, num_motor_units),
-                        y=num_kilosort_spikes[iSort],
-                        name=sort_types,
-                        marker_color="rgb(26, 118, 255)",
-                        opacity=0.5,
-                    )
-                )
-                bar_yaxis_title = "<b>Spike Count</b>"
-            elif plot1_bar_type == "percent":
-                fig1b.add_trace(
-                    go.Bar(
-                        x=np.arange(0, num_motor_units),
-                        y=100
-                        * num_kilosort_spikes[iSort]
-                        / num_ground_truth_spikes[iSort],
-                        name="% True Spike Count",
-                        # showlegend=False,
-                        marker_color="cornflowerblue",
-                        opacity=1,
-                    )
-                )
-            else:
-                raise ValueError(
-                    f"plot1_bar_type must be 'totals' or 'percent', not {plot1_bar_type}"
-                )
-            bar_yaxis_title = "<b>% True Spike Count</b>"
-            fig1b.add_hline(
-                y=100,
-                line_width=3,
-                line_dash="dash",
-                line_color="black",
-                # yref="y2",
-                name="100% Spike Count",
-            )
-            # make all the text way larger
-            fig1b.update_layout(
-                title={
-                    "text": f"<b>True Spike Count Captured for Each Cluster Using {sort_types}, {bin_width_for_comparison} ms Bins</b><br><sup>Sort: {sorts_from_each_path_to_load[iSort]}</sup>",
-                    # "y": 0.95,
-                },
-                xaxis_title="<b>GT Cluster ID,<br>True Count</b>",
-                # legend_title="Ground Truth Metrics",
-                # legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
-                template=plot_template,
-                # yaxis=dict(
-                #     title="<b>Metric Score</b>",
-                #     title_standoff=1,
-                #     range=[0, 1],
-                #     # overlaying="y2",
-                # ),
-                yaxis=dict(
-                    title=bar_yaxis_title,
-                    # title_standoff=1,
-                    # anchor="free",
-                    # autoshift=True,
-                    # shift=-30,
-                    # side="right",
-                ),
-                # make the title text larger
                 # title_font=dict(size=18),
             )
+        )
 
-            # update the x tick label of the bar graph to match the cluster ID
-            fig1b.update_xaxes(
-                ticktext=[
-                    f"Unit {GT_clusters_to_use[iUnit]},<br>{str(round(num_ground_truth_spikes[iUnit]/1000,1))}k"
-                    for iUnit in range(num_motor_units)
-                ],
-                tickvals=np.arange(0, num_motor_units),
-                # tickfont=dict(size=14, family="Arial"),
+        if plot1_bar_type == "totals":
+            fig1b.add_trace(
+                go.Bar(
+                    x=np.arange(0, num_motor_units),
+                    y=num_ground_truth_spikes[iSort],
+                    name="Ground Truth",
+                    marker_color="rgb(55, 83, 109)",
+                    opacity=0.5,
+                )
             )
-            fig1b.update_layout(yaxis_range=plot1_ylim)
-            # make y axis title smaller
-            # fig1b.update_yaxes(title_font=dict(size=14, family="Arial"))
+            fig1b.add_trace(
+                go.Bar(
+                    x=np.arange(0, num_motor_units),
+                    y=num_kilosort_spikes[iSort],
+                    name=sort_types[iSort],
+                    marker_color="rgb(26, 118, 255)",
+                    opacity=0.5,
+                )
+            )
+            bar_yaxis_title = "<b>Spike Count</b>"
+        elif plot1_bar_type == "percent":
+            fig1b.add_trace(
+                go.Bar(
+                    x=np.arange(0, num_motor_units),
+                    y=100 * num_kilosort_spikes[iSort] / num_ground_truth_spikes[iSort],
+                    name="% True Spike Count",
+                    # showlegend=False,
+                    marker_color="black",
+                    opacity=1,
+                )
+            )
+        else:
+            raise ValueError(
+                f"plot1_bar_type must be 'totals' or 'percent', not {plot1_bar_type}"
+            )
+        bar_yaxis_title = "<b>% True Spike Count</b>"
+        fig1b.add_hline(
+            y=100,
+            line_width=20,
+            line_dash="dash",
+            line_color="firebrick",
+            # yref="y2",
+            name="100% Spike Count",
+        )
+        # make all the text way larger
+        fig1b.update_layout(
+            title={
+                "text": f"<b>True Spike Count Captured for Each Cluster Using {sort_types[iSort]}, {bin_width_for_comparison} ms Bins</b><br><sup>Sort: {sorts_from_each_path_to_load[iSort]}</sup>",
+                # "y": 0.95,
+            },
+            xaxis_title="<b>GT Cluster ID,<br>True Count</b>",
+            # legend_title="Ground Truth Metrics",
+            # legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
+            template=plot_template,
+            # yaxis=dict(
+            #     title="<b>Metric Score</b>",
+            #     title_standoff=1,
+            #     range=[0, 1],
+            #     # overlaying="y2",
+            # ),
+            yaxis=dict(
+                title=bar_yaxis_title,
+                # title_standoff=1,
+                # anchor="free",
+                # autoshift=True,
+                # shift=-30,
+                # side="right",
+                showgrid=False,
+            ),
+            # make the title text larger
+            # title_font=dict(size=18),
+        )
 
-            # move the y axis title closer to the y axis
-            fig1b.update_yaxes(title_standoff=10)
+        # update the x tick label of the bar graph to match the cluster ID
+        fig1b.update_xaxes(
+            ticktext=[
+                f"<b>Unit {GT_clusters_to_use[iUnit]},<br>{str(np.round(num_ground_truth_spikes[iSort][iUnit]/1000,1))}k<b>"
+                for iUnit in range(num_motor_units)
+            ],
+            tickvals=np.arange(0, num_motor_units),
+            tickfont=dict(size=32, family="Open Sans"),
+        )
+        fig1b.update_layout(yaxis_range=plot1_ylim)
+        # make y axis bold
+        fig1b.update_yaxes(
+            title_font=dict(size=32, family="Open Sans", color="black", weight="bold"),
+            tickfont=dict(size=32, family="Open Sans", color="black", weight="bold"),
+        )
 
-            # make subplot titles bigger
-            # fig.update_annotations(font=dict(size=18))
+        # move the y axis title closer to the y axis
+        # fig1b.update_yaxes(title_standoff=10, ran
 
-        if save_png_plot1a:
-            fig1a.write_image(
-                f"plot1/plot1a_KS_vs_GT_performance_metrics_{bin_width_for_comparison}ms_{sorts_from_each_path_to_load[iSort]}_{sort_types}.png",
-                width=figsize[0],
-                height=figsize[1],
-            )
-        if save_svg_plot1a:
-            fig1a.write_image(
-                f"plot1/plot1a_KS_vs_GT_performance_metrics_{bin_width_for_comparison}ms_{sorts_from_each_path_to_load[iSort]}_{sort_types}.svg",
-                width=figsize[0],
-                height=figsize[1],
-            )
-        if save_html_plot1a:
-            fig1a.write_html(
-                f"plot1/plot1a_KS_vs_GT_performance_metrics_{bin_width_for_comparison}ms_{sorts_from_each_path_to_load[iSort]}_{sort_types}.html",
-                include_plotlyjs="cdn",
-                full_html=False,
-            )
-        if show_plot1a:
-            fig1a.show()
+        # make subplot titles bigger
+        # fig.update_annotations(font=dict(size=18))
 
-        if save_png_plot1b:
-            fig1b.write_image(
-                f"plot1/plot1b_KS_vs_GT_performance_metrics_{bin_width_for_comparison}ms_{sorts_from_each_path_to_load[iSort]}_{sort_types}.png",
-                width=figsize[0],
-                height=figsize[1],
+    if show_plot1c or save_png_plot1c or save_svg_plot1c or save_html_plot1c:
+        # make text larger
+        fig1c = go.Figure(
+            layout=go.Layout(
+                yaxis=dict(
+                    # title_font=dict(size=14, family="Open Sans"),
+                    title_standoff=10,
+                ),
+                # title_font=dict(size=18),
             )
-        if save_svg_plot1b:
-            fig1b.write_image(
-                f"plot1/plot1b_KS_vs_GT_performance_metrics_{bin_width_for_comparison}ms_{sorts_from_each_path_to_load[iSort]}_{sort_types}.svg",
-                width=figsize[0],
-                height=figsize[1],
+        )
+
+        fig1c.add_shape(
+            type="line",
+            xref="x",
+            yref="y",
+            x0=0,  # num_ground_truth_spikes[iSort].min(),
+            y0=0,  # num_ground_truth_spikes[iSort].min(),
+            x1=num_ground_truth_spikes[iSort].max(),
+            y1=num_ground_truth_spikes[iSort].max(),
+            line=dict(
+                color="black",
+                width=10,
+                dash="dot",
+            ),
+        )
+
+        fig1c.add_trace(
+            go.Scatter(
+                x=num_ground_truth_spikes[iSort],
+                y=num_kilosort_spikes[iSort],
+                mode="markers",
+                name="Count",
+                marker=dict(
+                    size=35,
+                    color=(
+                        "black" if sort_types[iSort] == "Kilosort4" else "firebrick"
+                    ),
+                ),
+                # yaxis="y2",
             )
-        if save_html_plot1b:
-            fig1b.write_html(
-                f"plot1/plot1b_KS_vs_GT_performance_metrics_{bin_width_for_comparison}ms_{sorts_from_each_path_to_load[iSort]}_{sort_types}.html",
-                include_plotlyjs="cdn",
-                full_html=False,
-            )
-        if show_plot1b:
-            fig1b.show()
+        )
+        axis_type = "linear"
+        fig1c.update_xaxes(type=axis_type, showgrid=True)
+        fig1c.update_yaxes(
+            type=axis_type,
+            showgrid=True,
+            scaleanchor="x",
+            scaleratio=1,
+        )
+        fig1c.update_layout(
+            title={
+                "text": f"<b>Spike Counts Captured for Each Cluster</b><br><sup>Sort: {sorts_from_each_path_to_load[iSort]}</sup>",
+                # "y": 0.95,
+            },
+            xaxis=dict(title="<b>True Spike Count</b>"),
+            # legend_title="Ground Truth Metrics",
+            # legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
+            template=plot_template,
+            # yaxis=dict(
+            #     title="<b>Metric Score</b>",
+            #     title_standoff=1,
+            #     range=[0, 1],
+            #     # overlaying="y2",
+            # ),
+            yaxis=dict(
+                title="<b>Sorted Spike Count</b>",
+                # title_standoff=1,
+                # anchor="free",
+                # autoshift=True,
+                # shift=-30,
+                # side="right",
+                # showgrid=False,
+            ),
+        )
+
+    if save_png_plot1a:
+        fig1a.write_image(
+            f"plot1/plot1a_spkRad_{str(spike_isolation_radius_ms)}_{bin_width_for_comparison}ms_{sorts_from_each_path_to_load[iSort]}_{sort_types[iSort]}.png",
+            width=figsize[0],
+            height=figsize[1],
+        )
+    if save_svg_plot1a:
+        fig1a.write_image(
+            f"plot1/plot1a_spkRad_{str(spike_isolation_radius_ms)}_{bin_width_for_comparison}ms_{sorts_from_each_path_to_load[iSort]}_{sort_types[iSort]}.svg",
+            width=figsize[0],
+            height=figsize[1],
+        )
+    if save_html_plot1a:
+        fig1a.write_html(
+            f"plot1/plot1a_spkRad_{str(spike_isolation_radius_ms)}_{bin_width_for_comparison}ms_{sorts_from_each_path_to_load[iSort]}_{sort_types[iSort]}.html",
+            include_plotlyjs="cdn",
+            full_html=False,
+        )
+    if show_plot1a:
+        fig1a.show()
+
+    if save_png_plot1b:
+        fig1b.write_image(
+            f"plot1/plot1b_spkRad_{str(spike_isolation_radius_ms)}_{bin_width_for_comparison}ms_{sorts_from_each_path_to_load[iSort]}_{sort_types[iSort]}.png",
+            width=figsize[0],
+            height=figsize[1],
+        )
+    if save_svg_plot1b:
+        fig1b.write_image(
+            f"plot1/plot1b_spkRad_{str(spike_isolation_radius_ms)}_{bin_width_for_comparison}ms_{sorts_from_each_path_to_load[iSort]}_{sort_types[iSort]}.svg",
+            width=figsize[0],
+            height=figsize[1],
+        )
+    if save_html_plot1b:
+        fig1b.write_html(
+            f"plot1/plot1b_spkRad_{str(spike_isolation_radius_ms)}_{bin_width_for_comparison}ms_{sorts_from_each_path_to_load[iSort]}_{sort_types[iSort]}.html",
+            include_plotlyjs="cdn",
+            full_html=False,
+        )
+    if show_plot1b:
+        fig1b.show()
+
+    if save_png_plot1c:
+        fig1c.write_image(
+            f"plot1/plot1c_spkRad_{str(spike_isolation_radius_ms)}_{bin_width_for_comparison}ms_{sorts_from_each_path_to_load[iSort]}_{sort_types[iSort]}_{axis_type}.png",
+            width=figsize[0],
+            height=figsize[1],
+        )
+    if save_svg_plot1c:
+        fig1c.write_image(
+            f"plot1/plot1c_spkRad_{str(spike_isolation_radius_ms)}_{bin_width_for_comparison}ms_{sorts_from_each_path_to_load[iSort]}_{sort_types[iSort]}_{axis_type}.svg",
+            width=figsize[0],
+            height=figsize[1],
+        )
+    if save_html_plot1c:
+        fig1c.write_html(
+            f"plot1/plot1c_spkRad_{str(spike_isolation_radius_ms)}_{bin_width_for_comparison}ms_{sorts_from_each_path_to_load[iSort]}_{sort_types[iSort]}_{axis_type}.html",
+            include_plotlyjs="cdn",
+            full_html=False,
+        )
+    if show_plot1c:
+        fig1c.show()
 
 
 def plot2(
@@ -1146,7 +1341,6 @@ def plot2(
             row=2 * iUnit + 2,
             col=1,
         )
-
     fig.update_layout(
         title=f"<b>Comparison of {sort_type} and Ground Truth Spike Trains, {bin_width_for_comparison} ms Bins</b>",
         template=plot_template,
@@ -1955,7 +2149,7 @@ def plot5(
 
     # make font size of tick labels smaller and bold
     fig.update_yaxes(
-        # tickfont=dict(size=14, family="Arial", color="white"),
+        # tickfont=dict(size=14, family="Open Sans", color="white"),
         title="Voltage (uV)",
         col=1,
         row=1,
@@ -1963,7 +2157,7 @@ def plot5(
 
     # make y axis title smaller
     # fig.update_yaxes(
-    #     title_font=dict(size=14, family="Arial", color="white"), col=1, row=1
+    #     title_font=dict(size=14, family="Open Sans", color="white"), col=1, row=1
     # )
 
     # move the y axis title closer to the y axis
@@ -1980,7 +2174,7 @@ def plot5(
         # height=500,
         # width=800,
         title_text="<b>Comparison of Ground Truth to Sorter Results</b>",
-        # font=dict(size=20, family="Arial", color="white"),
+        # font=dict(size=20, family="Open Sans", color="white"),
     )
     fig.show()
 
@@ -1999,43 +2193,54 @@ if __name__ == "__main__":
         0.125
     )  # choose bin widths as a range from 0.125 ms to 8 ms in log2 increments
     bin_widths_for_comparison = np.logspace(xstart, -xstart, num=13, base=2)
-    bin_widths_for_comparison = [0.1]
-    spike_isolation_radius_ms = None  # radius of isolation of a spike for it to be removed from consideration. set to positive float, integer, or set None to disable
+    bin_widths_for_comparison = [
+        0.1
+    ]  # only affects plotting, such as in plot2. should be [0.1] if using "accuracies"
+    spike_isolation_radius_ms = 1  # radius of isolation of a spike for it to be removed from consideration. set to positive float, integer, or set None to disable
     iShow = 0  # index of which bin width of bin_widths_for_comparison to show in plots
 
     nt0 = 121  # number of time bins in the template, in ms it is 3.367, only used if method_for_automatic_cluster_mapping is "waves"
     random_seed_entropy = 218530072159092100005306709809425040261  # 75092699954400878964964014863999053929  # int
     plot_template = "plotly_white"  # ['ggplot2', 'seaborn', 'simple_white', 'plotly', 'plotly_white', 'plotly_dark', 'presentation', 'xgridoff', 'ygridoff', 'gridon', 'none']
     plot1_bar_type = "percent"  # totals / percent
-    plot1_ylim = [0, 135]
-    plot2_xlim = [0, 0.006]
+    plot1_ylim = [-10, 120]
+    plot2_xlim = [0, 0.1]
     show_plot1a = False
     show_plot1b = False
-    show_plot2 = True
+    show_plot1c = False
+    show_plot2 = False
     show_plot3 = False
-    show_plot4 = True
+    show_plot4 = False
     show_plot5 = False
+    show_plot6 = False
     save_png_plot1a = False
     save_png_plot1b = False
+    save_png_plot1c = False
     save_png_plot2 = False
     save_png_plot3 = False
-    save_png_plot4 = False  #
+    save_png_plot4 = False
     save_png_plot5 = False
-    save_svg_plot1a = False
-    save_svg_plot1b = False
+    save_png_plot6 = False
+    save_svg_plot1a = True  #
+    save_svg_plot1b = True  #
+    save_svg_plot1c = True  #
     save_svg_plot2 = False
     save_svg_plot3 = False
-    save_svg_plot4 = False  #
+    save_svg_plot4 = True  ##
     save_svg_plot5 = False
+    save_svg_plot6 = False
     save_html_plot1a = False
     save_html_plot1b = False
+    save_html_plot1c = False
     save_html_plot2 = False
     save_html_plot3 = False
     save_html_plot4 = False
     save_html_plot5 = False
-    save_plot4_df_as_pickle = False  #
-    save_plot4_df_as_csv = False  #
-
+    save_html_plot6 = False
+    save_plot4_df_as_pickle = False
+    save_plot4_df_as_csv = True  ##
+    save_cluster_acc_stats_as_csv = False
+    print("UPDATED3")
     ## TBD: NEED TO ADD FLAG FOR DATASET CHOICE, to flip all related variables
     ## paths with simulated data
     path_to_sim_dat = Path(
@@ -2077,17 +2282,42 @@ if __name__ == "__main__":
         # "/home/smoconn/git/iemg_simulator/simulation_output/vector_100%MVC_600sec_17p_array_18_MUs_4/"
         # "/home/smoconn/git/iemg_simulator/simulation_output/vector_100%MVC_600sec_17p_array_9_MUs_1/"
         ## >= 20240607, godzilla
-        "spikes_20240607-143039_godzilla_20221117_10MU_SNR-1-from_data_jitter-0std_method-KS_templates_12-files.npy"
+        # "spikes_20240607-143039_godzilla_20221117_10MU_SNR-1-from_data_jitter-0std_method-KS_templates_12-files.npy"  # OLD pape
+        ## NEW godzilla PAPER
+        # "spikes_20250428-183259_godzilla_20221116_10MU_14CH_SNR-1-from_data_jitter-0.2std_method-KS_templates_12-files.npy" # 12 MU?
+        # "spikes_20250429-161952_godzilla_20221116_10MU_14CH_SNR-1-from_data_jitter-0.2std_method-KS_templates_12-files.npy"# 10 MU
+        # "spikes_20250429-005925_godzilla_20221116_10MU_8CH_SNR-1-from_data_jitter-0.2std_method-KS_templates_12-files.npy"  # 8CH
+        # "spikes_20250429-202658_godzilla_20221116_10MU_8CH_SNR-1-from_data_jitter-0.2std_method-KS_templates_12-files.npy"  # 8CH, orig_CHs    LATEST PAPER
+        # "spikes_20250429-202657_godzilla_20221116_10MU_8CH_SNR-1-from_data_jitter-0.2std_method-KS_templates_12-files"
         ## >= 20240731, monkey
-        # "spikes_20240726-204919_monkey_20221202_6MU_SNR-1-from_data_jitter-0std_method-KS_templates_1-files.npy"
+        ## "spikes_20240726-204919_monkey_20221202_6MU_SNR-1-from_data_jitter-0std_method-KS_templates_1-files.npy"
+        # monkey "paper_evals"
+        # "spikes_20240726-205017_monkey_20221202_6MU_SNR-1-from_data_jitter-2.25std_method-KS_templates_1-files.npy" # PAPER
+        # human "paper_evals"
+        # "spikes_files/spikes_20250219-212813_human_20231003_13MU_SNR-1-from_data_jitter-0.2std_method-KS_templates_1-files"
+        # "spikes_20250219-212813_human_20231003_13MU_SNR-1-from_data_jitter-0.2std_method-KS_templates_1-files_20250311-171509.npy"
+        # "spikes_20250318-173426_human_20231003_10MU_SNR-1-from_data_jitter-0.2std_method-KS_templates_1-files.npy"  # PAPER
+        #### 2025-06-24 LATEST MONKEY
+        # "spikes_20250624-225119_monkey_20221202_5MU_16CH_SNR-1-from_data_jitter-0.2std_method-KS_templates_1-files.npy"
+        #### 2025-08-04 MONKEY
+        "spikes_20250804-152545_monkey_20221202_5MU_16CH_SNR-1-from_data_jitter-0.25std_method-KS_templates_1-files.npy"
     )  # spikes_20221116_godzilla_SNR-None_jitter-0std_files-1.npy
     ground_truth_path = Path().joinpath("spikes_files", ground_truth_path)
     if ".npy" not in ground_truth_path.name:
         assert (
             simulation_method == "konstantin"
         ), "simulation_method must be 'konstantin' if ground_truth_path is not an .npy file"
+
     # set which ground truth clusters to compare with (a range from 0 to num_motor_units)
-    num_motor_units = 6 if "monkey" in ground_truth_path.name else 10
+    if "monkey" in ground_truth_path.name:
+        num_motor_units = 5
+    elif "human" in ground_truth_path.name:
+        num_motor_units = 10
+    elif "godzilla" in ground_truth_path.name:  # rat
+        num_motor_units = 10
+    else:
+        raise ValueError("unknown dataset")
+
     GT_clusters_to_use = list(range(0, num_motor_units))
 
     ## load Kilosort data
@@ -2102,15 +2332,23 @@ if __name__ == "__main__":
             # "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/godzilla/siemu_test/sim_2022-11-17_17-08-07_shape_noise_0.00/"
             # "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/godzilla/siemu_test/sim_2022-11-17_17-08-07_shape_noise_0.75/"
             # "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/godzilla/siemu_test/sim_2022-11-17_17-08-07_shape_noise_1.50/"
-            "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/godzilla/siemu_test/sim_2022-11-17_17-08-07_shape_noise_2.25/"
+            # "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/godzilla/siemu_test/sim_2022-11-17_17-08-07_shape_noise_2.25/"  # OLD pape
             # "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/godzilla/siemu_test/sim_2022-11-17_17-08-07_shape_noise_3.00/"
             # "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/godzilla/siemu_test/sim_2022-11-17_17-08-07_shape_noise_3.75/"
             # "/snel/share/data/rodent-ephys/open-ephys/monkey/paper_evals/sim_2022-12-02_10-14-45_shape_noise_0.00"
             # "/snel/share/data/rodent-ephys/open-ephys/monkey/paper_evals/sim_2022-12-02_10-14-45_shape_noise_0.75"
             # "/snel/share/data/rodent-ephys/open-ephys/monkey/paper_evals/sim_2022-12-02_10-14-45_shape_noise_1.50"
-            # "/snel/share/data/rodent-ephys/open-ephys/monkey/paper_evals/sim_2022-12-02_10-14-45_shape_noise_2.25"
+            # "/snel/share/data/rodent-ephys/open-ephys/monkey/paper_evals/sim_2022-12-02_10-14-45_shape_noise_2.25" # PAPER
             # "/snel/share/data/rodent-ephys/open-ephys/monkey/paper_evals/sim_2022-12-02_10-14-45_shape_noise_3.00"
             # "/snel/share/data/rodent-ephys/open-ephys/monkey/paper_evals/sim_2022-12-02_10-14-45_shape_noise_3.75"
+            # "/snel/share/data/rodent-ephys/open-ephys/human-finger/paper_evals/CHs_12_MUs_13/sim_noise_0.2"
+            # "/snel/share/data/rodent-ephys/open-ephys/human-finger/paper_evals/CHs_16_MUs_10/sim_noise_0.2"  # PAPER
+            # "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/godzilla/paper_evals/CHs_14_MUs_12/sim_noise_0.2_2022-11-16_16-19-28"  # bad results
+            # "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/godzilla/paper_evals/CHs_14_MUs_10/sim_noise_0.2"
+            # "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/godzilla/paper_evals/CHs_8_MUs_10/sim_noise_0.2"
+            # "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/godzilla/paper_evals/CHs_8_MUs_10/sim_noise_0.2_orig_CHs"  # godz PAPER results
+            # "/snel/share/data/rodent-ephys/open-ephys/monkey/paper_evals2/2022-12-02_10-14-45_myo_0.2"  # latest MONKEY
+            "/snel/share/data/rodent-ephys/open-ephys/monkey/paper_evals2/2022-12-02_10-14-45_myo_0.25"  # latest MONKEY
         ),
     ]
     sorts_from_each_path_to_load = [
@@ -3411,7 +3649,7 @@ if __name__ == "__main__":
         # "20240612_162948685329",  # Th_5,2_spkTh_3,6_EMUsort
         # "20240612_162955522948",  # Th_2,1_spkTh_6,9_EMUsort
         # "20240612_163005128853",  # Th_2,1_spkTh_6,_EMUsort
-        "20240612_163003203155",  # Th_2,1_spkTh_3,6_EMUsort $$$
+        # "20240612_163003203155",  # Th_2,1_spkTh_3,6_EMUsort $$$
         # "20240612_162957571579",  # Th_2,1_spkTh_9,_EMUsort
         # "20240612_163002704257",  # Th_2,1_spkTh_3,_EMUsort
         # ## EMUsort replication of "full" EMUsort with 8 channel rat, 2.25 noise
@@ -4272,6 +4510,1185 @@ if __name__ == "__main__":
         # "20240815_200432894285"  # Th_2,1_spkTh_7.5_KS4
         # "20240815_200434728996"  # Th_5,2_spkTh_6_KS4
         # "20240815_200435507544"  # Th_2,1_spkTh_9_KS4
+        # ## 20240817 HDBSCAN EMUsort 8CH, 2.25 shape noise
+        # "20240817_124807112755",  # Th_10,4_spkTh_6
+        # "20240817_124811284141",  # Th_9,8_spkTh_6,9
+        # "20240817_124812860080",  # Th_7,3_spkTh_6
+        # "20240817_124812875118",  # Th_9,8_spkTh_6,9,12
+        # "20240817_124812975087",  # Th_10,4_spkTh_3,6,9
+        # "20240817_124814615817",  # Th_10,4_spkTh_6,9,12,15
+        # "20240817_124817643960",  # Th_9,8_spkTh_6,9,12,15
+        # "20240817_124817997286",  # Th_5,2_spkTh_6,9
+        # "20240817_124818995708",  # Th_5,2_spkTh_3,6,9
+        # "20240817_124820115170",  # Th_7,3_spkTh_3,6,9
+        # "20240817_124823369659",  # Th_5,2_spkTh_6
+        # "20240817_124823609910",  # Th_9,8_spkTh_3,6,9
+        # "20240817_124823614680",  # Th_7,3_spkTh_6,9,12,15
+        # "20240817_124824210142",  # Th_10,4_spkTh_6,9
+        # "20240817_124824602886",  # Th_2,1_spkTh_6
+        # "20240817_124824607865",  # Th_5,2_spkTh_6,9,12
+        # "20240817_124824916176",  # Th_10,4_spkTh_6,9,12
+        # "20240817_124826849920",  # Th_9,8_spkTh_6
+        # "20240817_124827981019",  # Th_7,3_spkTh_6,9
+        # "20240817_124828663477",  # Th_7,3_spkTh_6,9,12
+        # "20240817_124828727660",  # Th_5,2_spkTh_6,9,12,15
+        # "20240817_124829700945",  # Th_2,1_spkTh_6,9,12
+        # "20240817_124831457789",  # Th_2,1_spkTh_6,9,12,15
+        # "20240817_124832380288",  # Th_2,1_spkTh_6,9
+        # "20240817_124836809760",  # Th_2,1_spkTh_3,6,9
+        # ## 20240821 HDBSCAN, k=20, EMUsort 8CH, 2.25 shape noise
+        # "20240821_155408085787",  # Th_10,4_spkTh_6,9,12,15
+        # "20240821_155408527572",  # Th_10,4_spkTh_3,6,9
+        # "20240821_155413627217",  # Th_10,4_spkTh_6
+        # "20240821_155424427687",  # Th_10,4_spkTh_6,9
+        # "20240821_155424931879",  # Th_10,4_spkTh_6,9,12
+        # "20240821_155426747782",  # Th_9,8_spkTh_6
+        # "20240821_155431310132",  # Th_7,3_spkTh_6,9
+        # "20240821_155432433535",  # Th_5,2_spkTh_6
+        # "20240821_155432833820",  # Th_7,3_spkTh_3,6,9
+        # "20240821_155435209285",  # Th_5,2_spkTh_3,6,9
+        # "20240821_155435884742",  # Th_7,3_spkTh_6,9,12
+        # "20240821_155438063104",  # Th_7,3_spkTh_6,9,12,15
+        # "20240821_155439656097",  # Th_9,8_spkTh_6,9,12
+        # "20240821_155439658199",  # Th_9,8_spkTh_6,9
+        # "20240821_155440574892",  # Th_9,8_spkTh_3,6,9
+        # "20240821_155442531424",  # Th_5,2_spkTh_6,9
+        # "20240821_155445812878",  # Th_7,3_spkTh_6
+        # "20240821_155446138287",  # Th_9,8_spkTh_6,9,12,15
+        # "20240821_155451013984",  # Th_5,2_spkTh_6,9,12,15
+        # "20240821_155452120152",  # Th_5,2_spkTh_6,9,12
+        # "20240821_155454263171",  # Th_2,1_spkTh_6,9
+        # "20240821_155457417017",  # Th_2,1_spkTh_6,9,12,15
+        # "20240821_155457831888",  # Th_2,1_spkTh_6
+        # "20240821_155501453789",  # Th_2,1_spkTh_3,6,9
+        # "20240821_155501752044",  # Th_2,1_spkTh_6,9,12
+        # ## KS4 trivial, EMUsort 8CH, 2.25 shape noise
+        # "20240821_161116958591",  # Th_10,4_spkTh_9_KS4
+        # "20240821_161117765016",  # Th_9,8_spkTh_9_KS4
+        # "20240821_161117768019",  # Th_5,2_spkTh_9_KS4
+        # "20240821_161117995569",  # Th_7,3_spkTh_9_KS4
+        # "20240821_161124130734",  # Th_10,4_spkTh_7_KS4
+        # "20240821_161127014470",  # Th_9,8_spkTh_7_KS4
+        # "20240821_161128122947",  # Th_7,3_spkTh_7_KS4
+        # "20240821_161131905522",  # Th_5,2_spkTh_7_KS4
+        # "20240821_161133867267",  # Th_10,4_spkTh_6_KS4
+        # "20240821_161138930946",  # Th_2,1_spkTh_9_KS4
+        # "20240821_161148322733",  # Th_7,3_spkTh_6_KS4
+        # "20240821_161149974459",  # Th_9,8_spkTh_6_KS4
+        # "20240821_161151005263",  # Th_9,8_spkTh_4_KS4
+        # "20240821_161151074644",  # Th_7,3_spkTh_4_KS4
+        # "20240821_161152524702",  # Th_10,4_spkTh_4_KS4
+        # "20240821_161156552059",  # Th_2,1_spkTh_4_KS4
+        # "20240821_161157917908",  # Th_5,2_spkTh_6_KS4
+        # "20240821_161158227604",  # Th_10,4_spkTh_3_KS4
+        # "20240821_161159895330",  # Th_5,2_spkTh_4_KS4
+        # "20240821_161200461123",  # Th_2,1_spkTh_7_KS4
+        # "20240821_161203643105",  # Th_7,3_spkTh_3_KS4
+        # "20240821_161208868900",  # Th_9,8_spkTh_3_KS4
+        # "20240821_161211919669",  # Th_2,1_spkTh_6_KS4
+        # "20240821_161214454395",  # Th_2,1_spkTh_3_KS4
+        # "20240821_161217347178",  # Th_5,2_spkTh_3_KS4
+        # ## KS4 trivial, n_templates=n_pcs=9, n_EMUsort 8CH, 2.25 shape noise
+        # "20240821_173558909481",  # Th_5,2_spkTh_6_KS4
+        # "20240821_173600045290",  # Th_7,3_spkTh_7_KS4
+        # "20240821_173600081755",  # Th_5,2_spkTh_7_KS4
+        # "20240821_173601085259",  # Th_7,3_spkTh_6_KS4
+        # "20240821_173604677796",  # Th_10,4_spkTh_9_KS4
+        # "20240821_173606576948",  # Th_10,4_spkTh_7_KS4
+        # "20240821_173609577479",  # Th_7,3_spkTh_3_KS4
+        # "20240821_173609673852",  # Th_5,2_spkTh_9_KS4
+        # "20240821_173613145530",  # Th_7,3_spkTh_9_KS4
+        # "20240821_173613792048",  # Th_9,8_spkTh_7_KS4
+        # "20240821_173614993103",  # Th_10,4_spkTh_6_KS4
+        # "20240821_173618185525",  # Th_9,8_spkTh_9_KS4
+        # "20240821_173618198640",  # Th_5,2_spkTh_4_KS4
+        # "20240821_173618290692",  # Th_9,8_spkTh_3_KS4
+        # "20240821_173622960513",  # Th_10,4_spkTh_3_KS4
+        # "20240821_173624417937",  # Th_10,4_spkTh_4_KS4
+        # "20240821_173628025430",  # Th_5,2_spkTh_3_KS4
+        # "20240821_173629984669",  # Th_9,8_spkTh_4_KS4
+        # "20240821_173630110647",  # Th_7,3_spkTh_4_KS4
+        # "20240821_173635101464",  # Th_9,8_spkTh_6_KS4
+        # "20240821_173642836878",  # Th_2,1_spkTh_7_KS4
+        # "20240821_173647121999",  # Th_2,1_spkTh_9_KS4
+        # "20240821_173647816028",  # Th_2,1_spkTh_6_KS4
+        # "20240821_173650411718",  # Th_2,1_spkTh_4_KS4
+        # "20240821_173654608323",  # Th_2,1_spkTh_3_KS4
+        # ## EMUsort emulating KS4 by using spikedetect_orig, setting n_templates=n_pcs=6, but remove_chan_delays=True
+        # "20240821_180135925568",  # Th_10,4_spkTh_9
+        # "20240821_180141634519",  # Th_10,4_spkTh_7.5
+        # "20240821_180141663000",  # Th_7,3_spkTh_9
+        # "20240821_180142790139",  # Th_5,2_spkTh_7.5
+        # "20240821_180145586779",  # Th_10,4_spkTh_3
+        # "20240821_180150055027",  # Th_7,3_spkTh_3
+        # "20240821_180150359795",  # Th_10,4_spkTh_4.5
+        # "20240821_180150579390",  # Th_5,2_spkTh_9
+        # "20240821_180157228257",  # Th_7,3_spkTh_7.5
+        # "20240821_180205637884",  # Th_9,8_spkTh_9
+        # "20240821_180205949143",  # Th_9,8_spkTh_7.5
+        # "20240821_180206037379",  # Th_9,8_spkTh_6
+        # "20240821_180216376305",  # Th_10,4_spkTh_6
+        # "20240821_180217696769",  # Th_7,3_spkTh_4.5
+        # "20240821_180218215306",  # Th_7,3_spkTh_6
+        # "20240821_180219316599",  # Th_9,8_spkTh_4.5
+        # "20240821_180220908651",  # Th_5,2_spkTh_3
+        # "20240821_180225109760",  # Th_5,2_spkTh_6
+        # "20240821_180226890222",  # Th_5,2_spkTh_4.5
+        # "20240821_180226960795",  # Th_9,8_spkTh_3
+        # "20240821_180234624151",  # Th_2,1_spkTh_9
+        # "20240821_180236205951",  # Th_2,1_spkTh_6
+        # "20240821_180239833618",  # Th_2,1_spkTh_4.5
+        # "20240821_180240004942",  # Th_2,1_spkTh_7.5
+        # "20240821_180241532593",  # Th_2,1_spkTh_3
+        # ## Mature Beta EMUsort -- 20241001
+        ## single defaults
+        # "20241001_163951339255"
+        ## full run, EMUsort, SfN results, godzilla
+        # "20241001_181540407380",  # shape_noise_2.25_Th_10,4_spkTh_6,9,12
+        # "20241001_181542838119",  # shape_noise_2.25_Th_10,4_spkTh_6,9
+        # "20241001_181547690917",  # shape_noise_2.25_Th_10,4_spkTh_6,9,12,15
+        # "20241001_181555761601",  # shape_noise_2.25_Th_9,8_spkTh_6
+        # "20241001_181556079705",  # shape_noise_2.25_Th_7,3_spkTh_6,9
+        # "20241001_181557008258",  # shape_noise_2.25_Th_7,3_spkTh_3,6,9
+        # "20241001_181559241677",  # shape_noise_2.25_Th_10,4_spkTh_6
+        # "20241001_181606140479",  # shape_noise_2.25_Th_9,8_spkTh_6,9,12
+        # "20241001_181606537719",  # shape_noise_2.25_Th_5,2_spkTh_6,9,12
+        # "20241001_181611001333",  # shape_noise_2.25_Th_7,3_spkTh_6,9,12
+        # "20241001_181611638497",  # shape_noise_2.25_Th_10,4_spkTh_3,6,9
+        # "20241001_181612009377",  # shape_noise_2.25_Th_9,8_spkTh_6,9
+        # "20241001_181613501535",  # shape_noise_2.25_Th_5,2_spkTh_3,6,9
+        # "20241001_181615911860",  # shape_noise_2.25_Th_9,8_spkTh_3,6,9
+        # "20241001_181616307164",  # shape_noise_2.25_Th_7,3_spkTh_6,9,12,15
+        # "20241001_181616312680",  # shape_noise_2.25_Th_5,2_spkTh_6
+        # "20241001_181616599387",  # shape_noise_2.25_Th_2,1_spkTh_6,9
+        # "20241001_181616741665",  # shape_noise_2.25_Th_7,3_spkTh_6
+        # "20241001_181616770504",  # shape_noise_2.25_Th_5,2_spkTh_6,9
+        # "20241001_181616778559",  # shape_noise_2.25_Th_5,2_spkTh_6,9,12,15 $$$
+        # "20241001_181620835771",  # shape_noise_2.25_Th_2,1_spkTh_6
+        # "20241001_181621511388",  # shape_noise_2.25_Th_9,8_spkTh_6,9,12,15
+        # "20241001_181622996354",  # shape_noise_2.25_Th_2,1_spkTh_6,9,12
+        # "20241001_181627753121",  # shape_noise_2.25_Th_2,1_spkTh_6,9,12,15
+        # "20241001_181633308306",  # shape_noise_2.25_Th_2,1_spkTh_3,6,9
+        # ## KS4 branch -- 20241001
+        ## single defaults
+        # "20241001_173454970610"
+        ## full run, Kilosort, SfN results, godzilla
+        # "20241001_175006033752",  # Th_9,8_spkTh_9_KS4
+        # "20241001_175128430532",  # Th_9,8_spkTh_6_KS4
+        # "20241001_175130306556",  # Th_10,4_spkTh_9_KS4
+        # "20241001_175133974293",  # Th_9,8_spkTh_4_KS4
+        # "20241001_175135441395",  # Th_10,4_spkTh_10_KS4
+        # "20241001_175142884698",  # Th_10,4_spkTh_6_KS4
+        # "20241001_175148068952",  # Th_10,4_spkTh_4_KS4
+        # "20241001_175148074144",  # Th_7,3_spkTh_6_KS4
+        # "20241001_175341448587",  # Th_5,2_spkTh_10_KS4
+        # "20241001_175408632638",  # Th_9,8_spkTh_10_KS4
+        # "20241001_175409338475",  # Th_10,4_spkTh_7_KS4
+        # "20241001_175409342934",  # Th_5,2_spkTh_9_KS4
+        # "20241001_175409342418",  # Th_9,8_spkTh_7_KS4
+        # "20241001_175414372194",  # Th_5,2_spkTh_7_KS4
+        # "20241001_175414601217",  # Th_2,1_spkTh_9_KS4
+        # "20241001_175414795086",  # Th_7,3_spkTh_10_KS4
+        # "20241001_175416966091",  # Th_2,1_spkTh_10_KS4
+        # "20241001_175422018482",  # Th_5,2_spkTh_6_KS4
+        # "20241001_175427444877",  # Th_7,3_spkTh_7_KS4
+        # "20241001_175624492082",  # Th_7,3_spkTh_9_KS4
+        # "20241001_175631000412",  # Th_2,1_spkTh_7_KS4
+        # "20241001_175710015736",  # Th_7,3_spkTh_4_KS4 $$$
+        # "20241001_175713404698",  # Th_5,2_spkTh_4_KS4
+        # "20241001_175713664167",  # Th_2,1_spkTh_4_KS4
+        # "20241001_175713664168",  # Th_2,1_spkTh_6_KS4
+        ## temp TEST with spk removal
+        # "20240826_144427953031",
+        ## temp TEST without spk removal
+        # "20240826_145317320791",
+        ### Monkey "paper_evals"
+        # "20250206_161027056411",
+        ## EMUsort  2.25 noise, default thresholds
+        # "20250206_164129220660",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_9,8_spkTh_6
+        # "20250206_164130831924",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_9,8_spkTh_3,6,9
+        # "20250206_164130896320",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_9,8_spkTh_6,9,12,15
+        # "20250206_164131466293",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_9,8_spkTh_6,9,12
+        # "20250206_164132472220",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_9,8_spkTh_6,9
+        # "20250206_164210457988",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_10,4_spkTh_6,9,12,15
+        # "20250206_164211243745",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_10,4_spkTh_6,9
+        # "20250206_164211690831",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_10,4_spkTh_6
+        # "20250206_164212456824",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_10,4_spkTh_3,6,9
+        # "20250206_164212512371",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_10,4_spkTh_6,9,12
+        # "20250206_164256340973",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_7,3_spkTh_6,9,12
+        # "20250206_164256576029",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_7,3_spkTh_6,9
+        # "20250206_164258485598",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_7,3_spkTh_6
+        # "20250206_164259686366",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_7,3_spkTh_3,6,9
+        # "20250206_164301285915",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_7,3_spkTh_6,9,12,15
+        # "20250206_164344963545",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_5,2_spkTh_6
+        # "20250206_164346548442",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_5,2_spkTh_3,6,9
+        # "20250206_164347308128",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_5,2_spkTh_6,9
+        # "20250206_164347797458",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_5,2_spkTh_6,9,12,15
+        # "20250206_164348536536",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_5,2_spkTh_6,9,12
+        # "20250206_164436175809",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_2,1_spkTh_6,9
+        # "20250206_164437239940",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_2,1_spkTh_6,9,12
+        # "20250206_164438505238",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_2,1_spkTh_6,9,12,15
+        # "20250206_164438879893",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_2,1_spkTh_6
+        # "20250206_164441266254",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_2,1_spkTh_3,6,9
+        ## godzilla EMUsort  2.25 noise, default thresholds, after bugfix with Th
+        # "20250219_143443063341",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_9,8_spkTh_6,9,12,15_SCORE_0.443
+        # "20250219_143443143987",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_9,8_spkTh_6,9,12_SCORE_0.467
+        # "20250219_143518054270",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_9,8_spkTh_6,9_SCORE_0.473
+        # "20250219_143518638182",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_9,8_spkTh_3,6,9_SCORE_0.429
+        # "20250219_143601682965",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_9,8_spkTh_6_SCORE_0.448
+        # "20250219_143604336708",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_10,4_spkTh_6,9,12,15_SCORE_0.448
+        # "20250219_143650111422",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_10,4_spkTh_6,9,12_SCORE_0.453
+        # "20250219_143651249002",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_10,4_spkTh_3,6,9_SCORE_0.536
+        # "20250219_143737543564",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_10,4_spkTh_6,9_SCORE_0.540
+        # "20250219_143737843259",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_10,4_spkTh_6_SCORE_0.438
+        # "20250219_143828210942",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_7,3_spkTh_6,9,12,15_SCORE_0.511
+        # "20250219_143828526129",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_7,3_spkTh_6,9,12_SCORE_0.578
+        # "20250219_143914943126",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_7,3_spkTh_6,9_SCORE_0.539
+        # "20250219_143916415274",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_7,3_spkTh_3,6,9_SCORE_0.515
+        # "20250219_143950654029",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_7,3_spkTh_6_SCORE_0.479
+        # "20250219_144002085273",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_5,2_spkTh_6,9,12,15_SCORE_0.517
+        # "20250219_144051721091",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_5,2_spkTh_6,9,12_SCORE_0.479
+        # "20250219_144056001971",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_5,2_spkTh_3,6,9_SCORE_0.479
+        # "20250219_144147672682",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_5,2_spkTh_6_SCORE_0.509
+        # "20250219_144147886585",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_5,2_spkTh_6,9_SCORE_0.540
+        # "20250219_144339466075",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_2,1_spkTh_6,9,12,15_SCORE_0.390
+        # "20250219_144340369651",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_2,1_spkTh_6,9,12_SCORE_0.386
+        # "20250219_144558336569",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_2,1_spkTh_3,6,9_SCORE_0.387
+        # "20250219_144611268770",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_2,1_spkTh_6,9_SCORE_0.453
+        # "20250219_144752905548",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_2,1_spkTh_6_SCORE_0.359
+        ## Kilosort4  2.25 noise, "standard" thresholds [4.5, 6, 7.5, 9, 10.5], not using anymore
+        # "20250206_174546307226",  # Th_10,4_spkTh_6_KS4
+        # "20250206_174546572421",  # Th_9,8_spkTh_6_KS4
+        # "20250206_174547649601",  # Th_10,4_spkTh_10_KS4
+        # "20250206_174547657095",  # Th_10,4_spkTh_9_KS4
+        # "20250206_174550220364",  # Th_9,8_spkTh_7_KS4
+        # "20250206_174552183591",  # Th_9,8_spkTh_10_KS4
+        # "20250206_174552453797",  # Th_10,4_spkTh_4_KS4
+        # "20250206_174552487391",  # Th_10,4_spkTh_7_KS4
+        # "20250206_174552564207",  # Th_9,8_spkTh_9_KS4
+        # "20250206_174553460714",  # Th_7,3_spkTh_10_KS4
+        # "20250206_174553617022",  # Th_7,3_spkTh_9_KS4
+        # "20250206_174553705620",  # Th_9,8_spkTh_4_KS4
+        # "20250206_174553709475",  # Th_7,3_spkTh_6_KS4
+        # "20250206_174555563321",  # Th_7,3_spkTh_7_KS4
+        # "20250206_174557014867",  # Th_7,3_spkTh_4_KS4
+        # "20250206_174557831406",  # Th_5,2_spkTh_7_KS4
+        # "20250206_174559840618",  # Th_2,1_spkTh_10_KS4
+        # "20250206_174600192683",  # Th_5,2_spkTh_6_KS4
+        # "20250206_174600950772",  # Th_5,2_spkTh_10_KS4
+        # "20250206_174602189639",  # Th_5,2_spkTh_9_KS4
+        # "20250206_174602227844",  # Th_2,1_spkTh_7_KS4
+        # "20250206_174604245154",  # Th_2,1_spkTh_4_KS4
+        # "20250206_174604580313",  # Th_5,2_spkTh_4_KS4
+        # "20250206_174607432417",  # Th_2,1_spkTh_9_KS4
+        # "20250206_174608733869",  # Th_2,1_spkTh_6_KS4
+        ## Kilosort4  2.25 noise, better thresholds [3,6,9,12,15], these performances were ~1% better on average
+        # "20250206_180325769459",  # Th_10,4_spkTh_6_KS4
+        # "20250206_180326011351",  # Th_10,4_spkTh_12_KS4
+        # "20250206_180326543452",  # Th_9,8_spkTh_15_KS4
+        # "20250206_180327258554",  # Th_10,4_spkTh_15_KS4
+        # "20250206_180327982944",  # Th_7,3_spkTh_12_KS4
+        # "20250206_180329146734",  # Th_10,4_spkTh_9_KS4
+        # "20250206_180330070698",  # Th_9,8_spkTh_6_KS4
+        # "20250206_180331248454",  # Th_10,4_spkTh_3_KS4
+        # "20250206_180331792123",  # Th_7,3_spkTh_9_KS4
+        # "20250206_180331924486",  # Th_9,8_spkTh_9_KS4
+        # "20250206_180332775901",  # Th_9,8_spkTh_3_KS4
+        # "20250206_180332867008",  # Th_9,8_spkTh_12_KS4
+        # "20250206_180334059510",  # Th_5,2_spkTh_3_KS4
+        # "20250206_180334172345",  # Th_7,3_spkTh_6_KS4
+        # "20250206_180334968460",  # Th_7,3_spkTh_15_KS4
+        # "20250206_180337050183",  # Th_5,2_spkTh_9_KS4
+        # "20250206_180338959583",  # Th_5,2_spkTh_6_KS4
+        # "20250206_180339151351",  # Th_5,2_spkTh_15_KS4
+        # "20250206_180340456388",  # Th_7,3_spkTh_3_KS4
+        # "20250206_180340572692",  # Th_2,1_spkTh_9_KS4
+        # "20250206_180341734216",  # Th_2,1_spkTh_15_KS4
+        # "20250206_180342585767",  # Th_5,2_spkTh_12_KS4
+        # "20250206_180343112132",  # Th_2,1_spkTh_12_KS4
+        # "20250206_180343780296",  # Th_2,1_spkTh_3_KS4
+        # "20250206_180345235906",  # Th_2,1_spkTh_6_KS4
+        ### godzilla  2.25 noise, "better" thresholds [3,6,9,12,15], testing
+        # "20250207_151023065415",  # Th_9,8_spkTh_9_KS4
+        # "20250207_151024849340",  # Th_10,4_spkTh_9_KS4
+        # "20250207_151027144600",  # Th_7,3_spkTh_12_KS4
+        # "20250207_151027146981",  # Th_7,3_spkTh_9_KS4
+        # "20250207_151029272736",  # Th_5,2_spkTh_12_KS4
+        # "20250207_151030201617",  # Th_10,4_spkTh_6_KS4
+        # "20250207_151031823527",  # Th_10,4_spkTh_15_KS4
+        # "20250207_151032483940",  # Th_7,3_spkTh_6_KS4
+        # "20250207_151032677279",  # Th_5,2_spkTh_6_KS4
+        # "20250207_151032736246",  # Th_10,4_spkTh_12_KS4
+        # "20250207_151035006351",  # Th_2,1_spkTh_9_KS4
+        # "20250207_151035204148",  # Th_9,8_spkTh_12_KS4
+        # "20250207_151035351013",  # Th_9,8_spkTh_3_KS4
+        # "20250207_151036471199",  # Th_5,2_spkTh_9_KS4
+        # "20250207_151037986372",  # Th_9,8_spkTh_15_KS4
+        # "20250207_151038052133",  # Th_10,4_spkTh_3_KS4
+        # "20250207_151040297902",  # Th_5,2_spkTh_15_KS4
+        # "20250207_151041193067",  # Th_2,1_spkTh_15_KS4
+        # "20250207_151041817924",  # Th_7,3_spkTh_15_KS4
+        # "20250207_151042065086",  # Th_5,2_spkTh_3_KS4
+        # "20250207_151043384056",  # Th_9,8_spkTh_6_KS4
+        # "20250207_151043877908",  # Th_7,3_spkTh_3_KS4
+        # "20250207_151045707569",  # Th_2,1_spkTh_3_KS4
+        # "20250207_151046537165",  # Th_2,1_spkTh_6_KS4
+        # "20250207_151047318538",  # Th_2,1_spkTh_12_KS4
+        ### godzilla  2.25 noise, "better" thresholds [3,6,9,12,15], after bugfix with Th
+        # "20250219_152711411996",  # Th_9,8_spkTh_12_KS4
+        # "20250219_152716760637",  # Th_9,8_spkTh_9_KS4
+        # "20250219_152717293075",  # Th_10,4_spkTh_15_KS4
+        # "20250219_152717499246",  # Th_10,4_spkTh_9_KS4
+        # "20250219_152724758309",  # Th_10,4_spkTh_3_KS4
+        # "20250219_152731725124",  # Th_5,2_spkTh_9_KS4
+        # "20250219_152732697467",  # Th_9,8_spkTh_15_KS4
+        # "20250219_152732981463",  # Th_7,3_spkTh_12_KS4
+        # "20250219_152735150910",  # Th_7,3_spkTh_9_KS4
+        # "20250219_152735350316",  # Th_10,4_spkTh_12_KS4
+        # "20250219_152735678072",  # Th_5,2_spkTh_15_KS4
+        # "20250219_152735838317",  # Th_9,8_spkTh_6_KS4
+        # "20250219_152736046017",  # Th_5,2_spkTh_12_KS4
+        # "20250219_152736091080",  # Th_10,4_spkTh_6_KS4
+        # "20250219_152736170719",  # Th_9,8_spkTh_3_KS4
+        # "20250219_152736252211",  # Th_7,3_spkTh_15_KS4
+        # "20250219_152736280805",  # Th_7,3_spkTh_6_KS4
+        # "20250219_152737596358",  # Th_7,3_spkTh_3_KS4
+        # "20250219_152738304582",  # Th_5,2_spkTh_6_KS4
+        # "20250219_152738417967",  # Th_2,1_spkTh_3_KS4
+        # "20250219_152740321140",  # Th_2,1_spkTh_12_KS4
+        # "20250219_152749803156",  # Th_5,2_spkTh_3_KS4
+        # "20250219_152750576185",  # Th_2,1_spkTh_6_KS4
+        # "20250219_152754600416",  # Th_2,1_spkTh_9_KS4
+        # "20250219_152801488117",  # Th_2,1_spkTh_15_KS4
+        ### godzilla  2.25 noise, "better" thresholds [3,6,9,12,15], after bugfix with Th, trying main branch
+        # "20250219_214048830054",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_9,8_spkTh_3_SCORE_0.205_KS4
+        # "20250219_214049032044",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_9,8_spkTh_15_SCORE_0.167_KS4
+        # "20250219_214049123121",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_9,8_spkTh_12_SCORE_0.362_KS4
+        # "20250219_214049179984",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_9,8_spkTh_6_SCORE_0.256_KS4
+        # "20250219_214112812479",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_10,4_spkTh_6_SCORE_0.311_KS4
+        # "20250219_214112938873",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_10,4_spkTh_3_SCORE_0.211_KS4
+        # "20250219_214113122162",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_10,4_spkTh_15_SCORE_0.162_KS4
+        # "20250219_214113243105",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_10,4_spkTh_9_SCORE_0.332_KS4
+        # "20250219_214113405316",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_10,4_spkTh_12_SCORE_0.291_KS4
+        # "20250219_214138126553",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_7,3_spkTh_12_SCORE_0.326_KS4
+        # "20250219_214138170459",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_7,3_spkTh_3_SCORE_0.165_KS4
+        # "20250219_214138355190",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_7,3_spkTh_6_SCORE_0.234_KS4
+        # "20250219_214138506359",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_7,3_spkTh_9_SCORE_0.275_KS4
+        # "20250219_214138570102",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_7,3_spkTh_15_SCORE_0.141_KS4
+        # "20250219_214209871719",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_5,2_spkTh_6_SCORE_0.319_KS4
+        # "20250219_214210540569",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_5,2_spkTh_9_SCORE_0.262_KS4
+        # "20250219_214210840073",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_5,2_spkTh_12_SCORE_0.284_KS4
+        # "20250219_214211156266",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_5,2_spkTh_15_SCORE_0.228_KS4
+        # "20250219_214211395082",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_5,2_spkTh_3_SCORE_0.128_KS4
+        # "20250219_214235146371",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_2,1_spkTh_9_SCORE_0.201_KS4
+        # "20250219_214235770179",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_2,1_spkTh_6_SCORE_0.180_KS4
+        # "20250219_214236084168",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_2,1_spkTh_12_SCORE_0.233_KS4
+        # "20250219_214236157633",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_2,1_spkTh_3_SCORE_0.144_KS4
+        # "20250219_214236759883",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_2,1_spkTh_15_SCORE_0.174_KS4
+        # "20250219_214049320508",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_9,8_spkTh_9_SCORE_0.377_KS4
+        ### godzilla 2.25 noise, after Th bugfix, EMUsort, PAPER
+        # "20250224_170933008715",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_9,8_spkTh_6,9,12,15_SCORE_0.506
+        # "20250224_170933372878",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_9,8_spkTh_6_SCORE_0.461
+        # "20250224_170933392109",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_9,8_spkTh_6,9_SCORE_0.421
+        # "20250224_170933812317",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_9,8_spkTh_6,9,12_SCORE_0.479
+        # "20250224_170934011678",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_9,8_spkTh_3,6,9_SCORE_0.480
+        # "20250224_170955422302",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_10,4_spkTh_6,9,12,15_SCORE_0.491
+        # "20250224_170955542053",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_10,4_spkTh_3,6,9_SCORE_0.516
+        # "20250224_170955719127",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_10,4_spkTh_6,9,12_SCORE_0.464
+        # "20250224_170955828967",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_10,4_spkTh_6_SCORE_0.507
+        # "20250224_170956079505",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_10,4_spkTh_6,9_SCORE_0.591
+        # "20250224_171016669374",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_7,3_spkTh_6,9,12,15_SCORE_0.522
+        # "20250224_171018082719",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_7,3_spkTh_6,9,12_SCORE_0.559
+        # "20250224_171018167207",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_7,3_spkTh_6_SCORE_0.490
+        # "20250224_171018199809",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_7,3_spkTh_3,6,9_SCORE_0.569
+        # "20250224_171018366594",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_7,3_spkTh_6,9_SCORE_0.553
+        # "20250224_171039763907",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_5,2_spkTh_6,9,12,15_SCORE_0.573
+        # "20250224_171039931888",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_5,2_spkTh_6,9_SCORE_0.540 $$$
+        # "20250224_171040072285",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_5,2_spkTh_6,9,12_SCORE_0.548
+        # "20250224_171040667490",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_5,2_spkTh_6_SCORE_0.547
+        # "20250224_171040937295",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_5,2_spkTh_3,6,9_SCORE_0.496
+        # "20250224_171101236037",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_2,1_spkTh_6,9,12,15_SCORE_0.367
+        # "20250224_171102048404",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_2,1_spkTh_6,9_SCORE_0.407
+        # "20250224_171102753505",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_2,1_spkTh_6_SCORE_0.398
+        # "20250224_171103486171",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_2,1_spkTh_6,9,12_SCORE_0.392
+        # "20250224_171103525132",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_2,1_spkTh_3,6,9_SCORE_0.422
+        ### godzilla 2.25 noise, after Th bugfix, Kilosort4, PAPER
+        # "20250224_171852332929",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_9,8_spkTh_9_SCORE_0.377_KS4 $$$
+        # "20250224_171852480584",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_9,8_spkTh_12_SCORE_0.267_KS4
+        # "20250224_171852697443",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_9,8_spkTh_6_SCORE_0.336_KS4
+        # "20250224_171853128252",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_9,8_spkTh_15_SCORE_0.190_KS4
+        # "20250224_171853466447",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_9,8_spkTh_3_SCORE_0.236_KS4
+        # "20250224_171914491521",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_10,4_spkTh_6_SCORE_0.298_KS4
+        # "20250224_171915619157",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_10,4_spkTh_12_SCORE_0.335_KS4
+        # "20250224_171915769862",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_10,4_spkTh_3_SCORE_0.197_KS4
+        # "20250224_171915981632",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_10,4_spkTh_15_SCORE_0.163_KS4
+        # "20250224_171916033041",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_10,4_spkTh_9_SCORE_0.331_KS4
+        # "20250224_171936888026",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_7,3_spkTh_9_SCORE_0.327_KS4
+        # "20250224_171936955282",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_7,3_spkTh_15_SCORE_0.185_KS4
+        # "20250224_171937056056",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_7,3_spkTh_3_SCORE_0.161_KS4
+        # "20250224_171937109787",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_7,3_spkTh_12_SCORE_0.276_KS4
+        # "20250224_171937158132",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_7,3_spkTh_6_SCORE_0.280_KS4
+        # "20250224_171957329124",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_5,2_spkTh_9_SCORE_0.261_KS4
+        # "20250224_171958404607",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_5,2_spkTh_6_SCORE_0.316_KS4
+        # "20250224_171958550209",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_5,2_spkTh_3_SCORE_0.154_KS4
+        # "20250224_171958596495",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_5,2_spkTh_12_SCORE_0.239_KS4
+        # "20250224_171959063135",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_5,2_spkTh_15_SCORE_0.229_KS4
+        # "20250224_172018580356",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_2,1_spkTh_6_SCORE_0.223_KS4
+        # "20250224_172020987693",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_2,1_spkTh_12_SCORE_0.221_KS4
+        # "20250224_172021177557",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_2,1_spkTh_3_SCORE_0.133_KS4
+        # "20250224_172021362505",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_2,1_spkTh_15_SCORE_0.142_KS4
+        # "20250224_172021609448",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_2,1_spkTh_9_SCORE_0.195_KS4
+        ### monkey 2.25 noise, after Th bugfix, EMUsort,  nt0=121, PAPER
+        # "20250224_173830784247",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_9,8_spkTh_3,6,9_SCORE_0.577
+        # "20250224_173831761385",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_9,8_spkTh_6_SCORE_0.538
+        # "20250224_173832177395",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_9,8_spkTh_6,9,12,15_SCORE_0.377
+        # "20250224_173832280243",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_9,8_spkTh_6,9_SCORE_0.550
+        # "20250224_173832466839",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_9,8_spkTh_6,9,12_SCORE_0.613
+        # "20250224_173913919669",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_10,4_spkTh_6_SCORE_0.594
+        # "20250224_173914422122",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_10,4_spkTh_6,9,12,15_SCORE_0.591
+        # "20250224_173914442250",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_10,4_spkTh_6,9_SCORE_0.537 $$$
+        # "20250224_173914632250",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_10,4_spkTh_6,9,12_SCORE_0.557
+        # "20250224_173914861656",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_10,4_spkTh_3,6,9_SCORE_0.556
+        # "20250224_174013006980",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_7,3_spkTh_6,9,12_SCORE_0.401
+        # "20250224_174017568631",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_7,3_spkTh_6_SCORE_0.381
+        # "20250224_174018928174",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_7,3_spkTh_6,9,12,15_SCORE_0.483
+        # "20250224_174019431632",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_7,3_spkTh_6,9_SCORE_0.397
+        # "20250224_174022574481",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_7,3_spkTh_3,6,9_SCORE_0.395
+        # "20250224_174103388227",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_5,2_spkTh_6,9,12_SCORE_0.406
+        # "20250224_174104669884",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_5,2_spkTh_6,9,12,15_SCORE_0.339
+        # "20250224_174104778362",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_5,2_spkTh_3,6,9_SCORE_0.396
+        # "20250224_174105104977",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_5,2_spkTh_6,9_SCORE_0.374
+        # "20250224_174105336656",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_5,2_spkTh_6_SCORE_0.326
+        # "20250224_174147490207",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_2,1_spkTh_3,6,9_SCORE_0.383
+        # "20250224_174147603059",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_2,1_spkTh_6,9,12,15_SCORE_0.484
+        # "20250224_174147680099",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_2,1_spkTh_6,9,12_SCORE_0.433
+        # "20250224_174148510152",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_2,1_spkTh_6_SCORE_0.340
+        # "20250224_174148738234",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_2,1_spkTh_6,9_SCORE_0.273
+        ### monkey 2.25 noise, after Th bugfix, Kilosort4, nt0=61
+        # "20250224_191631244961",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_9,8_spkTh_15_SCORE_0.465_KS4
+        # "20250224_191631718649",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_9,8_spkTh_12_SCORE_0.508_KS4
+        # "20250224_191631840467",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_9,8_spkTh_6_SCORE_0.562_KS4
+        # "20250224_191632007366",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_9,8_spkTh_3_SCORE_0.386_KS4
+        # "20250224_191632292561",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_9,8_spkTh_9_SCORE_0.444_KS4
+        # "20250224_191735709462",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_10,4_spkTh_6_SCORE_0.553_KS4
+        # "20250224_191736012747",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_10,4_spkTh_9_SCORE_0.386_KS4
+        # "20250224_191736338291",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_10,4_spkTh_12_SCORE_0.505_KS4
+        # "20250224_191736415234",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_10,4_spkTh_15_SCORE_0.522_KS4
+        # "20250224_191738052086",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_10,4_spkTh_3_SCORE_0.315_KS4
+        # "20250224_191834918161",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_7,3_spkTh_15_SCORE_0.414_KS4
+        # "20250224_191836516727",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_7,3_spkTh_12_SCORE_0.412_KS4
+        # "20250224_191837585532",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_7,3_spkTh_9_SCORE_0.502_KS4
+        # "20250224_191838314319",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_7,3_spkTh_6_SCORE_0.462_KS4
+        # "20250224_191838589924",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_7,3_spkTh_3_SCORE_0.382_KS4
+        # "20250224_191936471039",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_5,2_spkTh_3_SCORE_0.267_KS4
+        # "20250224_191936689762",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_5,2_spkTh_6_SCORE_0.423_KS4
+        # "20250224_191937638714",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_5,2_spkTh_12_SCORE_0.298_KS4
+        # "20250224_191938020896",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_5,2_spkTh_9_SCORE_0.356_KS4
+        # "20250224_191938070162",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_5,2_spkTh_15_SCORE_0.415_KS4
+        # "20250224_192026359803",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_2,1_spkTh_6_SCORE_0.238_KS4
+        # "20250224_192026419248",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_2,1_spkTh_12_SCORE_0.306_KS4
+        # "20250224_192027016445",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_2,1_spkTh_15_SCORE_0.333_KS4
+        # "20250224_192027231196",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_2,1_spkTh_3_SCORE_0.253_KS4
+        # "20250224_192027583613",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_2,1_spkTh_9_SCORE_0.344_KS4
+        ### monkey 2.25 noise, after Th bugfix, Kilosort4, nt0=121, PAPER
+        # "20250224_195002555736",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_9,8_spkTh_12_SCORE_0.410_KS4
+        # "20250224_195002616763",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_9,8_spkTh_15_SCORE_0.489_KS4
+        # "20250224_195004033916",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_9,8_spkTh_9_SCORE_0.525_KS4
+        # "20250224_195004134401",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_9,8_spkTh_6_SCORE_0.408_KS4
+        # "20250224_195004997788",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_9,8_spkTh_3_SCORE_0.354_KS4
+        # "20250224_195052213521",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_10,4_spkTh_3_SCORE_0.287_KS4
+        # "20250224_195053302085",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_10,4_spkTh_9_SCORE_0.495_KS4
+        # "20250224_195054834939",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_10,4_spkTh_12_SCORE_0.612_KS4
+        # "20250224_195055006995",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_10,4_spkTh_6_SCORE_0.482_KS4
+        # "20250224_195055654709",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_10,4_spkTh_15_SCORE_0.501_KS4
+        # "20250224_195145355702",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_7,3_spkTh_6_SCORE_0.325_KS4
+        # "20250224_195146573006",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_7,3_spkTh_12_SCORE_0.430_KS4 $$$
+        # "20250224_195146607281",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_7,3_spkTh_15_SCORE_0.377_KS4 $
+        # "20250224_195146941479",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_7,3_spkTh_3_SCORE_0.282_KS4
+        # "20250224_195147106859",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_7,3_spkTh_9_SCORE_0.411_KS4 $$$$
+        # "20250224_195237828406",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_5,2_spkTh_6_SCORE_0.350_KS4
+        # "20250224_195238403108",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_5,2_spkTh_3_SCORE_0.241_KS4
+        # "20250224_195239085505",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_5,2_spkTh_9_SCORE_0.357_KS4
+        # "20250224_195239241838",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_5,2_spkTh_12_SCORE_0.383_KS4
+        # "20250224_195240202577",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_5,2_spkTh_15_SCORE_0.376_KS4 $$
+        # "20250224_195329562272",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_2,1_spkTh_3_SCORE_0.153_KS4
+        # "20250224_195330899739",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_2,1_spkTh_15_SCORE_0.274_KS4
+        # "20250224_195330965578",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_2,1_spkTh_9_SCORE_0.248_KS4
+        # "20250224_195331214710",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_2,1_spkTh_6_SCORE_0.207_KS4
+        # "20250224_195332333435",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_2,1_spkTh_12_SCORE_0.331_KS4
+        ## HUMAN finger emusort
+        # "20250311_153116441910"
+        # "20250311_182905652854",  # _sim_noise_0.2_Th_9,8_spkTh_6,9,12,15_SCORE_0.491
+        # "20250311_182907455386",  # _sim_noise_0.2_Th_9,8_spkTh_6,9,12_SCORE_0.504
+        # "20250311_182941433488",  # _sim_noise_0.2_Th_9,8_spkTh_6,9_SCORE_0.503
+        # "20250311_182942674360",  # _sim_noise_0.2_Th_9,8_spkTh_3,6,9_SCORE_0.625
+        # "20250311_183017815001",  # _sim_noise_0.2_Th_9,8_spkTh_6_SCORE_0.434
+        # "20250311_183017984561",  # _sim_noise_0.2_Th_10,4_spkTh_6,9,12,15_SCORE_0.632
+        # "20250311_183053193049",  # _sim_noise_0.2_Th_10,4_spkTh_6,9,12_SCORE_0.627
+        # "20250311_183053229163",  # _sim_noise_0.2_Th_10,4_spkTh_3,6,9_SCORE_0.564
+        # "20250311_183128969808",  # _sim_noise_0.2_Th_10,4_spkTh_6,9_SCORE_0.602
+        # "20250311_183129037935",  # _sim_noise_0.2_Th_10,4_spkTh_6_SCORE_0.565
+        # "20250311_183204842772",  # _sim_noise_0.2_Th_7,3_spkTh_6,9,12_SCORE_0.607
+        # "20250311_183204945709",  # _sim_noise_0.2_Th_7,3_spkTh_6,9,12,15_SCORE_0.528
+        # "20250311_183240964373",  # _sim_noise_0.2_Th_7,3_spkTh_3,6,9_SCORE_0.452
+        # "20250311_183241217903",  # _sim_noise_0.2_Th_7,3_spkTh_6,9_SCORE_0.481
+        # "20250311_183317289335",  # _sim_noise_0.2_Th_7,3_spkTh_6_SCORE_0.593
+        # "20250311_183317760535",  # _sim_noise_0.2_Th_5,2_spkTh_6,9,12,15_SCORE_0.510
+        # "20250311_183353174108",  # _sim_noise_0.2_Th_5,2_spkTh_3,6,9_SCORE_0.582 $
+        # "20250311_183353280513",  # _sim_noise_0.2_Th_5,2_spkTh_6,9,12_SCORE_0.633 $$$
+        # "20250311_183428200439",  # _sim_noise_0.2_Th_5,2_spkTh_6,9_SCORE_0.499
+        # "20250311_183428970741",  # _sim_noise_0.2_Th_5,2_spkTh_6_SCORE_0.622
+        # "20250311_183501642560",  # _sim_noise_0.2_Th_2,1_spkTh_6,9,12,15_SCORE_0.503
+        # "20250311_183503766246",  # _sim_noise_0.2_Th_2,1_spkTh_6,9,12_SCORE_0.557
+        # "20250311_183535880794",  # _sim_noise_0.2_Th_2,1_spkTh_6,9_SCORE_0.510 $$
+        # "20250311_183536634041",  # _sim_noise_0.2_Th_2,1_spkTh_3,6,9_SCORE_0.532
+        # "20250311_183605421205",  # _sim_noise_0.2_Th_2,1_spkTh_6_SCORE_0.539
+        ## HUMAN finger kilosort4
+        # "20250311_180457655139",  # _sim_noise_0.2_ks4_Th_9,8_spkTh_9_SCORE_0.476_KS4
+        # "20250311_180459719580",  # _sim_noise_0.2_ks4_Th_9,8_spkTh_6_SCORE_0.433_KS4
+        # "20250311_180500329245",  # _sim_noise_0.2_ks4_Th_9,8_spkTh_3_SCORE_0.437_KS4
+        # "20250311_180534947301",  # _sim_noise_0.2_ks4_Th_9,8_spkTh_12_SCORE_0.402_KS4
+        # "20250311_180537522408",  # _sim_noise_0.2_ks4_Th_10,4_spkTh_6_SCORE_0.408_KS4
+        # "20250311_180537824674",  # _sim_noise_0.2_ks4_Th_9,8_spkTh_15_SCORE_0.456_KS4
+        # "20250311_180612338111",  # _sim_noise_0.2_ks4_Th_10,4_spkTh_3_SCORE_0.422_KS4
+        # "20250311_180613863562",  # _sim_noise_0.2_ks4_Th_10,4_spkTh_12_SCORE_0.391_KS4
+        # "20250311_180614780159",  # _sim_noise_0.2_ks4_Th_10,4_spkTh_9_SCORE_0.410_KS4
+        # "20250311_180650217857",  # _sim_noise_0.2_ks4_Th_7,3_spkTh_6_SCORE_0.379_KS4
+        # "20250311_180650960540",  # _sim_noise_0.2_ks4_Th_10,4_spkTh_15_SCORE_0.442_KS4
+        # "20250311_180651615118",  # _sim_noise_0.2_ks4_Th_7,3_spkTh_3_SCORE_0.400_KS4
+        # "20250311_180725688260",  # _sim_noise_0.2_ks4_Th_7,3_spkTh_12_SCORE_0.347_KS4
+        # "20250311_180727046023",  # _sim_noise_0.2_ks4_Th_7,3_spkTh_9_SCORE_0.408_KS4
+        # "20250311_180728860225",  # _sim_noise_0.2_ks4_Th_7,3_spkTh_15_SCORE_0.424_KS4
+        # "20250311_180803732113",  # _sim_noise_0.2_ks4_Th_5,2_spkTh_6_SCORE_0.459_KS4
+        # "20250311_180804993449",  # _sim_noise_0.2_ks4_Th_5,2_spkTh_3_SCORE_0.426_KS4
+        # "20250311_180805752483",  # _sim_noise_0.2_ks4_Th_5,2_spkTh_9_SCORE_0.452_KS4
+        # "20250311_180839421499",  # _sim_noise_0.2_ks4_Th_5,2_spkTh_12_SCORE_0.395_KS4
+        # "20250311_180842772584",  # _sim_noise_0.2_ks4_Th_5,2_spkTh_15_SCORE_0.461_KS4
+        # "20250311_180842834332",  # _sim_noise_0.2_ks4_Th_2,1_spkTh_6_SCORE_0.402_KS4
+        # "20250311_180918276422",  # _sim_noise_0.2_ks4_Th_2,1_spkTh_3_SCORE_0.392_KS4
+        # "20250311_180920459807",  # _sim_noise_0.2_ks4_Th_2,1_spkTh_12_SCORE_0.425_KS4
+        # "20250311_180920623863",  # _sim_noise_0.2_ks4_Th_2,1_spkTh_9_SCORE_0.443_KS4 $$$
+        # "20250311_180950061499",  # _sim_noise_0.2_ks4_Th_2,1_spkTh_15_SCORE_0.391_KS4
+        ## EMUsort nt0 151, human, 12 components
+        # "20250311_183317760535"
+        # '20250313_215736500834', # _sim_noise_0.2_Th_9,8_spkTh_3,6,9_SCORE_0.510
+        # '20250313_215737396740', # _sim_noise_0.2_Th_9,8_spkTh_6,9,12,15_SCORE_0.573
+        # '20250313_215737425589', # _sim_noise_0.2_Th_9,8_spkTh_6,9,12_SCORE_0.494
+        # '20250313_215810405242', # _sim_noise_0.2_Th_9,8_spkTh_6,9_SCORE_0.521
+        # "20250313_215811715827",  # _sim_noise_0.2_Th_10,4_spkTh_6,9,12,15_SCORE_0.589
+        # '20250313_215812573961', # _sim_noise_0.2_Th_9,8_spkTh_6_SCORE_0.452
+        # '20250313_215845300276', # _sim_noise_0.2_Th_10,4_spkTh_6,9,12_SCORE_0.545
+        # '20250313_215846677093', # _sim_noise_0.2_Th_10,4_spkTh_3,6,9_SCORE_0.552
+        # '20250313_215847155111', # _sim_noise_0.2_Th_10,4_spkTh_6,9_SCORE_0.522
+        # "20250313_215920930785",  # _sim_noise_0.2_Th_10,4_spkTh_6_SCORE_0.682
+        # '20250313_215921298797', # _sim_noise_0.2_Th_7,3_spkTh_6,9,12,15_SCORE_0.506
+        # '20250313_215921974006', # _sim_noise_0.2_Th_7,3_spkTh_6,9,12_SCORE_0.542
+        # '20250313_215954850581', # _sim_noise_0.2_Th_7,3_spkTh_6,9_SCORE_0.501
+        # '20250313_215955812911', # _sim_noise_0.2_Th_7,3_spkTh_3,6,9_SCORE_0.508
+        # "20250313_215956850833",  # _sim_noise_0.2_Th_7,3_spkTh_6_SCORE_0.699
+        # '20250313_220031743515', # _sim_noise_0.2_Th_5,2_spkTh_3,6,9_SCORE_0.422
+        # '20250313_220032150291', # _sim_noise_0.2_Th_5,2_spkTh_6,9,12_SCORE_0.462
+        # '20250313_220032199767', # _sim_noise_0.2_Th_5,2_spkTh_6,9,12,15_SCORE_0.516
+        # '20250313_220107024523', # _sim_noise_0.2_Th_2,1_spkTh_6,9,12,15_SCORE_0.495
+        # '20250313_220107703263', # _sim_noise_0.2_Th_5,2_spkTh_6,9_SCORE_0.515
+        # "20250313_220107988536",  # _sim_noise_0.2_Th_5,2_spkTh_6_SCORE_0.695
+        # '20250313_220142630104', # _sim_noise_0.2_Th_2,1_spkTh_3,6,9_SCORE_0.497
+        # '20250313_220143618847', # _sim_noise_0.2_Th_2,1_spkTh_6,9_SCORE_0.459
+        # '20250313_220143654755', # _sim_noise_0.2_Th_2,1_spkTh_6,9,12_SCORE_0.502
+        # "20250313_220216374932",  # _sim_noise_0.2_Th_2,1_spkTh_6_SCORE_0.605
+        ## EMUsort nt0 301, human, 12 components
+        # '20250313_221916791144', # sim_noise_0.2_Th_9,8_spkTh_6,9,12,15_SCORE_0.509
+        # '20250313_221917166478', # sim_noise_0.2_Th_9,8_spkTh_6,9,12_SCORE_0.528
+        # '20250313_221917839465', # sim_noise_0.2_Th_9,8_spkTh_3,6,9_SCORE_0.564
+        # '20250313_221953798603', # sim_noise_0.2_Th_9,8_spkTh_6_SCORE_0.413
+        # '20250313_221954046608', # sim_noise_0.2_Th_10,4_spkTh_6,9,12,15_SCORE_0.526
+        # '20250313_221954189926', # sim_noise_0.2_Th_9,8_spkTh_6,9_SCORE_0.434
+        # "20250313_222027874967",  # sim_noise_0.2_Th_10,4_spkTh_6,9,12_SCORE_0.674
+        # "20250313_222029999749",  # sim_noise_0.2_Th_10,4_spkTh_6,9_SCORE_0.615
+        # '20250313_222030154543', # sim_noise_0.2_Th_10,4_spkTh_3,6,9_SCORE_0.565
+        # "20250313_222104941757",  # sim_noise_0.2_Th_10,4_spkTh_6_SCORE_0.612
+        # "20250313_222106921276",  # sim_noise_0.2_Th_7,3_spkTh_6,9,12_SCORE_0.605
+        # "20250313_222107009485",  # sim_noise_0.2_Th_7,3_spkTh_6,9,12,15_SCORE_0.587
+        # "20250313_222141534439",  # sim_noise_0.2_Th_7,3_spkTh_3,6,9_SCORE_0.595
+        # "20250313_222142982929",  # sim_noise_0.2_Th_7,3_spkTh_6_SCORE_0.608
+        # "20250313_222143347807",  # sim_noise_0.2_Th_7,3_spkTh_6,9_SCORE_0.643
+        # '20250313_222217279603', # sim_noise_0.2_Th_5,2_spkTh_6,9,12,15_SCORE_0.555
+        # '20250313_222219660263', # sim_noise_0.2_Th_5,2_spkTh_6,9,12_SCORE_0.561
+        # '20250313_222219888541', # sim_noise_0.2_Th_5,2_spkTh_3,6,9_SCORE_0.484
+        # "20250313_222253809049",  # sim_noise_0.2_Th_5,2_spkTh_6,9_SCORE_0.605
+        # '20250313_222255910688', # sim_noise_0.2_Th_5,2_spkTh_6_SCORE_0.543
+        # '20250313_222256935865', # sim_noise_0.2_Th_2,1_spkTh_6,9,12,15_SCORE_0.509
+        # "20250313_222330975357",  # sim_noise_0.2_Th_2,1_spkTh_6,9,12_SCORE_0.583
+        # "20250313_222333659925",  # sim_noise_0.2_Th_2,1_spkTh_6,9_SCORE_0.584
+        # '20250313_222334048740', # sim_noise_0.2_Th_2,1_spkTh_3,6,9_SCORE_0.534
+        # '20250313_222406576230', # sim_noise_0.2_Th_2,1_spkTh_6_SCORE_0.518
+        ## EMUsort no outlier removal
+        # "20250314_190909407875",  # _sim_noise_0.2_Th_9,8_spkTh_6,9,12,15_SCORE_0.532
+        # "20250314_190909558141",  # _sim_noise_0.2_Th_9,8_spkTh_6,9,12_SCORE_0.426
+        # "20250314_190909935960",  # _sim_noise_0.2_Th_9,8_spkTh_3,6,9_SCORE_0.479
+        # "20250314_190943032992",  # _sim_noise_0.2_Th_10,4_spkTh_6,9,12,15_SCORE_0.690
+        # "20250314_190943830807",  # _sim_noise_0.2_Th_9,8_spkTh_6,9_SCORE_0.455
+        # "20250314_190944645758",  # _sim_noise_0.2_Th_9,8_spkTh_6_SCORE_0.411
+        # "20250314_191016178983",  # _sim_noise_0.2_Th_10,4_spkTh_3,6,9_SCORE_0.536
+        # "20250314_191016640708",  # _sim_noise_0.2_Th_10,4_spkTh_6,9_SCORE_0.632
+        # "20250314_191048292246",  # _sim_noise_0.2_Th_7,3_spkTh_6,9,12,15_SCORE_0.590
+        # "20250314_191048616998",  # _sim_noise_0.2_Th_7,3_spkTh_6,9,12_SCORE_0.674
+        # "20250314_191048993701",  # _sim_noise_0.2_Th_10,4_spkTh_6_SCORE_0.550
+        # "20250314_191120922596",  # _sim_noise_0.2_Th_7,3_spkTh_3,6,9_SCORE_0.540
+        # "20250314_191121146927",  # _sim_noise_0.2_Th_7,3_spkTh_6,9_SCORE_0.525
+        # "20250314_191121233501",  # _sim_noise_0.2_Th_7,3_spkTh_6_SCORE_0.555
+        # "20250314_191153351535",  # _sim_noise_0.2_Th_5,2_spkTh_6,9,12,15_SCORE_0.577
+        # "20250314_191153503372",  # _sim_noise_0.2_Th_5,2_spkTh_6,9,12_SCORE_0.649
+        # "20250314_191153738646",  # _sim_noise_0.2_Th_5,2_spkTh_3,6,9_SCORE_0.460
+        # "20250314_191225829256",  # _sim_noise_0.2_Th_5,2_spkTh_6,9_SCORE_0.532
+        # "20250314_191226738718",  # _sim_noise_0.2_Th_2,1_spkTh_6,9,12,15_SCORE_0.518
+        # "20250314_191226896153",  # _sim_noise_0.2_Th_5,2_spkTh_6_SCORE_0.528
+        # "20250314_191259715287",  # _sim_noise_0.2_Th_2,1_spkTh_3,6,9_SCORE_0.558
+        # "20250314_191300628827",  # _sim_noise_0.2_Th_2,1_spkTh_6,9_SCORE_0.468
+        # "20250314_191300680434",  # _sim_noise_0.2_Th_2,1_spkTh_6,9,12_SCORE_0.538
+        # "20250314_191329935092",  # _sim_noise_0.2_Th_2,1_spkTh_6_SCORE_0.567
+        # "20250314_191016367676",  # _sim_noise_0.2_Th_10,4_spkTh_6,9,12_SCORE_0.707
+        ## lower and wider spkTh thresholds, nt0 301
+        # "20250314_194906744039",  # sim_noise_0.2_Th_9,8_spkTh_3,6,9,12,15_SCORE_0.556
+        # "20250314_194907914344",  # sim_noise_0.2_Th_9,8_spkTh_3,6,9,12_SCORE_0.566
+        # "20250314_194938167093",  # sim_noise_0.2_Th_9,8_spkTh_2,3,6,9_SCORE_0.514
+        # "20250314_194939123884",  # sim_noise_0.2_Th_9,8_spkTh_3,6,9_SCORE_0.557
+        # "20250314_195009975023",  # sim_noise_0.2_Th_9,8_spkTh_2,4,6,8_SCORE_0.476
+        # "20250314_195010816807",  # sim_noise_0.2_Th_10,4_spkTh_3,6,9,12,15_SCORE_0.565
+        # "20250314_195042103029",  # sim_noise_0.2_Th_10,4_spkTh_3,6,9,12_SCORE_0.628
+        # "20250314_195042131859",  # sim_noise_0.2_Th_10,4_spkTh_2,3,6,9_SCORE_0.497
+        # "20250314_195113106084",  # sim_noise_0.2_Th_10,4_spkTh_2,4,6,8_SCORE_0.584
+        # "20250314_195113126411",  # sim_noise_0.2_Th_10,4_spkTh_3,6,9_SCORE_0.556
+        # "20250314_195143930409",  # sim_noise_0.2_Th_7,3_spkTh_3,6,9,12_SCORE_0.569
+        # "20250314_195144238884",  # sim_noise_0.2_Th_7,3_spkTh_3,6,9,12,15_SCORE_0.534
+        # "20250314_195215247820",  # sim_noise_0.2_Th_7,3_spkTh_2,3,6,9_SCORE_0.633
+        # "20250314_195215970950",  # sim_noise_0.2_Th_7,3_spkTh_3,6,9_SCORE_0.555
+        # "20250314_195247253781",  # sim_noise_0.2_Th_5,2_spkTh_3,6,9,12,15_SCORE_0.542
+        # "20250314_195247313883",  # sim_noise_0.2_Th_7,3_spkTh_2,4,6,8_SCORE_0.561
+        # "20250314_195318492376",  # sim_noise_0.2_Th_5,2_spkTh_2,3,6,9_SCORE_0.518
+        # "20250314_195318757190",  # sim_noise_0.2_Th_5,2_spkTh_3,6,9,12_SCORE_0.472
+        # "20250314_195349850162",  # sim_noise_0.2_Th_5,2_spkTh_3,6,9_SCORE_0.480
+        # "20250314_195351154598",  # sim_noise_0.2_Th_5,2_spkTh_2,4,6,8_SCORE_0.448
+        # "20250314_195423398692",  # sim_noise_0.2_Th_2,1_spkTh_3,6,9,12,15_SCORE_0.481
+        # "20250314_195424062440",  # sim_noise_0.2_Th_2,1_spkTh_3,6,9,12_SCORE_0.547
+        # "20250314_195455676338",  # sim_noise_0.2_Th_2,1_spkTh_2,3,6,9_SCORE_0.533
+        # "20250314_195457635058",  # sim_noise_0.2_Th_2,1_spkTh_3,6,9_SCORE_0.534
+        # "20250314_195527522712",  # sim_noise_0.2_Th_2,1_spkTh_2,4,6,8_SCORE_0.537
+        ## HUMAN, 16CH and 10MU dataset, default configs, 0.2 noise, EMUsort PAPER, nt0 301
+        # "20250318_182951220921"  # sim_noise_0.2_SCORE_0.499
+        # "20250318_184514267892"  # sim_noise_0.2_SCORE_0.514
+        # "20250318_192631526276",  # sim_noise_0.2_Th_9,8_spkTh_6,9,12_SCORE_0.565
+        # "20250318_192648897875",  # sim_noise_0.2_Th_9,8_spkTh_6,9,12,15_SCORE_0.503
+        # "20250318_192827037133",  # sim_noise_0.2_Th_9,8_spkTh_3,6,9_SCORE_0.562
+        # "20250318_192830860444",  # sim_noise_0.2_Th_9,8_spkTh_6,9_SCORE_0.667
+        # "20250318_192925200819",  # sim_noise_0.2_Th_9,8_spkTh_6_SCORE_0.541
+        # "20250318_192932566505",  # sim_noise_0.2_Th_10,4_spkTh_6,9,12,15_SCORE_0.580
+        # "20250318_193044682366",  # sim_noise_0.2_Th_10,4_spkTh_3,6,9_SCORE_0.646
+        # "20250318_193109588749",  # sim_noise_0.2_Th_10,4_spkTh_6,9,12_SCORE_0.568
+        # "20250318_193306110019",  # sim_noise_0.2_Th_10,4_spkTh_6_SCORE_0.492
+        # "20250318_193307853814",  # sim_noise_0.2_Th_10,4_spkTh_6,9_SCORE_0.509
+        # "20250318_193406566464",  # sim_noise_0.2_Th_7,3_spkTh_6,9,12,15_SCORE_0.498
+        # "20250318_193407539646",  # sim_noise_0.2_Th_7,3_spkTh_6,9,12_SCORE_0.513
+        # "20250318_193504991055",  # sim_noise_0.2_Th_7,3_spkTh_6,9_SCORE_0.489
+        # "20250318_193508011824",  # sim_noise_0.2_Th_7,3_spkTh_3,6,9_SCORE_0.477
+        # "20250318_193609854633",  # sim_noise_0.2_Th_7,3_spkTh_6_SCORE_0.532
+        # "20250318_193636655379",  # sim_noise_0.2_Th_5,2_spkTh_6,9,12,15_SCORE_0.618
+        # "20250318_193800317650",  # sim_noise_0.2_Th_5,2_spkTh_6,9,12_SCORE_0.495
+        # "20250318_193800945363",  # sim_noise_0.2_Th_5,2_spkTh_3,6,9_SCORE_0.483
+        # "20250318_193856983071",  # sim_noise_0.2_Th_5,2_spkTh_6,9_SCORE_0.589
+        # "20250318_193925534146",  # sim_noise_0.2_Th_5,2_spkTh_6_SCORE_0.580 $$$
+        # "20250318_194042451306",  # sim_noise_0.2_Th_2,1_spkTh_6,9,12_SCORE_0.510
+        # "20250318_194120016328",  # sim_noise_0.2_Th_2,1_spkTh_6,9,12,15_SCORE_0.525
+        # "20250318_194213450718",  # sim_noise_0.2_Th_2,1_spkTh_6,9_SCORE_0.530
+        # "20250318_194213948642",  # sim_noise_0.2_Th_2,1_spkTh_3,6,9_SCORE_0.579 $$$$
+        # "20250318_194303357639",  # sim_noise_0.2_Th_2,1_spkTh_6_SCORE_0.591
+        ## HUMAN, 16CH and 10MU dataset, default configs, 0.2 noise, Kilosort4 PAPER, nt0 301
+        # "20250319_132913580082",  # sim_noise_0.2_Th_9,8_spkTh_3_SCORE_0.554_KS4
+        # "20250319_132914800872",  # sim_noise_0.2_Th_9,8_spkTh_6_SCORE_0.478_KS4
+        # "20250319_133007138420",  # sim_noise_0.2_Th_9,8_spkTh_9_SCORE_0.487_KS4
+        # "20250319_133007429517",  # sim_noise_0.2_Th_9,8_spkTh_12_SCORE_0.574_KS4
+        # "20250319_133100086547",  # sim_noise_0.2_Th_9,8_spkTh_15_SCORE_0.476_KS4
+        # "20250319_133101628674",  # sim_noise_0.2_Th_10,4_spkTh_6_SCORE_0.477_KS4
+        # "20250319_133154105606",  # sim_noise_0.2_Th_10,4_spkTh_3_SCORE_0.549_KS4
+        # "20250319_133201147309",  # sim_noise_0.2_Th_10,4_spkTh_9_SCORE_0.510_KS4 $$$
+        # "20250319_133253988351",  # sim_noise_0.2_Th_10,4_spkTh_12_SCORE_0.580_KS4
+        # "20250319_133255789021",  # sim_noise_0.2_Th_10,4_spkTh_15_SCORE_0.501_KS4
+        # "20250319_133350735060",  # sim_noise_0.2_Th_7,3_spkTh_3_SCORE_0.560_KS4
+        # "20250319_133353235907",  # sim_noise_0.2_Th_7,3_spkTh_6_SCORE_0.478_KS4
+        # "20250319_133445768423",  # sim_noise_0.2_Th_7,3_spkTh_12_SCORE_0.542_KS4
+        # "20250319_133452868124",  # sim_noise_0.2_Th_7,3_spkTh_9_SCORE_0.474_KS4
+        # "20250319_133546738533",  # sim_noise_0.2_Th_5,2_spkTh_6_SCORE_0.511_KS4
+        # "20250319_133546981732",  # sim_noise_0.2_Th_7,3_spkTh_15_SCORE_0.525_KS4
+        # "20250319_133640243810",  # sim_noise_0.2_Th_5,2_spkTh_9_SCORE_0.591_KS4
+        # "20250319_133643856553",  # sim_noise_0.2_Th_5,2_spkTh_3_SCORE_0.591_KS4
+        # "20250319_133738363378",  # sim_noise_0.2_Th_5,2_spkTh_15_SCORE_0.586_KS4
+        # "20250319_133740874739",  # sim_noise_0.2_Th_5,2_spkTh_12_SCORE_0.563_KS4 $$$$
+        # "20250319_133834492794",  # sim_noise_0.2_Th_2,1_spkTh_3_SCORE_0.556_KS4
+        # "20250319_133835148992",  # sim_noise_0.2_Th_2,1_spkTh_6_SCORE_0.468_KS4
+        # "20250319_133928165706",  # sim_noise_0.2_Th_2,1_spkTh_9_SCORE_0.561_KS4
+        # "20250319_133928203803",  # sim_noise_0.2_Th_2,1_spkTh_12_SCORE_0.538_KS4
+        # "20250319_134019416554",  # sim_noise_0.2_Th_2,1_spkTh_15_SCORE_0.501_KS4
+        ### ## Score Corr. paper PAPER results, godzilla test after change to EMUsort score (remove redundant type I penalty)
+        # "20250411_161149011172",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_9,8_spkTh_6,9,12,15_SCORE_0.550
+        # "20250411_161149188070",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_9,8_spkTh_6,9,12_SCORE_0.524
+        # "20250411_161149369407",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_9,8_spkTh_3,6,9_SCORE_0.499
+        # "20250411_161218963169",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_9,8_spkTh_6,9_SCORE_0.490
+        # "20250411_161219155316",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_10,4_spkTh_6,9,12,15_SCORE_0.528
+        # "20250411_161220137131",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_9,8_spkTh_6_SCORE_0.508
+        # "20250411_161243357275",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_10,4_spkTh_6,9_SCORE_0.598
+        # "20250411_161243490251",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_10,4_spkTh_3,6,9_SCORE_0.528
+        # "20250411_161245487158",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_10,4_spkTh_6,9,12_SCORE_0.500
+        # "20250411_161306173586",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_10,4_spkTh_6_SCORE_0.531
+        # "20250411_161306387909",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_7,3_spkTh_6,9,12_SCORE_0.564
+        # "20250411_161306666932",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_7,3_spkTh_6,9,12,15_SCORE_0.566
+        # "20250411_161327166225",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_7,3_spkTh_6_SCORE_0.525
+        # "20250411_161327726816",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_7,3_spkTh_6,9_SCORE_0.562
+        # "20250411_161328149415",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_7,3_spkTh_3,6,9_SCORE_0.581
+        # "20250411_161348260626",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_5,2_spkTh_6,9,12_SCORE_0.570
+        # "20250411_161348766166",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_5,2_spkTh_6,9,12,15_SCORE_0.577
+        # "20250411_161349593572",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_5,2_spkTh_3,6,9_SCORE_0.521
+        # "20250411_161410335049",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_5,2_spkTh_6_SCORE_0.592
+        # "20250411_161410502610",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_5,2_spkTh_6,9_SCORE_0.596
+        # "20250411_161411109536",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_2,1_spkTh_6,9,12,15_SCORE_0.392
+        # "20250411_161433450810",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_2,1_spkTh_3,6,9_SCORE_0.402
+        # "20250411_161433966209",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_2,1_spkTh_6,9,12_SCORE_0.454
+        # "20250411_161434089848",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_2,1_spkTh_6,9_SCORE_0.445
+        # "20250411_161459756650",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_2,1_spkTh_6_SCORE_0.412
+        # "20250411_162829182441",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_9,8_spkTh_3_SCORE_0.346_KS4
+        # "20250411_162829294767",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_9,8_spkTh_6_SCORE_0.263_KS4
+        # "20250411_162829367370",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_9,8_spkTh_9_SCORE_0.398_KS4
+        # "20250411_162849819897",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_9,8_spkTh_12_SCORE_0.297_KS4
+        # "20250411_162850389653",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_10,4_spkTh_6_SCORE_0.317_KS4
+        # "20250411_162850619337",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_9,8_spkTh_15_SCORE_0.259_KS4
+        # "20250411_162914382403",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_10,4_spkTh_3_SCORE_0.220_KS4
+        # "20250411_162915231602",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_10,4_spkTh_9_SCORE_0.383_KS4
+        # "20250411_162915669307",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_10,4_spkTh_12_SCORE_0.379_KS4
+        # "20250411_162945400792",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_10,4_spkTh_15_SCORE_0.235_KS4
+        # "20250411_162945586533",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_7,3_spkTh_6_SCORE_0.234_KS4
+        # "20250411_162946463712",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_7,3_spkTh_3_SCORE_0.179_KS4
+        # "20250411_163008608454",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_7,3_spkTh_12_SCORE_0.340_KS4
+        # "20250411_163008820693",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_7,3_spkTh_9_SCORE_0.312_KS4
+        # "20250411_163009582064",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_7,3_spkTh_15_SCORE_0.236_KS4
+        # "20250411_163030452498",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_5,2_spkTh_6_SCORE_0.322_KS4
+        # "20250411_163030476418",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_5,2_spkTh_9_SCORE_0.363_KS4
+        # "20250411_163031052693",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_5,2_spkTh_3_SCORE_0.183_KS4
+        # "20250411_163050811877",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_5,2_spkTh_12_SCORE_0.264_KS4
+        # "20250411_163052180808",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_2,1_spkTh_6_SCORE_0.214_KS4
+        # "20250411_163052234111",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_5,2_spkTh_15_SCORE_0.253_KS4
+        # "20250411_163123063427",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_2,1_spkTh_9_SCORE_0.238_KS4
+        # "20250411_163123674230",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_2,1_spkTh_3_SCORE_0.170_KS4
+        # "20250411_163123981786",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_2,1_spkTh_12_SCORE_0.228_KS4
+        # "20250411_163143757518",  # sim_2022-11-17_17-08-07_shape_noise_2.25_Th_2,1_spkTh_15_SCORE_0.159_KS4
+        ### Score Corr. paper PAPER results, MONKEY with Type I score simplified
+        # "20250421_145123311498",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_9,8_spkTh_6,9,12_SCORE_0.608
+        # "20250421_145123550038",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_9,8_spkTh_6,9,12,15_SCORE_0.476
+        # "20250421_145203304889",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_9,8_spkTh_3,6,9_SCORE_0.698
+        # "20250421_145203984853",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_9,8_spkTh_6,9_SCORE_0.616
+        # "20250421_145244968082",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_10,4_spkTh_6,9,12,15_SCORE_0.578
+        # "20250421_145244989028",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_9,8_spkTh_6_SCORE_0.627
+        # "20250421_145326180385",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_10,4_spkTh_6,9,12_SCORE_0.565
+        # "20250421_145326342930",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_10,4_spkTh_3,6,9_SCORE_0.541
+        # "20250421_145407132276",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_10,4_spkTh_6,9_SCORE_0.595
+        # "20250421_145408429438",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_10,4_spkTh_6_SCORE_0.629
+        # "20250421_145450686021",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_7,3_spkTh_6,9,12,15_SCORE_0.449
+        # "20250421_145450718233",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_7,3_spkTh_6,9,12_SCORE_0.390
+        # "20250421_145532369028",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_7,3_spkTh_3,6,9_SCORE_0.393
+        # "20250421_145532802943",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_7,3_spkTh_6,9_SCORE_0.421
+        # "20250421_145614973336",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_5,2_spkTh_6,9,12,15_SCORE_0.321
+        # "20250421_145615014358",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_7,3_spkTh_6_SCORE_0.370
+        # "20250421_145656373748",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_5,2_spkTh_3,6,9_SCORE_0.394
+        # "20250421_145657399861",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_5,2_spkTh_6,9,12_SCORE_0.384
+        # "20250421_145739712601",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_5,2_spkTh_6_SCORE_0.333
+        # "20250421_145739865090",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_5,2_spkTh_6,9_SCORE_0.369
+        # "20250421_145822317457",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_2,1_spkTh_6,9,12_SCORE_0.398
+        # "20250421_145822624323",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_2,1_spkTh_6,9,12,15_SCORE_0.313
+        # "20250421_145905212431",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_2,1_spkTh_6,9_SCORE_0.304
+        # "20250421_145905747740",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_2,1_spkTh_3,6,9_SCORE_0.360
+        # "20250421_145947479323",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_2,1_spkTh_6_SCORE_0.205
+        # "20250421_185101256022",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_9,8_spkTh_6_SCORE_0.460_KS4
+        # "20250421_185101492000",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_9,8_spkTh_9_SCORE_0.518_KS4
+        # "20250421_185103790849",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_9,8_spkTh_3_SCORE_0.432_KS4
+        # "20250421_185152798834",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_9,8_spkTh_12_SCORE_0.518_KS4
+        # "20250421_185153371920",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_9,8_spkTh_15_SCORE_0.497_KS4
+        # "20250421_185153697361",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_10,4_spkTh_6_SCORE_0.464_KS4
+        # "20250421_185241468029",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_10,4_spkTh_3_SCORE_0.315_KS4
+        # "20250421_185241741124",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_10,4_spkTh_9_SCORE_0.505_KS4
+        # "20250421_185242597022",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_10,4_spkTh_12_SCORE_0.598_KS4
+        # "20250421_185330254178",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_7,3_spkTh_6_SCORE_0.331_KS4
+        # "20250421_185330750170",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_7,3_spkTh_3_SCORE_0.330_KS4
+        # "20250421_185330986857",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_10,4_spkTh_15_SCORE_0.533_KS4
+        # "20250421_185417718607",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_7,3_spkTh_9_SCORE_0.391_KS4
+        # "20250421_185418986728",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_7,3_spkTh_12_SCORE_0.430_KS4
+        # "20250421_185419140129",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_7,3_spkTh_15_SCORE_0.449_KS4
+        # "20250421_185507588294",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_5,2_spkTh_9_SCORE_0.376_KS4
+        # "20250421_185507958969",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_5,2_spkTh_3_SCORE_0.225_KS4
+        # "20250421_185508697420",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_5,2_spkTh_6_SCORE_0.285_KS4
+        # "20250421_185557211623",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_5,2_spkTh_15_SCORE_0.368_KS4
+        # "20250421_185557455819",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_5,2_spkTh_12_SCORE_0.277_KS4
+        # "20250421_185558433631",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_2,1_spkTh_6_SCORE_0.190_KS4
+        # "20250421_185645358072",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_2,1_spkTh_12_SCORE_0.442_KS4
+        # "20250421_185645991518",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_2,1_spkTh_9_SCORE_0.228_KS4
+        # "20250421_185646626952",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_2,1_spkTh_3_SCORE_0.190_KS4
+        # "20250421_185732599473",  # sim_2022-12-02_10-14-45_shape_noise_2.25_Th_2,1_spkTh_15_SCORE_0.283_KS4
+        ### Score Corr. paper PAPER results, HUMAN with Type I score simplified
+        # "20250421_184155512540",  # sim_noise_0.2_Th_9,8_spkTh_6,9,12,15_SCORE_0.464
+        # "20250421_184156891759",  # sim_noise_0.2_Th_9,8_spkTh_6,9,12_SCORE_0.611
+        # "20250421_184251346642",  # sim_noise_0.2_Th_9,8_spkTh_6,9_SCORE_0.639
+        # "20250421_184251411514",  # sim_noise_0.2_Th_9,8_spkTh_3,6,9_SCORE_0.572
+        # "20250421_184341760292",  # sim_noise_0.2_Th_9,8_spkTh_6_SCORE_0.508
+        # "20250421_184342402011",  # sim_noise_0.2_Th_10,4_spkTh_6,9,12,15_SCORE_0.551
+        # "20250421_184432552277",  # sim_noise_0.2_Th_10,4_spkTh_6,9,12_SCORE_0.569
+        # "20250421_184434096558",  # sim_noise_0.2_Th_10,4_spkTh_3,6,9_SCORE_0.631
+        # "20250421_184524089988",  # sim_noise_0.2_Th_10,4_spkTh_6_SCORE_0.476
+        # "20250421_184524663395",  # sim_noise_0.2_Th_10,4_spkTh_6,9_SCORE_0.487
+        # "20250421_184615049080",  # sim_noise_0.2_Th_7,3_spkTh_6,9,12_SCORE_0.490
+        # "20250421_184616105973",  # sim_noise_0.2_Th_7,3_spkTh_6,9,12,15_SCORE_0.482
+        # "20250421_184706362952",  # sim_noise_0.2_Th_7,3_spkTh_6,9_SCORE_0.529
+        # "20250421_184706611356",  # sim_noise_0.2_Th_7,3_spkTh_3,6,9_SCORE_0.507
+        # "20250421_184756706949",  # sim_noise_0.2_Th_5,2_spkTh_6,9,12,15_SCORE_0.614
+        # "20250421_184756879096",  # sim_noise_0.2_Th_7,3_spkTh_6_SCORE_0.521
+        # "20250421_184846421636",  # sim_noise_0.2_Th_5,2_spkTh_6,9,12_SCORE_0.499
+        # "20250421_184847376011",  # sim_noise_0.2_Th_5,2_spkTh_3,6,9_SCORE_0.524
+        # "20250421_184936291987",  # sim_noise_0.2_Th_5,2_spkTh_6,9_SCORE_0.589
+        # "20250421_184938223469",  # sim_noise_0.2_Th_5,2_spkTh_6_SCORE_0.582
+        # "20250421_185031451048",  # sim_noise_0.2_Th_2,1_spkTh_6,9,12,15_SCORE_0.503
+        # "20250421_185032005950",  # sim_noise_0.2_Th_2,1_spkTh_6,9,12_SCORE_0.532
+        # "20250421_185154094427",  # sim_noise_0.2_Th_2,1_spkTh_3,6,9_SCORE_0.604
+        # "20250421_185154605915",  # sim_noise_0.2_Th_2,1_spkTh_6,9_SCORE_0.564
+        # "20250421_185241951928",  # sim_noise_0.2_Th_2,1_spkTh_6_SCORE_0.584
+        # "20250421_205549945770",  # sim_noise_0.2_Th_9,8_spkTh_3_SCORE_0.588_KS4
+        # "20250421_205550113698",  # sim_noise_0.2_Th_9,8_spkTh_6_SCORE_0.511_KS4
+        # "20250421_205642289532",  # sim_noise_0.2_Th_9,8_spkTh_12_SCORE_0.559_KS4
+        # "20250421_205642820483",  # sim_noise_0.2_Th_9,8_spkTh_9_SCORE_0.594_KS4
+        # "20250421_205738473398",  # sim_noise_0.2_Th_10,4_spkTh_6_SCORE_0.532_KS4
+        # "20250421_205738730625",  # sim_noise_0.2_Th_9,8_spkTh_15_SCORE_0.635_KS4
+        # "20250421_205831439929",  # sim_noise_0.2_Th_10,4_spkTh_3_SCORE_0.671_KS4
+        # "20250421_205832297487",  # sim_noise_0.2_Th_10,4_spkTh_9_SCORE_0.559_KS4
+        # "20250421_205924503052",  # sim_noise_0.2_Th_10,4_spkTh_12_SCORE_0.635_KS4
+        # "20250421_205926654964",  # sim_noise_0.2_Th_10,4_spkTh_15_SCORE_0.661_KS4
+        # "20250421_210020504871",  # sim_noise_0.2_Th_7,3_spkTh_6_SCORE_0.581_KS4
+        # "20250421_210021540545",  # sim_noise_0.2_Th_7,3_spkTh_3_SCORE_0.672_KS4
+        # "20250421_210113002160",  # sim_noise_0.2_Th_7,3_spkTh_9_SCORE_0.554_KS4
+        # "20250421_210114631489",  # sim_noise_0.2_Th_7,3_spkTh_12_SCORE_0.576_KS4
+        # "20250421_210205784498",  # sim_noise_0.2_Th_7,3_spkTh_15_SCORE_0.635_KS4
+        # "20250421_210206593170",  # sim_noise_0.2_Th_5,2_spkTh_6_SCORE_0.610_KS4
+        # "20250421_210258334312",  # sim_noise_0.2_Th_5,2_spkTh_3_SCORE_0.694_KS4
+        # "20250421_210258574261",  # sim_noise_0.2_Th_5,2_spkTh_9_SCORE_0.685_KS4
+        # "20250421_210350955082",  # sim_noise_0.2_Th_5,2_spkTh_12_SCORE_0.641_KS4
+        # "20250421_210350986272",  # sim_noise_0.2_Th_5,2_spkTh_15_SCORE_0.626_KS4
+        # "20250421_210443179354",  # sim_noise_0.2_Th_2,1_spkTh_6_SCORE_0.423_KS4
+        # "20250421_210443642811",  # sim_noise_0.2_Th_2,1_spkTh_3_SCORE_0.565_KS4
+        # "20250421_210536281661",  # sim_noise_0.2_Th_2,1_spkTh_12_SCORE_0.604_KS4
+        # "20250421_210536826984",  # sim_noise_0.2_Th_2,1_spkTh_9_SCORE_0.554_KS4
+        # "20250421_210629224529",  # sim_noise_0.2_Th_2,1_spkTh_15_SCORE_0.540_KS4
+        ### NEW godzilla 14CH 12MU dataset
+        # "20250428_191104017116",  # sim_noise_0.2_2022-11-16_16-19-28_Th_9,8_spkTh_6,9,12,15_SCORE_0.419
+        # "20250428_191104190118",  # sim_noise_0.2_2022-11-16_16-19-28_Th_9,8_spkTh_6,9,12_SCORE_0.431
+        # "20250428_191122322853",  # sim_noise_0.2_2022-11-16_16-19-28_Th_9,8_spkTh_6,9_SCORE_0.427
+        # "20250428_191122497543",  # sim_noise_0.2_2022-11-16_16-19-28_Th_9,8_spkTh_3,6,9_SCORE_0.337
+        # "20250428_191140847161",  # sim_noise_0.2_2022-11-16_16-19-28_Th_9,8_spkTh_6_SCORE_0.440
+        # "20250428_191141028386",  # sim_noise_0.2_2022-11-16_16-19-28_Th_10,4_spkTh_6,9,12,15_SCORE_0.567
+        # "20250428_191159462576",  # sim_noise_0.2_2022-11-16_16-19-28_Th_10,4_spkTh_6,9,12_SCORE_0.508
+        # "20250428_191159552658",  # sim_noise_0.2_2022-11-16_16-19-28_Th_10,4_spkTh_3,6,9_SCORE_0.452
+        # "20250428_191217872803",  # sim_noise_0.2_2022-11-16_16-19-28_Th_10,4_spkTh_6_SCORE_0.566
+        # "20250428_191218038765",  # sim_noise_0.2_2022-11-16_16-19-28_Th_10,4_spkTh_6,9_SCORE_0.534
+        # "20250428_191236340868",  # sim_noise_0.2_2022-11-16_16-19-28_Th_7,3_spkTh_6,9,12_SCORE_0.508
+        # "20250428_191236571242",  # sim_noise_0.2_2022-11-16_16-19-28_Th_7,3_spkTh_6,9,12,15_SCORE_0.570
+        # "20250428_191255218097",  # sim_noise_0.2_2022-11-16_16-19-28_Th_7,3_spkTh_3,6,9_SCORE_0.622
+        # "20250428_191255386863",  # sim_noise_0.2_2022-11-16_16-19-28_Th_7,3_spkTh_6,9_SCORE_0.462
+        # "20250428_191313893689",  # sim_noise_0.2_2022-11-16_16-19-28_Th_7,3_spkTh_6_SCORE_0.549
+        # "20250428_191314077983",  # sim_noise_0.2_2022-11-16_16-19-28_Th_5,2_spkTh_6,9,12,15_SCORE_0.408
+        # "20250428_191332739480",  # sim_noise_0.2_2022-11-16_16-19-28_Th_5,2_spkTh_3,6,9_SCORE_0.457
+        # "20250428_191332957723",  # sim_noise_0.2_2022-11-16_16-19-28_Th_5,2_spkTh_6,9,12_SCORE_0.539
+        # "20250428_191351586125",  # sim_noise_0.2_2022-11-16_16-19-28_Th_5,2_spkTh_6,9_SCORE_0.491
+        # "20250428_191351769716",  # sim_noise_0.2_2022-11-16_16-19-28_Th_5,2_spkTh_6_SCORE_0.570
+        # "20250428_191410519777",  # sim_noise_0.2_2022-11-16_16-19-28_Th_2,1_spkTh_6,9,12_SCORE_0.487
+        # "20250428_191410720081",  # sim_noise_0.2_2022-11-16_16-19-28_Th_2,1_spkTh_6,9,12,15_SCORE_0.464
+        # "20250428_191429353242",  # sim_noise_0.2_2022-11-16_16-19-28_Th_2,1_spkTh_3,6,9_SCORE_0.550
+        # "20250428_191429546430",  # sim_noise_0.2_2022-11-16_16-19-28_Th_2,1_spkTh_6,9_SCORE_0.520
+        # "20250428_191447913407",  # sim_noise_0.2_2022-11-16_16-19-28_Th_2,1_spkTh_6_SCORE_0.485
+        # "20250428_194658828869",  # sim_noise_0.2_2022-11-16_16-19-28_Th_9,8_spkTh_6_SCORE_0.461_KS4
+        # "20250428_194716941736",  # sim_noise_0.2_2022-11-16_16-19-28_Th_9,8_spkTh_3_SCORE_0.432_KS4
+        # "20250428_194735046067",  # sim_noise_0.2_2022-11-16_16-19-28_Th_9,8_spkTh_9_SCORE_0.412_KS4
+        # "20250428_194753019387",  # sim_noise_0.2_2022-11-16_16-19-28_Th_9,8_spkTh_12_SCORE_0.392_KS4
+        # "20250428_194811022638",  # sim_noise_0.2_2022-11-16_16-19-28_Th_9,8_spkTh_15_SCORE_0.394_KS4
+        # "20250428_194829261807",  # sim_noise_0.2_2022-11-16_16-19-28_Th_10,4_spkTh_6_SCORE_0.486_KS4
+        # "20250428_194847380785",  # sim_noise_0.2_2022-11-16_16-19-28_Th_10,4_spkTh_3_SCORE_0.448_KS4
+        # "20250428_194905545522",  # sim_noise_0.2_2022-11-16_16-19-28_Th_10,4_spkTh_9_SCORE_0.501_KS4
+        # "20250428_194923909873",  # sim_noise_0.2_2022-11-16_16-19-28_Th_10,4_spkTh_12_SCORE_0.460_KS4
+        # "20250428_194941935714",  # sim_noise_0.2_2022-11-16_16-19-28_Th_10,4_spkTh_15_SCORE_0.468_KS4
+        # "20250428_195000262897",  # sim_noise_0.2_2022-11-16_16-19-28_Th_7,3_spkTh_6_SCORE_0.428_KS4
+        # "20250428_195018464663",  # sim_noise_0.2_2022-11-16_16-19-28_Th_7,3_spkTh_3_SCORE_0.384_KS4
+        # "20250428_195036697063",  # sim_noise_0.2_2022-11-16_16-19-28_Th_7,3_spkTh_9_SCORE_0.546_KS4
+        # "20250428_195055058209",  # sim_noise_0.2_2022-11-16_16-19-28_Th_7,3_spkTh_12_SCORE_0.474_KS4
+        # "20250428_195113274401",  # sim_noise_0.2_2022-11-16_16-19-28_Th_7,3_spkTh_15_SCORE_0.439_KS4
+        # "20250428_195131712327",  # sim_noise_0.2_2022-11-16_16-19-28_Th_5,2_spkTh_6_SCORE_0.435_KS4
+        # "20250428_195150308118",  # sim_noise_0.2_2022-11-16_16-19-28_Th_5,2_spkTh_3_SCORE_0.443_KS4
+        # "20250428_195208867944",  # sim_noise_0.2_2022-11-16_16-19-28_Th_5,2_spkTh_9_SCORE_0.516_KS4
+        # "20250428_195227198216",  # sim_noise_0.2_2022-11-16_16-19-28_Th_5,2_spkTh_12_SCORE_0.424_KS4
+        # "20250428_195245556713",  # sim_noise_0.2_2022-11-16_16-19-28_Th_5,2_spkTh_15_SCORE_0.441_KS4
+        # "20250428_195304287684",  # sim_noise_0.2_2022-11-16_16-19-28_Th_2,1_spkTh_6_SCORE_0.462_KS4
+        # "20250428_195322927575",  # sim_noise_0.2_2022-11-16_16-19-28_Th_2,1_spkTh_3_SCORE_0.456_KS4
+        # "20250428_195341852849",  # sim_noise_0.2_2022-11-16_16-19-28_Th_2,1_spkTh_9_SCORE_0.416_KS4
+        # "20250428_195400478598",  # sim_noise_0.2_2022-11-16_16-19-28_Th_2,1_spkTh_12_SCORE_0.403_KS4
+        # "20250428_195419117040",  # sim_noise_0.2_2022-11-16_16-19-28_Th_2,1_spkTh_15_SCORE_0.417_KS4
+        ### NEW godzilla 14CH 10MU dataset
+        # "20250429_163947886780",  # sim_noise_0.2_Th_9,8_spkTh_6,9,12,15_SCORE_0.498
+        # "20250429_164005154798",  # sim_noise_0.2_Th_9,8_spkTh_6,9,12_SCORE_0.357
+        # "20250429_164022225642",  # sim_noise_0.2_Th_9,8_spkTh_3,6,9_SCORE_0.357
+        # "20250429_164039445287",  # sim_noise_0.2_Th_9,8_spkTh_6,9_SCORE_0.327
+        # "20250429_164056648150",  # sim_noise_0.2_Th_9,8_spkTh_6_SCORE_0.386
+        # "20250429_164114415621",  # sim_noise_0.2_Th_10,4_spkTh_6,9,12,15_SCORE_0.482
+        # "20250429_164132116125",  # sim_noise_0.2_Th_10,4_spkTh_6,9,12_SCORE_0.609
+        # "20250429_164149910788",  # sim_noise_0.2_Th_10,4_spkTh_3,6,9_SCORE_0.523
+        # "20250429_164207689400",  # sim_noise_0.2_Th_10,4_spkTh_6,9_SCORE_0.562
+        # "20250429_164225513697",  # sim_noise_0.2_Th_10,4_spkTh_6_SCORE_0.551
+        # "20250429_164243509560",  # sim_noise_0.2_Th_7,3_spkTh_6,9,12,15_SCORE_0.588
+        # "20250429_164301199946",  # sim_noise_0.2_Th_7,3_spkTh_6,9,12_SCORE_0.583
+        # "20250429_164319478857",  # sim_noise_0.2_Th_7,3_spkTh_3,6,9_SCORE_0.516
+        # "20250429_164337644480",  # sim_noise_0.2_Th_7,3_spkTh_6,9_SCORE_0.584
+        # "20250429_164355816580",  # sim_noise_0.2_Th_7,3_spkTh_6_SCORE_0.472
+        # "20250429_164413821574",  # sim_noise_0.2_Th_5,2_spkTh_6,9,12,15_SCORE_0.488
+        # "20250429_164431852960",  # sim_noise_0.2_Th_5,2_spkTh_6,9,12_SCORE_0.525
+        # "20250429_164450043271",  # sim_noise_0.2_Th_5,2_spkTh_3,6,9_SCORE_0.548
+        # "20250429_164508251572",  # sim_noise_0.2_Th_5,2_spkTh_6,9_SCORE_0.570
+        # "20250429_164526374749",  # sim_noise_0.2_Th_5,2_spkTh_6_SCORE_0.580
+        # "20250429_164544714790",  # sim_noise_0.2_Th_2,1_spkTh_6,9,12,15_SCORE_0.453
+        # "20250429_164603306940",  # sim_noise_0.2_Th_2,1_spkTh_6,9,12_SCORE_0.533
+        # "20250429_164621835430",  # sim_noise_0.2_Th_2,1_spkTh_3,6,9_SCORE_0.533
+        # "20250429_164639993560",  # sim_noise_0.2_Th_2,1_spkTh_6,9_SCORE_0.488
+        # "20250429_164658057181",  # sim_noise_0.2_Th_2,1_spkTh_6_SCORE_0.562
+        # "20250429_170459351148",  # sim_noise_0.2_Th_9,8_spkTh_3_SCORE_0.384_KS4
+        # "20250429_170459531059",  # sim_noise_0.2_Th_9,8_spkTh_6_SCORE_0.392_KS4
+        # "20250429_170518342477",  # sim_noise_0.2_Th_9,8_spkTh_9_SCORE_0.426_KS4
+        # "20250429_170518946170",  # sim_noise_0.2_Th_9,8_spkTh_12_SCORE_0.356_KS4
+        # "20250429_170541524844",  # sim_noise_0.2_Th_9,8_spkTh_15_SCORE_0.330_KS4
+        # "20250429_170542362886",  # sim_noise_0.2_Th_10,4_spkTh_6_SCORE_0.474_KS4
+        # "20250429_170600979460",  # sim_noise_0.2_Th_10,4_spkTh_3_SCORE_0.473_KS4
+        # "20250429_170601152715",  # sim_noise_0.2_Th_10,4_spkTh_9_SCORE_0.434_KS4
+        # "20250429_170619685892",  # sim_noise_0.2_Th_10,4_spkTh_12_SCORE_0.496_KS4
+        # "20250429_170619856876",  # sim_noise_0.2_Th_10,4_spkTh_15_SCORE_0.490_KS4
+        # "20250429_170638600736",  # sim_noise_0.2_Th_7,3_spkTh_6_SCORE_0.488_KS4
+        # "20250429_170638790216",  # sim_noise_0.2_Th_7,3_spkTh_3_SCORE_0.548_KS4
+        # "20250429_170657713903",  # sim_noise_0.2_Th_7,3_spkTh_12_SCORE_0.396_KS4
+        # "20250429_170657859898",  # sim_noise_0.2_Th_7,3_spkTh_9_SCORE_0.500_KS4
+        # "20250429_170716702680",  # sim_noise_0.2_Th_7,3_spkTh_15_SCORE_0.353_KS4
+        # "20250429_170716881818",  # sim_noise_0.2_Th_5,2_spkTh_6_SCORE_0.443_KS4
+        # "20250429_170735915041",  # sim_noise_0.2_Th_5,2_spkTh_9_SCORE_0.486_KS4
+        # "20250429_170736091222",  # sim_noise_0.2_Th_5,2_spkTh_3_SCORE_0.415_KS4
+        # "20250429_170754949127",  # sim_noise_0.2_Th_5,2_spkTh_12_SCORE_0.376_KS4
+        # "20250429_170755124538",  # sim_noise_0.2_Th_5,2_spkTh_15_SCORE_0.422_KS4
+        # "20250429_170814320128",  # sim_noise_0.2_Th_2,1_spkTh_3_SCORE_0.439_KS4
+        # "20250429_170814506415",  # sim_noise_0.2_Th_2,1_spkTh_6_SCORE_0.411_KS4
+        # "20250429_170833759662",  # sim_noise_0.2_Th_2,1_spkTh_12_SCORE_0.374_KS4
+        # "20250429_170833924855",  # sim_noise_0.2_Th_2,1_spkTh_9_SCORE_0.461_KS4
+        # "20250429_170852199007",  # sim_noise_0.2_Th_2,1_spkTh_15_SCORE_0.421_KS4
+        ### NEW godzilla 8CH 10MU dataset (CHs 8-15)
+        # "20250429_172454343082",  # sim_noise_0.2_Th_9,8_spkTh_6,9,12,15_SCORE_0.363
+        # "20250429_172454409497",  # sim_noise_0.2_Th_9,8_spkTh_6,9,12_SCORE_0.400
+        # "20250429_172505568840",  # sim_noise_0.2_Th_9,8_spkTh_3,6,9_SCORE_0.390
+        # "20250429_172505687341",  # sim_noise_0.2_Th_9,8_spkTh_6,9_SCORE_0.339
+        # "20250429_172516643704",  # sim_noise_0.2_Th_10,4_spkTh_6,9,12,15_SCORE_0.413
+        # "20250429_172516786703",  # sim_noise_0.2_Th_9,8_spkTh_6_SCORE_0.388
+        # "20250429_172528071844",  # sim_noise_0.2_Th_10,4_spkTh_3,6,9_SCORE_0.370
+        # "20250429_172528198832",  # sim_noise_0.2_Th_10,4_spkTh_6,9,12_SCORE_0.341
+        # "20250429_172539213296",  # sim_noise_0.2_Th_10,4_spkTh_6_SCORE_0.378
+        # "20250429_172539481679",  # sim_noise_0.2_Th_10,4_spkTh_6,9_SCORE_0.388
+        # "20250429_172550361956",  # sim_noise_0.2_Th_7,3_spkTh_6,9,12,15_SCORE_0.334
+        # "20250429_172550673017",  # sim_noise_0.2_Th_7,3_spkTh_6,9,12_SCORE_0.336
+        # "20250429_172601811597",  # sim_noise_0.2_Th_7,3_spkTh_3,6,9_SCORE_0.419
+        # "20250429_172613246248",  # sim_noise_0.2_Th_5,2_spkTh_6,9,12,15_SCORE_0.330
+        # "20250429_172613368597",  # sim_noise_0.2_Th_7,3_spkTh_6_SCORE_0.366
+        # "20250429_172624633939",  # sim_noise_0.2_Th_5,2_spkTh_6,9,12_SCORE_0.347
+        # "20250429_172624738048",  # sim_noise_0.2_Th_5,2_spkTh_3,6,9_SCORE_0.326
+        # "20250429_172635370456",  # sim_noise_0.2_Th_5,2_spkTh_6_SCORE_0.396
+        # "20250429_172635660279",  # sim_noise_0.2_Th_5,2_spkTh_6,9_SCORE_0.335
+        # "20250429_172646637787",  # sim_noise_0.2_Th_2,1_spkTh_6,9,12,15_SCORE_0.342
+        # "20250429_172646708206",  # sim_noise_0.2_Th_2,1_spkTh_6,9,12_SCORE_0.348
+        # "20250429_172657822832",  # sim_noise_0.2_Th_2,1_spkTh_3,6,9_SCORE_0.295
+        # "20250429_172657933288",  # sim_noise_0.2_Th_2,1_spkTh_6,9_SCORE_0.321
+        # "20250429_172708849153",  # sim_noise_0.2_Th_2,1_spkTh_6_SCORE_0.321
+        # "20250429_172602293887",  # sim_noise_0.2_Th_7,3_spkTh_6,9_SCORE_0.442
+        # "20250429_180043603803",  # sim_noise_0.2_Th_9,8_spkTh_6_SCORE_0.320_KS4
+        # "20250429_180053979609",  # sim_noise_0.2_Th_9,8_spkTh_3_SCORE_0.327_KS4
+        # "20250429_180104320717",  # sim_noise_0.2_Th_9,8_spkTh_9_SCORE_0.318_KS4
+        # "20250429_180114564368",  # sim_noise_0.2_Th_9,8_spkTh_12_SCORE_0.311_KS4
+        # "20250429_180124747062",  # sim_noise_0.2_Th_9,8_spkTh_15_SCORE_0.338_KS4
+        # "20250429_180135051835",  # sim_noise_0.2_Th_10,4_spkTh_6_SCORE_0.418_KS4
+        # "20250429_180145392812",  # sim_noise_0.2_Th_10,4_spkTh_3_SCORE_0.289_KS4
+        # "20250429_180155602907",  # sim_noise_0.2_Th_10,4_spkTh_9_SCORE_0.355_KS4
+        # "20250429_180205976625",  # sim_noise_0.2_Th_10,4_spkTh_12_SCORE_0.401_KS4
+        # "20250429_180216366577",  # sim_noise_0.2_Th_10,4_spkTh_15_SCORE_0.398_KS4
+        # "20250429_180226774831",  # sim_noise_0.2_Th_7,3_spkTh_6_SCORE_0.313_KS4
+        # "20250429_180237238805",  # sim_noise_0.2_Th_7,3_spkTh_3_SCORE_0.438_KS4
+        # "20250429_180247956338",  # sim_noise_0.2_Th_7,3_spkTh_9_SCORE_0.286_KS4
+        # "20250429_180258371394",  # sim_noise_0.2_Th_7,3_spkTh_12_SCORE_0.338_KS4
+        # "20250429_180308719795",  # sim_noise_0.2_Th_7,3_spkTh_15_SCORE_0.372_KS4
+        # "20250429_180319160904",  # sim_noise_0.2_Th_5,2_spkTh_6_SCORE_0.350_KS4
+        # "20250429_180329847635",  # sim_noise_0.2_Th_5,2_spkTh_3_SCORE_0.366_KS4
+        # "20250429_180340259602",  # sim_noise_0.2_Th_5,2_spkTh_9_SCORE_0.291_KS4
+        # "20250429_180350695692",  # sim_noise_0.2_Th_5,2_spkTh_12_SCORE_0.335_KS4
+        # "20250429_180401276337",  # sim_noise_0.2_Th_5,2_spkTh_15_SCORE_0.392_KS4
+        # "20250429_180412041145",  # sim_noise_0.2_Th_2,1_spkTh_6_SCORE_0.246_KS4
+        # "20250429_180423012142",  # sim_noise_0.2_Th_2,1_spkTh_3_SCORE_0.384_KS4
+        # "20250429_180433649560",  # sim_noise_0.2_Th_2,1_spkTh_9_SCORE_0.315_KS4
+        # "20250429_180444286183",  # sim_noise_0.2_Th_2,1_spkTh_12_SCORE_0.314_KS4
+        # "20250429_180454921226",  # sim_noise_0.2_Th_2,1_spkTh_15_SCORE_0.360_KS4
+        ### NEW godzilla 8CH 10MU dataset (CHs 1,2,4,5,12,13,14,15)
+        # "20250429_205153078457",  # sim_noise_0.2_orig_CHs_Th_9,8_spkTh_6,9,12_SCORE_0.348
+        # "20250429_205153217882",  # sim_noise_0.2_orig_CHs_Th_9,8_spkTh_6,9,12,15_SCORE_0.395
+        # "20250429_205207884521",  # sim_noise_0.2_orig_CHs_Th_9,8_spkTh_3,6,9_SCORE_0.391
+        # "20250429_205208006941",  # sim_noise_0.2_orig_CHs_Th_9,8_spkTh_6,9_SCORE_0.351
+        # "20250429_205223235973",  # sim_noise_0.2_orig_CHs_Th_9,8_spkTh_6_SCORE_0.421
+        # "20250429_205223480526",  # sim_noise_0.2_orig_CHs_Th_10,4_spkTh_6,9,12,15_SCORE_0.466
+        # "20250429_205242637331",  # sim_noise_0.2_orig_CHs_Th_10,4_spkTh_6,9,12_SCORE_0.420
+        # "20250429_205242802076",  # sim_noise_0.2_orig_CHs_Th_10,4_spkTh_3,6,9_SCORE_0.474
+        # "20250429_205255137255",  # sim_noise_0.2_orig_CHs_Th_10,4_spkTh_6_SCORE_0.377
+        # "20250429_205302883202",  # sim_noise_0.2_orig_CHs_Th_10,4_spkTh_6,9_SCORE_0.436
+        # "20250429_205313856353",  # sim_noise_0.2_orig_CHs_Th_7,3_spkTh_6,9,12,15_SCORE_0.561
+        # "20250429_205314634571",  # sim_noise_0.2_orig_CHs_Th_7,3_spkTh_6,9,12_SCORE_0.538
+        # "20250429_205327121098",  # sim_noise_0.2_orig_CHs_Th_7,3_spkTh_3,6,9_SCORE_0.494
+        # "20250429_205327131852",  # sim_noise_0.2_orig_CHs_Th_7,3_spkTh_6,9_SCORE_0.543
+        # "20250429_205338502132",  # sim_noise_0.2_orig_CHs_Th_5,2_spkTh_6,9,12,15_SCORE_0.543
+        # "20250429_205338515247",  # sim_noise_0.2_orig_CHs_Th_7,3_spkTh_6_SCORE_0.435
+        # "20250429_205350813908",  # sim_noise_0.2_orig_CHs_Th_5,2_spkTh_3,6,9_SCORE_0.485
+        # "20250429_205350863357",  # sim_noise_0.2_orig_CHs_Th_5,2_spkTh_6,9,12_SCORE_0.520
+        # "20250429_205402601678",  # sim_noise_0.2_orig_CHs_Th_5,2_spkTh_6_SCORE_0.450
+        # "20250429_205402741549",  # sim_noise_0.2_orig_CHs_Th_5,2_spkTh_6,9_SCORE_0.523       $$$
+        # "20250429_205414894790",  # sim_noise_0.2_orig_CHs_Th_2,1_spkTh_6,9,12_SCORE_0.412
+        # "20250429_205417581915",  # sim_noise_0.2_orig_CHs_Th_2,1_spkTh_6,9,12,15_SCORE_0.337
+        # "20250429_205428845367",  # sim_noise_0.2_orig_CHs_Th_2,1_spkTh_3,6,9_SCORE_0.426
+        # "20250429_205429165201",  # sim_noise_0.2_orig_CHs_Th_2,1_spkTh_6,9_SCORE_0.346
+        # "20250429_205456488378",  # sim_noise_0.2_orig_CHs_Th_2,1_spkTh_6_SCORE_0.329
+        # "20250429_210019961044",  # sim_noise_0.2_orig_CHs_Th_9,8_spkTh_6_SCORE_0.358_KS4
+        # "20250429_210024522665",  # sim_noise_0.2_orig_CHs_Th_9,8_spkTh_3_SCORE_0.319_KS4
+        # "20250429_210038028626",  # sim_noise_0.2_orig_CHs_Th_9,8_spkTh_9_SCORE_0.268_KS4
+        # "20250429_210049542390",  # sim_noise_0.2_orig_CHs_Th_9,8_spkTh_12_SCORE_0.371_KS4
+        # "20250429_210101735405",  # sim_noise_0.2_orig_CHs_Th_10,4_spkTh_6_SCORE_0.410_KS4
+        # "20250429_210118040808",  # sim_noise_0.2_orig_CHs_Th_9,8_spkTh_15_SCORE_0.324_KS4
+        # "20250429_210129234955",  # sim_noise_0.2_orig_CHs_Th_10,4_spkTh_9_SCORE_0.384_KS4
+        # "20250429_210137518419",  # sim_noise_0.2_orig_CHs_Th_10,4_spkTh_3_SCORE_0.369_KS4
+        # "20250429_210148338022",  # sim_noise_0.2_orig_CHs_Th_10,4_spkTh_15_SCORE_0.417_KS4
+        # "20250429_210157012368",  # sim_noise_0.2_orig_CHs_Th_10,4_spkTh_12_SCORE_0.435_KS4
+        # "20250429_210208979711",  # sim_noise_0.2_orig_CHs_Th_7,3_spkTh_3_SCORE_0.469_KS4
+        # "20250429_210222359161",  # sim_noise_0.2_orig_CHs_Th_7,3_spkTh_6_SCORE_0.396_KS4
+        # "20250429_210234992804",  # sim_noise_0.2_orig_CHs_Th_7,3_spkTh_12_SCORE_0.404_KS4
+        # "20250429_210236031302",  # sim_noise_0.2_orig_CHs_Th_7,3_spkTh_9_SCORE_0.505_KS4       $$$
+        # "20250429_210248105520",  # sim_noise_0.2_orig_CHs_Th_7,3_spkTh_15_SCORE_0.518_KS4
+        # "20250429_210249305221",  # sim_noise_0.2_orig_CHs_Th_5,2_spkTh_6_SCORE_0.405_KS4
+        # "20250429_210300115086",  # sim_noise_0.2_orig_CHs_Th_5,2_spkTh_3_SCORE_0.493_KS4
+        # "20250429_210301360248",  # sim_noise_0.2_orig_CHs_Th_5,2_spkTh_9_SCORE_0.501_KS4
+        # "20250429_210312199297",  # sim_noise_0.2_orig_CHs_Th_5,2_spkTh_12_SCORE_0.438_KS4
+        # "20250429_210312508572",  # sim_noise_0.2_orig_CHs_Th_5,2_spkTh_15_SCORE_0.405_KS4
+        # "20250429_210325779524",  # sim_noise_0.2_orig_CHs_Th_2,1_spkTh_6_SCORE_0.279_KS4
+        # "20250429_210325882521",  # sim_noise_0.2_orig_CHs_Th_2,1_spkTh_3_SCORE_0.351_KS4
+        # "20250429_210336931971",  # sim_noise_0.2_orig_CHs_Th_2,1_spkTh_9_SCORE_0.450_KS4
+        # "20250429_210337212805",  # sim_noise_0.2_orig_CHs_Th_2,1_spkTh_12_SCORE_0.369_KS4
+        # "20250429_210349316784",  # sim_noise_0.2_orig_CHs_Th_2,1_spkTh_15_SCORE_0.360_KS4
+        #### 2025-06-24, new monkey analysis
+        # "20250624_233208250775",  # 2022-12-02_10-14-45_myo_Th_10,4_spkTh_6,9_SCORE_0.594
+        # "20250624_233208878261",  # 2022-12-02_10-14-45_myo_Th_9,8_spkTh_6,9_SCORE_0.625
+        # "20250624_233210105729",  # 2022-12-02_10-14-45_myo_Th_9,8_spkTh_6,9,12,15_SCORE_0.565
+        # "20250624_233214626048",  # 2022-12-02_10-14-45_myo_Th_9,8_spkTh_6,9,12_SCORE_0.577
+        # "20250624_233215083000",  # 2022-12-02_10-14-45_myo_Th_10,4_spkTh_3,6,9_SCORE_0.626
+        # "20250624_233215159961",  # 2022-12-02_10-14-45_myo_Th_9,8_spkTh_6_SCORE_0.596
+        # "20250624_233215282588",  # 2022-12-02_10-14-45_myo_Th_9,8_spkTh_3,6,9_SCORE_0.683
+        # "20250624_233215334442",  # 2022-12-02_10-14-45_myo_Th_10,4_spkTh_6,9,12,15_SCORE_0.629
+        # "20250624_233216585424",  # 2022-12-02_10-14-45_myo_Th_10,4_spkTh_6,9,12_SCORE_0.642
+        # "20250624_233317153396",  # 2022-12-02_10-14-45_myo_Th_7,3_spkTh_6,9_SCORE_0.562
+        # "20250624_233317411308",  # 2022-12-02_10-14-45_myo_Th_10,4_spkTh_6_SCORE_0.641
+        # "20250624_233318850638",  # 2022-12-02_10-14-45_myo_Th_7,3_spkTh_6,9,12_SCORE_0.544
+        # "20250624_233321891210",  # 2022-12-02_10-14-45_myo_Th_7,3_spkTh_6_SCORE_0.568
+        # "20250624_233323496383",  # 2022-12-02_10-14-45_myo_Th_5,2_spkTh_6,9,12_SCORE_0.569
+        # "20250624_233323645377",  # 2022-12-02_10-14-45_myo_Th_7,3_spkTh_6,9,12,15_SCORE_0.547
+        # "20250624_233323828393",  # 2022-12-02_10-14-45_myo_Th_7,3_spkTh_3,6,9_SCORE_0.682
+        # "20250624_233325015350",  # 2022-12-02_10-14-45_myo_Th_5,2_spkTh_6,9,12,15_SCORE_0.611
+        # "20250624_233325089851",  # 2022-12-02_10-14-45_myo_Th_5,2_spkTh_3,6,9_SCORE_0.569
+        # "20250624_233441829875",  # 2022-12-02_10-14-45_myo_Th_2,1_spkTh_6_SCORE_0.571
+        # "20250624_233443478749",  # 2022-12-02_10-14-45_myo_Th_2,1_spkTh_6,9,12,15_SCORE_0.639
+        # "20250624_233444610595",  # 2022-12-02_10-14-45_myo_Th_5,2_spkTh_6,9_SCORE_0.563
+        # "20250624_233447662470",  # 2022-12-02_10-14-45_myo_Th_5,2_spkTh_6_SCORE_0.583
+        # "20250624_233447840710",  # 2022-12-02_10-14-45_myo_Th_2,1_spkTh_6,9_SCORE_0.615
+        # "20250624_233449025270",  # 2022-12-02_10-14-45_myo_Th_2,1_spkTh_6,9,12_SCORE_0.654
+        # "20250624_233449463974",  # 2022-12-02_10-14-45_myo_Th_2,1_spkTh_3,6,9_SCORE_0.630
+        # "20250624_234721179234",  # 2022-12-02_10-14-45_myo_Th_10,4_spkTh_6_SCORE_0.621_KS4
+        # "20250624_234722887255",  # 2022-12-02_10-14-45_myo_Th_9,8_spkTh_12_SCORE_0.674_KS4
+        # "20250624_234726554745",  # 2022-12-02_10-14-45_myo_Th_9,8_spkTh_15_SCORE_0.586_KS4
+        # "20250624_234728009679",  # 2022-12-02_10-14-45_myo_Th_10,4_spkTh_9_SCORE_0.728_KS4
+        # "20250624_234728726211",  # 2022-12-02_10-14-45_myo_Th_10,4_spkTh_12_SCORE_0.677_KS4
+        # "20250624_234729211251",  # 2022-12-02_10-14-45_myo_Th_9,8_spkTh_9_SCORE_0.630_KS4
+        # "20250624_234729587240",  # 2022-12-02_10-14-45_myo_Th_10,4_spkTh_3_SCORE_0.746_KS4
+        # "20250624_234729820145",  # 2022-12-02_10-14-45_myo_Th_9,8_spkTh_3_SCORE_0.733_KS4
+        # "20250624_234729934095",  # 2022-12-02_10-14-45_myo_Th_9,8_spkTh_6_SCORE_0.574_KS4
+        # "20250624_234914606923",  # 2022-12-02_10-14-45_myo_Th_10,4_spkTh_15_SCORE_0.714_KS4
+        # "20250624_234917990695",  # 2022-12-02_10-14-45_myo_Th_7,3_spkTh_9_SCORE_0.617_KS4
+        # "20250624_234919108789",  # 2022-12-02_10-14-45_myo_Th_7,3_spkTh_6_SCORE_0.629_KS4
+        # "20250624_234919666415",  # 2022-12-02_10-14-45_myo_Th_5,2_spkTh_9_SCORE_0.591_KS4
+        # "20250624_234919811962",  # 2022-12-02_10-14-45_myo_Th_7,3_spkTh_12_SCORE_0.573_KS4
+        # "20250624_234923049095",  # 2022-12-02_10-14-45_myo_Th_5,2_spkTh_3_SCORE_0.723_KS4
+        # "20250624_234924206288",  # 2022-12-02_10-14-45_myo_Th_7,3_spkTh_3_SCORE_0.727_KS4
+        # "20250624_234924720211",  # 2022-12-02_10-14-45_myo_Th_5,2_spkTh_6_SCORE_0.562_KS4
+        # "20250624_234925554859",  # 2022-12-02_10-14-45_myo_Th_7,3_spkTh_15_SCORE_0.643_KS4
+        # "20250624_235033372703",  # 2022-12-02_10-14-45_myo_Th_5,2_spkTh_12_SCORE_0.616_KS4
+        # "20250624_235034058716",  # 2022-12-02_10-14-45_myo_Th_2,1_spkTh_3_SCORE_0.698_KS4
+        # "20250624_235039231363",  # 2022-12-02_10-14-45_myo_Th_2,1_spkTh_9_SCORE_0.538_KS4
+        # "20250624_235039515341",  # 2022-12-02_10-14-45_myo_Th_5,2_spkTh_15_SCORE_0.601_KS4
+        # "20250624_235040129620",  # 2022-12-02_10-14-45_myo_Th_2,1_spkTh_15_SCORE_0.647_KS4
+        # "20250624_235040582155",  # 2022-12-02_10-14-45_myo_Th_2,1_spkTh_6_SCORE_0.586_KS4
+        # "20250624_235040708449",  # 2022-12-02_10-14-45_myo_Th_2,1_spkTh_12_SCORE_0.588_KS4
+        #### 2025-08-04, new monkey analysis with old dataset
+        ## EMUsort
+        "20250804_165724663316",  # 2022-12-02_10-14-45_myo_0.25_Th_9,8_spkTh_6_SCORE_0.382
+        "20250804_165725557149",  # 2022-12-02_10-14-45_myo_0.25_Th_7,3_spkTh_6,9,12_SCORE_0.377
+        "20250804_165725975929",  # 2022-12-02_10-14-45_myo_0.25_Th_9,8_spkTh_6,9,12_SCORE_0.435
+        "20250804_165726239876",  # 2022-12-02_10-14-45_myo_0.25_Th_10,4_spkTh_6_SCORE_0.473
+        "20250804_165728176039",  # 2022-12-02_10-14-45_myo_0.25_Th_9,8_spkTh_6,9_SCORE_0.420
+        "20250804_165728214132",  # 2022-12-02_10-14-45_myo_0.25_Th_9,8_spkTh_3,6,9_SCORE_0.402
+        "20250804_165728239443",  # 2022-12-02_10-14-45_myo_0.25_Th_9,8_spkTh_6,9,12,15_SCORE_0.428
+        "20250804_165728265216",  # 2022-12-02_10-14-45_myo_0.25_Th_10,4_spkTh_6,9_SCORE_0.374
+        "20250804_165728296510",  # 2022-12-02_10-14-45_myo_0.25_Th_10,4_spkTh_6,9,12_SCORE_0.424
+        "20250804_165728762685",  # 2022-12-02_10-14-45_myo_0.25_Th_10,4_spkTh_6,9,12,15_SCORE_0.395
+        "20250804_165729083733",  # 2022-12-02_10-14-45_myo_0.25_Th_7,3_spkTh_3,6,9_SCORE_0.408
+        "20250804_165729138793",  # 2022-12-02_10-14-45_myo_0.25_Th_7,3_spkTh_6,9,12,15_SCORE_0.438
+        "20250804_165729278190",  # 2022-12-02_10-14-45_myo_0.25_Th_10,4_spkTh_3,6,9_SCORE_0.440
+        "20250804_165808447616",  # 2022-12-02_10-14-45_myo_0.25_Th_5,2_spkTh_6,9,12,15_SCORE_0.412
+        "20250804_165808501969",  # 2022-12-02_10-14-45_myo_0.25_Th_7,3_spkTh_6,9_SCORE_0.452
+        "20250804_165809384449",  # 2022-12-02_10-14-45_myo_0.25_Th_7,3_spkTh_6_SCORE_0.375
+        "20250804_165809449494",  # 2022-12-02_10-14-45_myo_0.25_Th_5,2_spkTh_6,9,12_SCORE_0.405
+        "20250804_165811097287",  # 2022-12-02_10-14-45_myo_0.25_Th_5,2_spkTh_6,9_SCORE_0.350
+        "20250804_165811187284",  # 2022-12-02_10-14-45_myo_0.25_Th_2,1_spkTh_6,9,12,15_SCORE_0.347
+        "20250804_165812143415",  # 2022-12-02_10-14-45_myo_0.25_Th_5,2_spkTh_6_SCORE_0.350
+        "20250804_165812558419",  # 2022-12-02_10-14-45_myo_0.25_Th_2,1_spkTh_3,6,9_SCORE_0.345
+        "20250804_165812613111",  # 2022-12-02_10-14-45_myo_0.25_Th_2,1_spkTh_6_SCORE_0.321
+        "20250804_165812930376",  # 2022-12-02_10-14-45_myo_0.25_Th_5,2_spkTh_3,6,9_SCORE_0.388
+        "20250804_165813317181",  # 2022-12-02_10-14-45_myo_0.25_Th_2,1_spkTh_6,9_SCORE_0.285
+        "20250804_165814514885",  # 2022-12-02_10-14-45_myo_0.25_Th_2,1_spkTh_6,9,12_SCORE_0.362
+        ## KS4
+        "20250804_171003175270",  # 2022-12-02_10-14-45_myo_0.25_Th_9,8_spkTh_15_SCORE_0.433_KS4
+        "20250804_171004344162",  # 2022-12-02_10-14-45_myo_0.25_Th_10,4_spkTh_12_SCORE_0.459_KS4
+        "20250804_171005559556",  # 2022-12-02_10-14-45_myo_0.25_Th_7,3_spkTh_6_SCORE_0.391_KS4
+        "20250804_171006285741",  # 2022-12-02_10-14-45_myo_0.25_Th_10,4_spkTh_6_SCORE_0.284_KS4
+        "20250804_171006352001",  # 2022-12-02_10-14-45_myo_0.25_Th_10,4_spkTh_9_SCORE_0.386_KS4
+        "20250804_171007409480",  # 2022-12-02_10-14-45_myo_0.25_Th_9,8_spkTh_12_SCORE_0.422_KS4
+        "20250804_171008695761",  # 2022-12-02_10-14-45_myo_0.25_Th_10,4_spkTh_15_SCORE_0.394_KS4
+        "20250804_171008773134",  # 2022-12-02_10-14-45_myo_0.25_Th_10,4_spkTh_3_SCORE_0.401_KS4
+        "20250804_171008829838",  # 2022-12-02_10-14-45_myo_0.25_Th_9,8_spkTh_3_SCORE_0.342_KS4
+        "20250804_171009302175",  # 2022-12-02_10-14-45_myo_0.25_Th_9,8_spkTh_9_SCORE_0.386_KS4
+        "20250804_171009742659",  # 2022-12-02_10-14-45_myo_0.25_Th_9,8_spkTh_6_SCORE_0.368_KS4
+        "20250804_171009796100",  # 2022-12-02_10-14-45_myo_0.25_Th_7,3_spkTh_9_SCORE_0.424_KS4
+        "20250804_171010048863",  # 2022-12-02_10-14-45_myo_0.25_Th_7,3_spkTh_3_SCORE_0.363_KS4
+        "20250804_171043308319",  # 2022-12-02_10-14-45_myo_0.25_Th_7,3_spkTh_15_SCORE_0.400_KS4
+        "20250804_171046570348",  # 2022-12-02_10-14-45_myo_0.25_Th_5,2_spkTh_6_SCORE_0.377_KS4
+        "20250804_171048793298",  # 2022-12-02_10-14-45_myo_0.25_Th_2,1_spkTh_9_SCORE_0.380_KS4
+        "20250804_171049087624",  # 2022-12-02_10-14-45_myo_0.25_Th_7,3_spkTh_12_SCORE_0.392_KS4
+        "20250804_171050282599",  # 2022-12-02_10-14-45_myo_0.25_Th_5,2_spkTh_3_SCORE_0.289_KS4
+        "20250804_171051057009",  # 2022-12-02_10-14-45_myo_0.25_Th_5,2_spkTh_15_SCORE_0.293_KS4
+        "20250804_171051695871",  # 2022-12-02_10-14-45_myo_0.25_Th_2,1_spkTh_15_SCORE_0.273_KS4
+        "20250804_171052286769",  # 2022-12-02_10-14-45_myo_0.25_Th_2,1_spkTh_12_SCORE_0.328_KS4
+        "20250804_171052352025",  # 2022-12-02_10-14-45_myo_0.25_Th_2,1_spkTh_6_SCORE_0.339_KS4
+        "20250804_171052830741",  # 2022-12-02_10-14-45_myo_0.25_Th_5,2_spkTh_12_SCORE_0.394_KS4
+        "20250804_171053219986",  # 2022-12-02_10-14-45_myo_0.25_Th_5,2_spkTh_9_SCORE_0.372_KS4
+        "20250804_171054231618",  # 2022-12-02_10-14-45_myo_0.25_Th_2,1_spkTh_3_SCORE_0.311_KS4
     ]
     clusters_to_take_from = {
         # {
@@ -4511,6 +5928,12 @@ if __name__ == "__main__":
                     slice=time_frame,
                     load_type=simulation_method,
                 )
+                # mu_GT.save_spikes(
+                #     # f"synthetic_spikes_from_{session_name}_using_{chosen_bodypart_to_load}.npy"
+                #     f"spikes_files/{ground_truth_path.stem}_{datetime.now().strftime('%Y%m%d-%H%M%S')}",
+                #     save_as="indexes",
+                # )
+                # exit
                 mu_GT_bin_width_ms_orig = mu_GT.bin_width * 1000
                 if simulation_method == "konstantin":
                     # load the .mat variables from the ground truth path:
@@ -4600,8 +6023,8 @@ if __name__ == "__main__":
                 # use the aligned spike trains to compute the metrics
                 if correlation_alignment:
 
-                    min_delay_ms = -1  # ms
-                    max_delay_ms = 1  # ms
+                    min_delay_ms = -2  # ms
+                    max_delay_ms = 2  # ms
 
                     if precorrelation_rebin_width_ms is not None:
                         # precorrelation alignment rebinning
@@ -4718,7 +6141,7 @@ if __name__ == "__main__":
                         f"Overlap fraction for cluster {jCluster_GT} is {GT_spike_count_after / GT_spike_count_before} with {spike_isolation_radius_pts} pt radius"
                     )
                     print(
-                        f"Total average overlap fraction is {GT_spike_counts_before.sum() / GT_spike_counts_after.sum()}"
+                        f"Total average overlap fraction is {GT_spike_counts_after.sum() / GT_spike_counts_before.sum()}"
                     )
                     # concatenate the mu_KS_other spikes into mu_KS.spikes[-1] before removing isolated spikes
                     if all_matched_KS_clusters is not None:
@@ -4897,7 +6320,7 @@ if __name__ == "__main__":
                         GT_repeated_times - KS_times,
                         mask=np.zeros(GT_repeated_times.shape),
                     )
-
+                    # set_trace()
                     # initialize train arrays
                     true_positive_spikes = np.zeros(kilosort_spikes.shape, dtype=int)
                     false_positive_spikes = np.zeros(kilosort_spikes.shape, dtype=int)
@@ -4966,8 +6389,8 @@ if __name__ == "__main__":
 
             # parameters for different settings across repeats
             # only do correlation alignment during 2nd pass
-            correlation_alignment = [False, True]
             precorrelation_rebin_width_ms_list = [None, 0.1]
+            correlation_alignment = [False, True]
             preaccuracy_rebin_width = [10, 1]
             num_repeats = len(correlation_alignment)
             # repeat twice to only compute the correlation alignment once
@@ -4985,6 +6408,7 @@ if __name__ == "__main__":
                 kilosort_spikes_list = []
                 ground_truth_spikes_list = []
                 sort_dstr_list = []
+                # set_trace()
                 for iSort, sort_dstr in enumerate(sorts_from_each_path_to_load):
                     # # use MUsim object to load and rebin Kilosort data
                     # mu_KS = MUsim(random_seed_entropy)
@@ -5858,6 +7282,10 @@ if __name__ == "__main__":
         or save_png_plot1b
         or save_html_plot1b
         or save_svg_plot1b
+        or show_plot1c
+        or save_png_plot1c
+        or save_html_plot1c
+        or save_svg_plot1c
     ):
         ### plot 1: bar plot of spike counts
         # now create an overlay plot of the two plots above. Do not use subplots, but use two y axes
@@ -5870,9 +7298,8 @@ if __name__ == "__main__":
                 recalls,
                 accuracies,
                 bin_widths_for_comparison[0],
-                clusters_in_sort_to_use[iSort],
                 GT_clusters_to_use,
-                sorts_from_each_path_to_load[iSort],
+                sorts_from_each_path_to_load,
                 plot_template,
                 plot1_bar_type,
                 plot1_ylim,
@@ -5884,8 +7311,14 @@ if __name__ == "__main__":
                 save_png_plot1b,
                 save_svg_plot1b,
                 save_html_plot1b,
+                show_plot1c,
+                save_png_plot1c,
+                save_svg_plot1c,
+                save_html_plot1c,
+                spike_isolation_radius_ms,
+                iSort,
                 # make figsize 1080p
-                figsize=(1280, 1440),
+                figsize=(1000, 1000),
             )
 
     if show_plot2 or save_png_plot2 or save_html_plot2 or save_svg_plot2:
@@ -5911,7 +7344,7 @@ if __name__ == "__main__":
                 save_svg_plot2,
                 save_html_plot2,
                 # make figsize 1080p
-                figsize=(1920, 1080),
+                figsize=(1080, 1080),
                 sort_index=iSort,
             )
 
@@ -5938,7 +7371,14 @@ if __name__ == "__main__":
                 figsize=(1920, 1080),
             )
 
-    if show_plot4 or save_png_plot4 or save_html_plot4 or save_svg_plot4:
+    if (
+        show_plot4
+        or save_png_plot4
+        or save_html_plot4
+        or save_svg_plot4
+        or save_plot4_df_as_csv
+        or save_plot4_df_as_pickle
+    ):
         ### plot 4: analogous to plot 3, but for each different run, processing results from each
         # sort in the list of paths to sorted folders
         # for iSort in range(len(sorts_from_each_path_to_load)):

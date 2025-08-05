@@ -291,6 +291,7 @@ class MUsim:
         spike times and spike clusters from spike_times.npy and spike_clusters.npy, respectively.
         It will then create a MUsim format trial from this data.
         """
+        kilosort_path = Path(kilosort_path)
         spike_times = np.load(
             kilosort_path.joinpath("spike_times.npy"), mmap_mode="r"
         ).ravel()
@@ -600,12 +601,45 @@ class MUsim:
         np.save(save_path, self, allow_pickle=False)
         return
 
-    def save_spikes(self, save_path="./MUsim_spikes.npy", spikes_index=-1):
+    def save_spikes(
+        self, save_path="./MUsim_spikes.npy", spikes_index=-1, save_as="boolean"
+    ):
         """
-        Function saves the spikes from self.spikes[spikes_index] to a .npy file at save_path.
-        Save shape is (Time x MUs).
+        Function saves the spikes from self.spikes[spikes_index] to .npy file(s) at save_path.
+        Save shape is (Time x MUs) for save_as "boolean", and (num_spikes, 1) for each array when
+        save_as "indexes".
+
+        save_path is the path to the .npy file to save the spikes to.
+        spikes_index is the index of the spikes to save inside the MUsim().spikes list.
+        save_as can be "boolean" or "indexes". If "boolean", then the spikes are saved as 1s and 0s.
+            If "indexes", then the spikes are saved as the indexes of the spikes, compatible with
+            the kilosort format with spike_times.npy and spike_clusters.npy. In this case, each array
+            is saved in a separate .npy file, with shape (num_spikes, 1). They are both int64 integers,
+            with spike_times.npy containing the time of each spike, and spike_clusters.npy containing
+            the unit index of each spike. It is fine to start from 0 and just increment the unit index
+            until exhaustion of the units.
         """
-        np.save(save_path, self.spikes[spikes_index], allow_pickle=False)
+        save_path = Path(save_path).resolve()
+        if save_as == "boolean":
+            if not str(save_path).endswith(".npy"):
+                save_path = save_path.with_name(save_path.name + ".npy")
+            np.save(save_path, self.spikes[spikes_index], allow_pickle=False)
+        elif save_as == "indexes":
+            spike_times, spike_clusters = np.asarray(
+                self.spikes[spikes_index] == 1
+            ).nonzero()
+            spike_times = spike_times.astype(np.int64)[:, np.newaxis]
+            spike_clusters = spike_clusters.astype(np.int64)[:, np.newaxis]
+            if not save_path.exists():
+                save_path.mkdir(parents=True)
+            np.save(
+                save_path.joinpath("spike_times.npy"), spike_times, allow_pickle=False
+            )
+            np.save(
+                save_path.joinpath("spike_clusters.npy"),
+                spike_clusters,
+                allow_pickle=False,
+            )
         return
 
     def save_session(self, save_path="./MUsim_session.npy", session_index=-1):

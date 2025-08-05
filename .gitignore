@@ -10,7 +10,9 @@
 *.mat
 *.dat
 *.h5
+.~lock.*
 /mu
 !requirements.txt
 .vscode/
 __pycache__/
+/plot*

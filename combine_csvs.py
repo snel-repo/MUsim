@@ -8,7 +8,7 @@ csv_folder = cwd / "plot4"
 print(csv_folder)
 
 # Get CSV files which contain the datestring in the filename
-datestring_to_filter = "20240805"
+datestring_to_filter = "20241001-193"
 csv_files = list(csv_folder.glob(f"*{datestring_to_filter}*.csv"))
 print(csv_files)
 
