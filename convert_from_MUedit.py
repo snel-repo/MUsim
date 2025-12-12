@@ -1,7 +1,10 @@
 import h5py
 import numpy as np
 
-filename = "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/godzilla/paper_evals/CHs_8_MUs_10/sim_noise_0.2_orig_CHs/Record Node 101/experiment1/recording1/structure.oebin_decomp_1_skew.mat"
+x = 1
+y = 0
+# filename = "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/godzilla/paper_evals/CHs_8_MUs_10/sim_noise_0.2_orig_CHs/Record Node 101/experiment1/recording1/structure.oebin_decomp_1_skew.mat"
+filename = f"/snel/share/data/rodent-ephys/open-ephys/monkey/paper_evals2/2022-12-02_10-14-45_myo_0.25_MUedit_{x}_{y}/Record Node 112/experiment1/recording1/structure.oebin_decomp.mat"
 
 
 input_data = []
@@ -56,8 +59,8 @@ with h5py.File(filename, "r") as file:
 
     # lets save them to a file
 
-    np.save("./MUedit/run4/spike_times.npy", spike_times)
-    np.save("./MUedit/run4/spike_clusters.npy", spike_clusters)
+    np.save(f"./MUedit/run_{x}{y}/spike_times.npy", spike_times)
+    np.save(f"./MUedit/run_{x}{y}/spike_clusters.npy", spike_clusters)
 
     # cluster_1_ref = input_data[0][0]
 

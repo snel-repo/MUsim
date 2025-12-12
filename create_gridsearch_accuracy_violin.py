@@ -13,7 +13,14 @@ print(csv_folder)
 # text_to_filter = "combined_performances_20241001-193"
 # text_to_filter = "20250501-223507" # PAPER godz NEW OL # "20250430-005648" # PAPER godz NEW #"20250225-162650"  # "20250319-184844"  # "20250319-160232"  # "20250225-001122"  # "20250225-162650"  # "20250224-200121"  # "20250224-222435"  #  # "20250219-191941"  # "20250207-162455"  # "20250206-202428"  # "20241002-015642"
 # text_to_filter = "20250513-204000"  # with MUedit combo ALL
-text_to_filter = "20250513-214000"  # with MUedit combo OL
+# text_to_filter = "20250513-214000"  # with MUedit combo OL
+# text_to_filter = "20250804-193715"  # MONKEY withOUT MUedit combo ALL
+# text_to_filter = "20250804-185012"  # MONKEY withOUT MUedit combo OL 2
+# text_to_filter = "20250804-234619"  # MONKEY withOUT MUedit combo OL 1
+# text_to_filter = "20250812-210313"  # MONKEY withOUT MUedit 2nd run
+# text_to_filter = "20250812-232951" # MONKEY withOUT MUedit 2nd run OL
+# text_to_filter = "20250820-111111" # MONKEY with MUedit, PAPER
+text_to_filter = "20250827-222222"  # MONKEY with MUedit OL, PAPER
 csv_files = list(csv_folder.glob(f"*{text_to_filter}*.csv"))
 print(csv_files)
 
@@ -34,9 +41,12 @@ if "MUedit" in combined_csv["sort_type"].values:
     MUedit_vals = combined_csv[combined_csv["sort_type"] == "MUedit"]
 else:
     MUedit_vals = None
-    
+
 # Group by 'sort_type' and calculate mean and std of 'accuracy'
-grouped_means_std = (combined_csv.groupby('sort_type')['accuracy'].agg(['median','mean', 'std','skew'])*100).round(1)
+grouped_means_std = (
+    combined_csv.groupby("sort_type")["accuracy"].agg(["median", "mean", "std", "skew"])
+    * 100
+).round(1)
 
 # Print the grouped means and standard deviations
 print(grouped_means_std)
@@ -70,28 +80,28 @@ fig.add_trace(
         pointpos=0.5,
         width=2,
         side="negative",
-        alignmentgroup=0
+        alignmentgroup=0,
     )
 )
 
 if MUedit_vals is not None:
     fig.add_trace(
-    go.Violin(
-        # x=np.ones(MUedit_vals["accuracy"].shape)
-        # + np.random.normal(0, 0.04, MUedit_vals["accuracy"].shape),
-        y=MUedit_vals["accuracy"],
-        box_visible=True,
-        # meanline_visible=True,
-        points="all",
-        line_color="lightskyblue",
-        name="MUedit",
-        pointpos=0.5,
-        width=2,
-        side="negative",
-        alignmentgroup=0
+        go.Violin(
+            # x=np.ones(MUedit_vals["accuracy"].shape)
+            # + np.random.normal(0, 0.04, MUedit_vals["accuracy"].shape),
+            y=MUedit_vals["accuracy"],
+            box_visible=True,
+            # meanline_visible=True,
+            points="all",
+            line_color="lightskyblue",
+            name="MUedit",
+            pointpos=0.5,
+            width=2,
+            side="negative",
+            alignmentgroup=0,
+        )
     )
-)
-    
+
 fig.add_trace(
     go.Violin(
         # x=np.ones(Kilosort4_vals["accuracy"].shape)
@@ -105,7 +115,7 @@ fig.add_trace(
         pointpos=-0.5,
         width=2,
         side="positive",
-        alignmentgroup=1
+        alignmentgroup=1,
     )
 )
 
@@ -114,7 +124,7 @@ fig.update_layout(
     template="plotly_white",
     font=dict(family="Open Sans", size=24, color="black", weight="bold"),
     title_font=dict(size=36, color="black", family="Open Sans", weight="bold"),
-    title="All Spikes Included",  # "All Spikes",  # "Overlapping Spikes Only",
+    title="All Spikes",  # "All Spikes",  # "Overlapping Spikes Only",
     # title="All Spikes Evaluated",
     # title="Sort Accuracy Distributions (All Spikes Evaluated)<br><sup>25 parameter combinations each</sup>",
     # xaxis_title="Kilosort4 Sort Accuracy",

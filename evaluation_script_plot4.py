@@ -699,8 +699,8 @@ def compute_accuracy_for_each_GT_cluster(
     # use the aligned spike trains to compute the metrics
     if correlation_alignment:
 
-        min_delay_ms = -1  # ms
-        max_delay_ms = 1  # ms
+        min_delay_ms = -2  # ms
+        max_delay_ms = 2  # ms
 
         if precorrelation_rebin_width_ms is not None:
             # precorrelation alignment rebinning
@@ -945,6 +945,8 @@ def compute_accuracy_for_each_GT_cluster(
 
         # convert to times with np.where followed by multiplication by bin_width, then
         # convert seconds to milliseconds by multiplying by 1000
+        assert not (any(ground_truth_spikes[:, jCluster_GT, np.newaxis] > 1))
+        assert not (any(kilosort_spikes > 1))
         GT_spike_idxs = np.where(ground_truth_spikes[:, jCluster_GT, np.newaxis])[0]
         KS_spike_idxs = np.where(kilosort_spikes)[0]
         GT_times = GT_spike_idxs * current_GT_bin_width * 1000
@@ -1631,9 +1633,17 @@ def plot4(
 
     # search all the paths to sorted folders for the KS or EMUsort string, in the order of matches with sorts_from_each_path_to_load
     sort_types = ["MUedit"]
-    noise_levels = [0.2]
+    noise_levels = [0.25]
     iSort = 0
-    if show_plot4 or save_png_plot4 or save_svg_plot4 or save_html_plot4:
+    if (
+        show_plot4
+        or save_png_plot4
+        or save_svg_plot4
+        or save_html_plot4
+        or save_plot4_df_as_csv
+        or save_cluster_acc_stats_as_csv
+        or save_plot4_df_as_pickle
+    ):
         # make a subplot for each metric
         fig = subplots.make_subplots(
             rows=3,
@@ -1902,7 +1912,7 @@ if __name__ == "__main__":
     time_frame = [0, 1]  # must be between 0 and 1
     ephys_fs = 30000  # Hz
     bin_widths_for_comparison = [0.1]  # only affects plotting
-    spike_isolation_radius_ms = 1  # radius of isolation of a spike for it to be removed from consideration. set to positive float, integer, or set None to disable
+    spike_isolation_radius_ms = None  # radius of isolation of a spike for it to be removed from consideration. set to positive float, integer, or set None to disable
     print(spike_isolation_radius_ms)
     nt0 = 121  # number of time bins in the template, in ms it is 3.367, only used if method_for_automatic_cluster_mapping is "waves"
     random_seed_entropy = 218530072159092100005306709809425040261  # 75092699954400878964964014863999053929  # int
@@ -1918,9 +1928,9 @@ if __name__ == "__main__":
     save_png_plot1a = False
     save_png_plot1b = False
     save_png_plot1c = False
-    save_svg_plot1a = False
+    save_svg_plot1a = True
     save_svg_plot1b = False
-    save_svg_plot1c = False
+    save_svg_plot1c = True
     save_html_plot1a = False
     save_html_plot1b = False
     save_html_plot1c = False
@@ -1929,12 +1939,13 @@ if __name__ == "__main__":
     save_svg_plot4 = False  ##
     save_html_plot4 = False
     save_plot4_df_as_pickle = False
-    save_plot4_df_as_csv = False  ##
-    save_cluster_acc_stats_as_csv = True
+    save_plot4_df_as_csv = True  ##
+    save_cluster_acc_stats_as_csv = False
 
     ## set ground truth data folder path
     GT_folder = Path(
-        "./spikes_files/spikes_20250429-202657_godzilla_20221116_10MU_8CH_SNR-1-from_data_jitter-0.2std_method-KS_templates_12-files"  # test of sameness with boolean .npy file
+        "./spikes_files/spikes_20250804-152545_monkey_20221202_5MU_16CH_SNR-1-from_data_jitter-0.25std_method-KS_templates_1-files"  # second (final) monkey dataset PAPER
+        # "./spikes_files/spikes_20250429-202657_godzilla_20221116_10MU_8CH_SNR-1-from_data_jitter-0.2std_method-KS_templates_12-files"  # test of sameness with boolean .npy file
         # "/home/smoconn/git/MUsim/spikes_files/spikes_20241203-120158_godzilla_20221117_10MU_SNR-1-from_data_jitter-2.0std_method-KS_templates_12-files"
         # "/home/smamid3/MUEdit Convert/MUEdit Convert/ground_truth_2.25"
         # "/home/smoconn/git/MUsim/spikes_files/spikes_20240607-143039_godzilla_20221117_10MU_SNR-1-from_data_jitter-0std_method-KS_templates_12-files_20250306-180027"
@@ -1942,7 +1953,7 @@ if __name__ == "__main__":
     # if ".npy" in GT_folder:
     #     GT_folder = Path().joinpath("spikes_files", GT_folder)
     # set which ground truth clusters to compare with (a range from 0 to num_motor_units)
-    num_motor_units = 10
+    num_motor_units = 5
     GT_clusters_to_use = list(range(0, num_motor_units))
 
     ## load Kilosort data
@@ -1950,8 +1961,8 @@ if __name__ == "__main__":
     KS_session_folder = Path(
         # "./MUedit/run1/" # MUedit paper results
         # "./MUedit/run2"  # MUedit paper results
-        "./MUedit/run4"  # MUedit paper results
         # "./MUedit/run4"  # MUedit paper results
+        "./MUedit/run_00"  # PAPER
         # "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/godzilla/paper_evals/CHs_8_MUs_10/sim_noise_0.2_orig_CHs/sorted_20250429_205402741549_sim_noise_0.2_orig_CHs_Th_5,2_spkTh_6,9_SCORE_0.523"
         # "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/godzilla/litmus2/sorted_20241203_153703193461_litmus2"
         # "/home/smamid3/MUEdit Convert/MUEdit Convert/mu_edit_2.25_sort"
@@ -1962,7 +1973,7 @@ if __name__ == "__main__":
     # load the spike times and clusters from the ground truth and Kilosort data folders
     GT_spike_times, GT_spike_clusters = load_npy_files_from_folder(GT_folder)
     KS_spike_times, KS_spike_clusters = load_npy_files_from_folder(KS_session_folder)
-    print("updated")
+    print("\nUPDATED for " + str(KS_session_folder) + "\n")
     # add dummies to KS if below GT
     num_dummies = len(np.unique(GT_spike_clusters)) - len(np.unique(KS_spike_clusters))
     print(f"number of dummy clusters is {num_dummies}")

@@ -182,7 +182,7 @@ show_plotly_figures = False
 show_matplotlib_figures = False
 show_final_plotly_figure = True
 save_final_plotly_figure = False
-show_waveform_graph = True
+show_waveform_graph = False
 chans_to_show = [0, 3, 4, 5, 6, 7, 8, 15]
 # chans_to_show = list(
 #     range(8)
@@ -241,8 +241,8 @@ print(f"CUDA device number: {cuda_device_number}")
 #     random_seed_entropy = 295921216980200951702345820409845315428  # 4.00 noise rat
 # else:
 random_seed_entropy = 183727168741693871743105099849288612761  # monkey # 295921216980200951702345820409845315428 rat
-    # random_seed_entropy = 29592121698020095170234582040
-    # raise ValueError("random_seed_entropy not set for this shape_jitter_amount")
+# random_seed_entropy = 29592121698020095170234582040
+# raise ValueErset_traceror("random_seed_entropy not set for this shape_jitter_amount")
 
 # set None for random behavior, or a previous entropy int value to reproduce
 # if random_seed_entropy is None:
@@ -258,7 +258,7 @@ MU_colors = [
     "darkorchid",
     "darkgreen",
     "lightcoral",
-    "rgb(116, 77, 37)",
+    "rgb(116, 77, 3set_trace7)",
     "cyan",
     "mediumpurple",
     "lightslategray",
@@ -295,7 +295,7 @@ MU_colors = [
 ]
 
 # set plotting parameters
-time_frame = [0, 0.05]  # time frame to plot, fractional bounds of 0 to 1
+time_frame = [0, 1]  # time frame to plot, fractional bounds of 0 to 1
 if time_frame[1] > 0.1:
     # disable the final plotly figure if the time frame is too long
     print(
@@ -1026,7 +1026,7 @@ while (
     print(f"Current entropy:\n{random_seed_entropy}")
     # random_seed_entropy += 1
 else:
-    set_trace()
+    # set_trace()
     del o_frac_real, o_fracs_real, mu_real
     # working_random_seed = random_seed_entropy - 1
     # print(f"Random seed used: {working_random_seed}")

@@ -176,17 +176,16 @@ def compute_overlap_fraction(MUsim_obj, radius):
 
 
 # set analysis parameters
-session_name = "monkey_20221202_5MU_16CH"  # "godzilla_20221116_10MU_8CH"  # "godzilla_20221116_10MU_8CH"  # "godzilla_20221116_10MU_14CH"  # "human_20231003_10MU"  # "human_20231003_13MU"  # "godzilla_20221117_10MU"  # "monkey_20221202_6MU"  # "godzilla_20221117_10MU"  # "monkey_20221202_6MU"
+session_name = "godzilla_20221116_10MU_8CH"  # "godzilla_20221116_10MU_8CH"  # "godzilla_20221116_10MU_14CH"  # "human_20231003_10MU"  # "human_20231003_13MU"  # "godzilla_20221117_10MU"  # "monkey_20221202_6MU"  # "godzilla_20221117_10MU"  # "monkey_20221202_6MU"
 sorter = "ks4"
 show_plotly_figures = False
 show_matplotlib_figures = False
-show_final_plotly_figure = True
+show_final_plotly_figure = False
 save_final_plotly_figure = False
-show_waveform_graph = True
-chans_to_show = [0, 3, 4, 5, 6, 7, 8, 15]
-# chans_to_show = list(
-#     range(8)
-# )  # [0, 1, 2, 3, 10, 11, 12, 13]  # [4, 5, 12, 13]  # [2, 3, 8, 11]
+show_waveform_graph = False
+chans_to_show = list(
+    range(8)
+)  # [0, 1, 2, 3, 10, 11, 12, 13]  # [4, 5, 12, 13]  # [2, 3, 8, 11]
 show_real_waveform_graph = False
 save_simulated_spikes = True  ##
 save_continuous_dat = True  ##
@@ -206,48 +205,56 @@ write_kinematics_to_npy = (
 shift_MU_templates_along_channels = False
 kinematics_fs = 125
 ephys_fs = 30000
-nt0 = 121  # 301  # 10.033 ms  # 61  # 2.033 ms
+nt0 = 61  # 301  # 10.033 ms  # 61  # 2.033 ms
 SVD_dim = 9  # number of SVD components than were used in KiloSort
-num_chans_in_recording = 16  # 14  # 9  # number of channels in the recording
-num_chans_in_output = 16  # 14  # 8 # desired real number of channels in the output data
+num_chans_in_recording = 8  # 14  # 9  # number of channels in the recording
+num_chans_in_output = 8  # 14  # 8 # desired real number of channels in the output data
 # number determines noise power added to channels (e.g. 50), or set None to disable
 SNR_mode = "from_data"  # 'power' to compute desired SNR with power,'from_data' simulates from the real data values, or 'constant' to add a constant amount of noise to all channels
 # target SNR value if "power", or factor to adjust SNR by if "from_data", or set None to disable
 adjust_SNR = 1  # None
 # set 0 for no shape jitter, or a positive number for standard deviations of additive shape jitter
-shape_jitter_amount = 0.25
+shape_jitter_amount = 0.2
 shape_jitter_type = "multiplicative"  # "additive" or "multiplicative"
 
 num_duplicate_kinematics_to_add = 2  # number of duplicate kinematics files to add to the list, for generating longer simulations
-kinematics_shuffle_N = int(2 + (1 * shape_jitter_amount))  # (
+kinematics_shuffle_N = int(2 + (adjust_SNR * shape_jitter_amount))  # (
 # 1 if "monkey" in session_name else 0
 # )  # number of times to shuffle the kinematics files list, 0 for no shuffling (rat=0, monkey=1, konstantin=2)
 
-cuda_device_number = "4"  # str(int(shape_jitter_amount // 2 + 1))  # "1".keys()
+cuda_device_number = "6"  # str(int(shape_jitter_amount // 2 + 1))  # "1".keys()
 
-print(f"Shape jitter amount: {shape_jitter_amount}")
-print(f"CUDA device number: {cuda_device_number}")
+print(shape_jitter_amount)
+print(cuda_device_number)
 
 
 # random seeds used for the EMUsort benchmarking in the paper
 # random_seed_entropy = 17750944332329041344095472642137516706  # rat # 218530072159092100005306709809425040261  # 75092699954400878964964014863999053929  # None
 
 # random seeds used for the public LITMUS datasets
-# if shape_jitter_amount == 0.00:
-#     random_seed_entropy = 295921216980200951702345820409845315428  # 0.00 noise rat
-# elif shape_jitter_amount == 2.00:
-#     random_seed_entropy = 295921216980200951702345820409845315428  # 2.00 noise rat
-# elif shape_jitter_amount == 4.00:
-#     random_seed_entropy = 295921216980200951702345820409845315428  # 4.00 noise rat
-# else:
-random_seed_entropy = 183727168741693871743105099849288612761  # monkey # 295921216980200951702345820409845315428 rat
+if shape_jitter_amount == 0.00:
+    random_seed_entropy = 295921216980200951702345820409845315428  # 0.00 noise rat
+elif shape_jitter_amount == 2.00:
+    random_seed_entropy = 295921216980200951702345820409845315428  # 2.00 noise rat
+elif shape_jitter_amount == 4.00:
+    random_seed_entropy = 295921216980200951702345820409845315428  # 4.00 noise rat
+else:
+    random_seed_entropy = 295921216980200951702345820409845315428
     # random_seed_entropy = 29592121698020095170234582040
     # raise ValueError("random_seed_entropy not set for this shape_jitter_amount")
 
 # set None for random behavior, or a previous entropy int value to reproduce
 # if random_seed_entropy is None:
 #     random_seed_entropy = np.random.SeedSequence().entropy
+
+## apply random seeds
+# ensure fixed seed for numpy for determinism
 RNG = np.random.default_rng(random_seed_entropy)  # create a random number generator
+
+# ensure fixed seed for torch for determinism ## DOESN'T work due to implementation
+# torch.use_deterministic_algorithms(True)
+# torch.manual_seed(42)
+# torch.cuda.manual_seed(42)
 
 # add eventplot of spike times to the last subplot, vertically spacing times and coloring by unit
 MU_colors = [
@@ -295,7 +302,7 @@ MU_colors = [
 ]
 
 # set plotting parameters
-time_frame = [0, 0.05]  # time frame to plot, fractional bounds of 0 to 1
+time_frame = [0, 1]  # time frame to plot, fractional bounds of 0 to 1
 if time_frame[1] > 0.1:
     # disable the final plotly figure if the time frame is too long
     print(
@@ -346,14 +353,33 @@ if "monkey" not in session_name and "human" not in session_name:
 
     # load the csv file into a pandas dataframe and get numpy array of chosen bodypart
     kinematic_csv_folder_path = anipose_folder.joinpath("pose-3d")
+    # files = [
+    #     f
+    #     for f in kinematic_csv_folder_path.iterdir()
+    #     if f.is_file() and f.suffix == ".csv"
+    # ]
     files = [
-        f
-        for f in kinematic_csv_folder_path.iterdir()
-        if f.is_file() and f.suffix == ".csv"
+        kinematic_csv_folder_path / "20221117-9_godzilla_speed15_incline15.csv",
+        kinematic_csv_folder_path / "20221117-5_godzilla_speed05_incline15.csv",
+        kinematic_csv_folder_path / "20221117-2_godzilla_speed10_incline00.csv",
+        kinematic_csv_folder_path / "20221117-3_godzilla_speed15_incline00.csv",
+        kinematic_csv_folder_path / "20221117-4_godzilla_speed10_incline00.csv",
+        kinematic_csv_folder_path / "20221117-8_godzilla_speed15_incline00.csv",
+        kinematic_csv_folder_path / "20221117-10_godzilla_speed15_incline00.csv",
+        kinematic_csv_folder_path / "20221117-6_godzilla_speed05_incline00.csv",
+        kinematic_csv_folder_path / "20221116-0_godzilla_speed10_incline00.csv",
+        kinematic_csv_folder_path / "20221116-1_godzilla_speed15_incline00.csv",
+        kinematic_csv_folder_path / "20221116-3_godzilla_speed05_incline00.csv",
+        kinematic_csv_folder_path / "20221116-5_godzilla_speed10_incline00.csv",
+        kinematic_csv_folder_path / "20221116-7_godzilla_speed05_incline00.csv",
+        kinematic_csv_folder_path / "20221116-8_godzilla_speed10_incline00.csv",
+        kinematic_csv_folder_path / "20221116-9_godzilla_speed10_incline00.csv",
     ]
+
     kinematic_csv_file_paths = [
         f for f in files if any(s in f.name for s in anipose_sessions_to_load)
     ]
+    set_trace()
     # add duplicates to make sure the array is at least 10min long, will trim later to 10min
     if num_duplicate_kinematics_to_add:
         random_duplicate_paths = RNG.choice(
@@ -516,24 +542,15 @@ else:
     force_ramp_down = np.linspace(force_max, 0, int(force_ramp_time * ephys_fs))
     force_down_time = np.zeros(int(force_down_time * ephys_fs))
     # 1 hz
-    force_sine = (
-        1.3
-        # * RNG.random()
-        * np.sin(
-            2 * np.pi * np.linspace(0, force_sine_time, int(force_sine_time * ephys_fs))
-        )
+    force_sine = np.sin(
+        2 * np.pi * np.linspace(0, force_sine_time, int(force_sine_time * ephys_fs))
     )
     force_sine = force_sine * force_max
     force_profile_unit = np.concatenate(
         (force_ramp_up, force_hold_up, force_ramp_down, force_down_time, force_sine)
     )
-    interp_final_force_array = force_profile_unit
     num_force_units_needed = force_total_time / force_profile_unit.shape[0] * ephys_fs
-    # interp_final_force_array = np.tile(force_profile_unit, int(num_force_units_needed))
-    for _ in range(int(num_force_units_needed) - 1):
-        interp_final_force_array = np.concatenate(
-            (interp_final_force_array, RNG.random() * force_profile_unit)
-        )
+    interp_final_force_array = np.tile(force_profile_unit, int(num_force_units_needed))
     interp_final_force_array = np.hstack(
         (
             interp_final_force_array,
@@ -653,19 +670,15 @@ if "monkey" in session_name:
     # load the Kilosort data
     paths_to_proc_dat = [
         Path(
-            # "/snel/share/data/rodent-ephys/open-ephys/monkey/sean-pipeline/session20231202/2022-12-02_10-14-45_myo/sorted0_20240131_172133542034_rec-1_11-good-of-20-total_Th,[10,4],spkTh,[-6]" # original, ks3
-            # "/snel/share/data/rodent-ephys/open-ephys/monkey/sean-pipeline/session20231202/2022-12-02_10-14-45_myo/sorted_20250624_202249613416_2022-12-02_10-14-45_myo_Th_9,8_spkTh_6,9_SCORE_0.312"  # monkey 5MU, 16CH, ks4
-            "/snel/share/data/rodent-ephys/open-ephys/monkey/sean-pipeline/session20231202/2022-12-02_10-14-45_myo/sorted_20250624_202249742544_2022-12-02_10-14-45_myo_Th_10,4_spkTh_6,9_SCORE_0.327"  # monkey 5MU, 16CH, ks4, better
+            "/snel/share/data/rodent-ephys/open-ephys/monkey/sean-pipeline/session20231202/2022-12-02_10-14-45_myo/sorted0_20240131_172133542034_rec-1_11-good-of-20-total_Th,[10,4],spkTh,[-6]"
         )
     ]
     paths_to_KS_session_folders = [
         Path(
-            # "/snel/share/data/rodent-ephys/open-ephys/monkey/sean-pipeline/session20231202/"
-            "/snel/share/data/rodent-ephys/open-ephys/monkey/sean-pipeline/session20231202/2022-12-02_10-14-45_myo"
+            "/snel/share/data/rodent-ephys/open-ephys/monkey/sean-pipeline/session20231202/"
         )
     ]
-    # sorts_from_each_path_to_load = ["20240131_172133542034"]
-    sorts_from_each_path_to_load = ["20250624_202249742544"]
+    sorts_from_each_path_to_load = ["20240131_172133542034"]
 elif "human" in session_name:
     # load the Kilosort data
     paths_to_proc_dat = [
@@ -851,12 +864,7 @@ elif sorter == "ks4":
 # list of lists of good clusters to take from each rez_list
 # place units in order of total spike count, from highest to lowest
 if "monkey" in session_name:
-    # clusters_to_take_from = [[6, 13, 24, 1, 23, 14]]  # monkey, 20240131_172133542034, original ks3
-    # clusters_to_take_from = [[2, 35, 4, 48, 23]]  # monkey, 20250624_185834168284, ks4
-    clusters_to_take_from = [
-        [5, 31, 7, 54, 28]
-    ]  # monkey, 20250624_185834168284, ks4, better
-    print(f"Clusters to take from: {clusters_to_take_from}")
+    clusters_to_take_from = [[6, 13, 24, 1, 23, 14]]  # monkey, 20240131_172133542034
 elif "human" in session_name:
     # clusters_to_take_from = [[13, 29, 24, 25, 56, 57, 28, 53, 59, 65, 49, 5, 34]], 20250214_001445260129
     clusters_to_take_from = [
@@ -877,6 +885,7 @@ else:
     ]  # [[25, 3, 1, 5, 17, 18, 0, 22, 20, 30]]  # [[18, 2, 11, 0, 4, 10, 1, 9]]
 
 num_motor_units = sum([len(i) for i in clusters_to_take_from])
+last_unit_count = 0
 
 
 def sample_MUsim_obj(seed):
@@ -891,27 +900,24 @@ def sample_MUsim_obj(seed):
         "exponential"  # set the distribution of motor unit thresholds
     )
     mu.MUspike_dynamics = "spike_history"
-    mu.kernel_interpolation_factor = 2  # 1.25  # 2 if "monkey" or "human" in session_name else 1 # newest dataset for godzilla used 1.5, then 1.25 latest
+    mu.kernel_interpolation_factor = 1.25  # 2 if "monkey" or "human" in session_name else 1 # newest dataset for godzilla used 1.5
     mu.sample_rate = ephys_fs  # 30000 Hz
     # fixed minimum force threshold for the generated units' response curves. Tune this for lower
     # bound of force thresholds sampled in the distribution of MUs during MU_sample()
     mu.threshmin = np.percentile(
-        interp_final_force_array, 35
+        interp_final_force_array, 40
     )  # 40 for rat, 35 for monkey
     # fixed maximum force threshold for the generated units' response curves. Tune this for upper
     # bound of force thresholds sampled in the distribution of MUs during MU_sample()
-    mu.threshmax = 3.5 * np.max(  # 2.0 for rat, 2.5 for monkey
+    mu.threshmax = 2 * np.max(  # 2.0 for rat, 2.5 for monkey
         interp_final_force_array
     )  # np.percentile(interp_final_force_array, 99)
     mu.sample_MUs()
     return mu
 
 
-first_unit_count = 0
-last_unit_count = 0
 iTrial = 0
-# mu = sample_MUsim_obj(random_seed_entropy)
-random_seed_entropy = 339919555553999336314895033754694158214
+mu = sample_MUsim_obj(random_seed_entropy)
 mu_real = MUsim(random_seed_entropy)
 mu_real.load_MUs(
     data_file_path=list_of_paths_to_sorted_folders[0],
@@ -921,21 +927,12 @@ mu_real.load_MUs(
 )
 mu_real.spikes[-1] = mu_real.spikes[-1][:, clusters_to_take_from[0]]
 while (
-    # iTrial
-    # < 1
-    not (
-        first_unit_count <= 15000 * time_frame[1]
-        and first_unit_count >= 4000 * time_frame[1]
-    )
-    or not (
-        last_unit_count <= 1000 * time_frame[1]
-        and last_unit_count >= 200 * time_frame[1]
-    )
+    iTrial
+    < 1  # not (
+    # last_unit_count <= 1000 * time_frame[1] and last_unit_count >= 500 * time_frame[1]
 ):
-    if iTrial > 0:
-        random_seed_entropy = np.random.SeedSequence().entropy
     iTrial += 1
-    mu = sample_MUsim_obj(random_seed_entropy)
+    # mu = sample_MUsim_obj(random_seed_entropy)
 
     ## using multiprocess can introduce refractory period violations,
     ## so now using multithreading in MUsim instead
@@ -1005,33 +1002,22 @@ while (
     #         )
     #         mu = batch_run_MUsim(mu, interp_final_force_array, 0)
     # print number of spikes in each unit
-    # set_trace()
-    # mu.units[0][-1] = np.percentile(interp_final_force_array, 79.9)
     mu = batch_run_MUsim(mu, interp_final_force_array, 0)
     print(f"Number of spikes in each unit:\n {mu.spikes[-1].sum(axis=0)}")
-    spike_isolation_radius_ms = 2
-    o_frac, o_fracs = compute_overlap_fraction(
-        mu.deepcopy(), int(spike_isolation_radius_ms * ephys_fs / 1000)
-    )
+    o_frac, o_fracs = compute_overlap_fraction(mu.deepcopy(), 1)
     print(f"Simulated overlap fractions are: {o_fracs}")
     print(f"Total simulated overlap fraction: {o_frac}")
-    o_frac_real, o_fracs_real = compute_overlap_fraction(
-        mu_real.deepcopy(), int(spike_isolation_radius_ms * ephys_fs / 1000)
-    )
+    o_frac_real, o_fracs_real = compute_overlap_fraction(mu_real.deepcopy(), 1)
     print(f"Real overlap fractions are: {o_fracs_real}")
     print(f"Total real overlap fraction: {o_frac_real}")
     # raise SystemExit
+    del o_frac_real, o_fracs_real, mu_real
     last_unit_count = mu.spikes[-1].sum(axis=0)[-1]
-    first_unit_count = mu.spikes[-1].sum(axis=0)[0]
-    print(f"Current entropy:\n{random_seed_entropy}")
     # random_seed_entropy += 1
 else:
-    set_trace()
-    del o_frac_real, o_fracs_real, mu_real
     # working_random_seed = random_seed_entropy - 1
     # print(f"Random seed used: {working_random_seed}")
     print("Final number of spikes in each unit:\n", mu.spikes[-1].sum(axis=0))
-    print(f"Using entropy:\n{random_seed_entropy}")
 
 if show_matplotlib_figures:
     mu.see("force")  # plot the force profile
@@ -1271,9 +1257,6 @@ elif use_KS_templates and sorter == "ks4":
             spike_snippets_to_place[ii, iSpike, :, :] = (
                 np.dot(iSpike_U, ops["wPCA"]).T @ whiten_inv
             )  # shape is (num_units, num_spikes, nt0, num_chans_in_recording)
-        # import pdb
-
-        # pdb.set_trace()
     median_spikes_array = np.median(spike_snippets_to_place, axis=1)
     # if not "human" in session_name:
     #     order_by_amplitude = np.max(np.abs(median_spikes_array), axis=(1, 2)).argsort()

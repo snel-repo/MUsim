@@ -1600,7 +1600,7 @@ if __name__ == "__main__":
     save_png_plot1c = False
     save_svg_plot1a = False
     save_svg_plot1b = False
-    save_svg_plot1c = True
+    save_svg_plot1c = False
     save_html_plot1a = False
     save_html_plot1b = False
     save_html_plot1c = False
