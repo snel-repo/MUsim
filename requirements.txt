@@ -5,7 +5,7 @@ mat73
 numpy
 pandas
 plotly
-pytorch-gpu
+# pytorch-gpu
 scikit-learn
 scipy
 kaleido

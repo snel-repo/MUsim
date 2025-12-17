@@ -11,7 +11,7 @@ dependencies:
   - pip
   - plotly
   - python=3.12
-  - pytorch-gpu
+#  - pytorch-gpu
   - scikit-learn
   - scipy
   - python-kaleido
