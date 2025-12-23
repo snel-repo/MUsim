@@ -10,4 +10,6 @@ or
 
     git checkout monkey_simulation
 
-You can also start by skimming through the MUsim class to understand how it's organized, and skip over the functions with leading underscores. You may also find the usages of "MUsim" in the `generate_synthetic_dataset*` files useful, particularly `sample_MUsim_obj` and `batch_run_MUsim`.
+You can find usages of the MUsim class in `generate_simulated_dataset_RAT.py`, particularly in the `sample_MUsim_obj` and `batch_run_MUsim` functions. This `generate_simulated_dataset_RAT.py` file allows you to generate the exact same spike times with the exact same waveform shapes as in the simulated rat dataset used for all comparisons in the EMUsort paper. Due to non-deterministic operations in the Gaussian noise generation method we used with PyTorch, the continuous.dat file output will not be exactly the same, so we provide that as an output file in `output_files/continuous_dat_files`. The spike times and sample numbers files as used in the paper are also provided in `output_files/spikes_npy_files` and `output_files/sample_numbers_npy_files`, respectively. 
+
+If you run the code, new files will be generated into the proper folders within the `output_files` folder, and you can check for an identical match between the spikes files using `sha256sum` or similar commands.

@@ -4,23 +4,23 @@
 import lindi
 import pynwb
 
-# Load "20221116-5_godzilla_speed10_incline00"
+### Load "20221116-5_godzilla_speed10_incline00"
 # # Load https://api.dandiarchive.org/api/assets/1d5d9136-4eb9-42d3-9122-761e0127ef40/download/
-# f = lindi.LindiH5pyFile.from_hdf5_file(
-#     "https://api.dandiarchive.org/api/assets/1d5d9136-4eb9-42d3-9122-761e0127ef40/download/"
-# )
+f = lindi.LindiH5pyFile.from_hdf5_file(
+    "https://api.dandiarchive.org/api/assets/1d5d9136-4eb9-42d3-9122-761e0127ef40/download/"
+)
 
-# Load "20221116-8_godzilla_speed10_incline00"
+### Load "20221116-8_godzilla_speed10_incline00"
 # # Load https://api.dandiarchive.org/api/assets/38893bef-cadc-48b6-a0bb-882febc813bd/download/
 # f = lindi.LindiH5pyFile.from_hdf5_file(
 #     "https://api.dandiarchive.org/api/assets/38893bef-cadc-48b6-a0bb-882febc813bd/download/"
 # )
 
-# Load "20221116-9_godzilla_speed10_incline00"
+### Load "20221116-9_godzilla_speed10_incline00"
 # Load https://api.dandiarchive.org/api/assets/dd4c0760-3b8a-49f5-83bf-4a3cdb73ea7e/download/
-f = lindi.LindiH5pyFile.from_hdf5_file(
-    "https://api.dandiarchive.org/api/assets/dd4c0760-3b8a-49f5-83bf-4a3cdb73ea7e/download/"
-)
+# f = lindi.LindiH5pyFile.from_hdf5_file(
+#     "https://api.dandiarchive.org/api/assets/dd4c0760-3b8a-49f5-83bf-4a3cdb73ea7e/download/"
+# )
 
 nwb = pynwb.NWBHDF5IO(file=f, mode="r").read()
 

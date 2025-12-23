@@ -13,7 +13,7 @@ dependencies:
   - plotly
   - python-kaleido
   - python=3.12
-  #  - pytorch-gpu
+  - pytorch-gpu
   - scikit-learn
   - scipy
   - pip:

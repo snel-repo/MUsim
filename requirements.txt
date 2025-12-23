@@ -10,6 +10,6 @@ numpy
 pandas
 plotly
 pynwb
-# pytorch-gpu
+pytorch-gpu
 scikit-learn
 scipy

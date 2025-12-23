@@ -1,0 +1,229 @@
+{
+    "class": "spikeinterface.preprocessing.filter.NotchFilterRecording",
+    "module": "spikeinterface",
+    "kwargs": {
+        "recording": {
+            "class": "spikeinterface.preprocessing.filter.BandpassFilterRecording",
+            "module": "spikeinterface",
+            "kwargs": {
+                "recording": {
+                    "class": "spikeinterface.core.channelslice.ChannelSliceRecording",
+                    "module": "spikeinterface",
+                    "kwargs": {
+                        "parent_recording": {
+                            "class": "spikeinterface.core.binaryfolder.BinaryFolderRecording",
+                            "module": "spikeinterface",
+                            "kwargs": {
+                                "folder_path": "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/godzilla/session20221116/2022-11-16_16-19-28_myo/concatenated_data"
+                            },
+                            "version": "0.100.8",
+                            "annotations": {
+                                "is_filtered": false
+                            },
+                            "properties": {
+                                "group": null,
+                                "location": null,
+                                "gain_to_uV": [
+                                    0.1949999928474426,
+                                    0.1949999928474426,
+                                    0.1949999928474426,
+                                    0.1949999928474426,
+                                    0.1949999928474426,
+                                    0.1949999928474426,
+                                    0.1949999928474426,
+                                    0.1949999928474426,
+                                    0.1949999928474426,
+                                    0.1949999928474426,
+                                    0.1949999928474426,
+                                    0.1949999928474426,
+                                    0.1949999928474426,
+                                    0.1949999928474426,
+                                    0.1949999928474426,
+                                    0.1949999928474426,
+                                    152.587890625
+                                ],
+                                "offset_to_uV": [
+                                    0.0,
+                                    0.0,
+                                    0.0,
+                                    0.0,
+                                    0.0,
+                                    0.0,
+                                    0.0,
+                                    0.0,
+                                    0.0,
+                                    0.0,
+                                    0.0,
+                                    0.0,
+                                    0.0,
+                                    0.0,
+                                    0.0,
+                                    0.0,
+                                    0.0
+                                ]
+                            },
+                            "relative_paths": false
+                        },
+                        "channel_ids": [
+                            "CH2",
+                            "CH3",
+                            "CH5",
+                            "CH6",
+                            "CH13",
+                            "CH14",
+                            "CH15",
+                            "CH16"
+                        ],
+                        "renamed_channel_ids": [
+                            "CH2",
+                            "CH3",
+                            "CH5",
+                            "CH6",
+                            "CH13",
+                            "CH14",
+                            "CH15",
+                            "CH16"
+                        ]
+                    },
+                    "version": "0.100.8",
+                    "annotations": {
+                        "is_filtered": false
+                    },
+                    "properties": {
+                        "group": null,
+                        "location": null,
+                        "gain_to_uV": [
+                            0.1949999928474426,
+                            0.1949999928474426,
+                            0.1949999928474426,
+                            0.1949999928474426,
+                            0.1949999928474426,
+                            0.1949999928474426,
+                            0.1949999928474426,
+                            0.1949999928474426
+                        ],
+                        "offset_to_uV": [
+                            0.0,
+                            0.0,
+                            0.0,
+                            0.0,
+                            0.0,
+                            0.0,
+                            0.0,
+                            0.0
+                        ]
+                    },
+                    "relative_paths": false
+                },
+                "freq_min": 250,
+                "freq_max": 5000,
+                "margin_ms": 5.0,
+                "dtype": "<i2"
+            },
+            "version": "0.100.8",
+            "annotations": {
+                "is_filtered": true
+            },
+            "properties": {
+                "group": null,
+                "location": null,
+                "gain_to_uV": [
+                    0.1949999928474426,
+                    0.1949999928474426,
+                    0.1949999928474426,
+                    0.1949999928474426,
+                    0.1949999928474426,
+                    0.1949999928474426,
+                    0.1949999928474426,
+                    0.1949999928474426
+                ],
+                "offset_to_uV": [
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0
+                ]
+            },
+            "relative_paths": false
+        },
+        "freq": 60,
+        "q": 30,
+        "margin_ms": 5.0,
+        "dtype": "<i2"
+    },
+    "version": "0.100.8",
+    "annotations": {
+        "is_filtered": true
+    },
+    "properties": {
+        "group": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+        ],
+        "location": [
+            [
+                0.0,
+                -0.0
+            ],
+            [
+                0.0,
+                -2.0
+            ],
+            [
+                0.0,
+                -4.0
+            ],
+            [
+                0.0,
+                -6.0
+            ],
+            [
+                0.0,
+                -8.0
+            ],
+            [
+                0.0,
+                -10.0
+            ],
+            [
+                0.0,
+                -12.0
+            ],
+            [
+                0.0,
+                -14.0
+            ]
+        ],
+        "gain_to_uV": [
+            0.1949999928474426,
+            0.1949999928474426,
+            0.1949999928474426,
+            0.1949999928474426,
+            0.1949999928474426,
+            0.1949999928474426,
+            0.1949999928474426,
+            0.1949999928474426
+        ],
+        "offset_to_uV": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+        ]
+    },
+    "relative_paths": false
+}
