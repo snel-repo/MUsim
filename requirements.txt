@@ -1,12 +1,15 @@
 colorlover
 jupyter
-matplotlib
+kaleido
+lindi
 mat73
+matplotlib
+ndx_pose
+neuroconv[openephys, dandi]
 numpy
 pandas
 plotly
+pynwb
 # pytorch-gpu
 scikit-learn
 scipy
-kaleido
-neuroconv[openephys]

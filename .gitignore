@@ -10,6 +10,7 @@
 *.mat
 *.dat
 *.h5
+*.nwb
 .~lock.*
 /mu
 !requirements.txt

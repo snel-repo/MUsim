@@ -1,3 +1,4 @@
+---
 name: MUsim
 channels:
   - conda-forge
@@ -10,12 +11,14 @@ dependencies:
   - pandas
   - pip
   - plotly
+  - python-kaleido
   - python=3.12
-#  - pytorch-gpu
+  #  - pytorch-gpu
   - scikit-learn
   - scipy
-  - python-kaleido
   - pip:
-    - git+https://github.com/skjerns/mat7.3.git
-    - neuroconv[openephys]
-
+      - git+https://github.com/skjerns/mat7.3.git
+      - lindi
+      - ndx_pose
+      - neuroconv[openephys, dandi]
+      - pynwb
