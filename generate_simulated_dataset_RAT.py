@@ -709,7 +709,7 @@ else:  # rat
     ephys_folder = Path(__file__).parent / "ephys" / "2022-11-16_16-19-28"
     paths_to_proc_dat = [
         ephys_folder
-        / "sorted_20250429_195641681545_2022-11-16_16-19-28_myo_Th_10,4_spkTh_6,9,12,15_SCORE_0.287"
+        / "sorted_20250429_195641681545_2022-11-16_16-19-28_Th_10,4_spkTh_6,9,12,15_SCORE_0.287"
         # Path(
         # "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/godzilla/session20221116/2022-11-16_16-19-28_myo/sorted_20250428_230658753364_2022-11-16_16-19-28_myo_Th_9,8_spkTh_6,9_SCORE_0.302" # new godzilla 8CH, 10MU
         # "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/godzilla/session20221116/2022-11-16_16-19-28_myo/sorted_20250428_122217500160_2022-11-16_16-19-28_myo_Th_5,2_spkTh_3,6,9_SCORE_0.356"  # new godzilla 14CH, 12MU
@@ -825,7 +825,7 @@ elif sorter == "ks4":
             if f.is_dir() and any(s in f.name for s in sorts_from_each_path_to_load)
         ]
         assert len(matches) == 1, (
-            f"There needs to be one sort folder match in each _myo folder, but the number was: "
+            f"There needs to be one sort folder match in each session folder, but the number was: "
             f"{len(matches)}, for path {str(iPath)}"
         )
         list_of_paths_to_sorted_folders.append(matches[0])
