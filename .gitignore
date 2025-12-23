@@ -1,7 +1,6 @@
 *.txt
 *.pdf
 *.html
-*.npy
 *.png
 *.svg
 *.pkl
