@@ -1,0 +1,942 @@
+[90m21:29:44.270 [D] context:80           Create cache directory `/snel/share/data/rodent-ephys/open-ephys/monkey/sean-pipeline/session20231202/2022-12-02_10-14-45_myo/sorted_20250624_202249742544_2022-12-02_10-14-45_myo_Th_10,4_spkTh_6,9_SCORE_0.327/.phy`.[0m
+[90m21:29:44.270 [D] context:80           Create cache directory `/snel/share/data/rodent-ephys/open-ephys/monkey/sean-pipeline/session20231202/2022-12-02_10-14-45_myo/sorted_20250624_202249742544_2022-12-02_10-14-45_myo_Th_10,4_spkTh_6,9_SCORE_0.327/.phy`.[0m
+[90m21:29:44.317 [D] context:100          Initialize joblib cache dir at `/snel/share/data/rodent-ephys/open-ephys/monkey/sean-pipeline/session20231202/2022-12-02_10-14-45_myo/sorted_20250624_202249742544_2022-12-02_10-14-45_myo_Th_10,4_spkTh_6,9_SCORE_0.327/.phy`.[0m
+[90m21:29:44.317 [D] context:100          Initialize joblib cache dir at `/snel/share/data/rodent-ephys/open-ephys/monkey/sean-pipeline/session20231202/2022-12-02_10-14-45_myo/sorted_20250624_202249742544_2022-12-02_10-14-45_myo_Th_10,4_spkTh_6,9_SCORE_0.327/.phy`.[0m
+[90m21:29:44.317 [D] context:101          Reducing the size of the cache if needed.[0m
+[90m21:29:44.317 [D] context:101          Reducing the size of the cache if needed.[0m
+[90m21:29:44.319 [D] base:102             Add filter `high_pass`.[0m
+[90m21:29:44.319 [D] base:102             Add filter `high_pass`.[0m
+[90m21:29:44.319 [D] config:31            Load config file `/home/smoconn/.phy/phy_config.py`.[0m
+[90m21:29:44.319 [D] config:31            Load config file `/home/smoconn/.phy/phy_config.py`.[0m
+[90m21:29:44.320 [D] plugin:74            Scanning `/home/smoconn/.phy/plugins`.[0m
+[90m21:29:44.320 [D] plugin:74            Scanning `/home/smoconn/.phy/plugins`.[0m
+[90m21:29:44.320 [D] plugin:78            Found plugin module `n_spikes_views.py`.[0m
+[90m21:29:44.320 [D] plugin:78            Found plugin module `n_spikes_views.py`.[0m
+[90m21:29:44.321 [D] plugin:36            Register plugin `n_spikes_views.ExampleNspikesViewsPlugin`.[0m
+[90m21:29:44.321 [D] plugin:36            Register plugin `n_spikes_views.ExampleNspikesViewsPlugin`.[0m
+[90m21:29:44.321 [D] plugin:145           Loading 1 plugins.[0m
+[90m21:29:44.321 [D] plugin:145           Loading 1 plugins.[0m
+[90m21:29:44.321 [D] plugin:156           Attached plugin ExampleNspikesViewsPlugin.[0m
+[90m21:29:44.321 [D] plugin:156           Attached plugin ExampleNspikesViewsPlugin.[0m
+[90m21:29:44.327 [D] context:209          The file `/snel/share/data/rodent-ephys/open-ephys/monkey/sean-pipeline/session20231202/2022-12-02_10-14-45_myo/sorted_20250624_202249742544_2022-12-02_10-14-45_myo_Th_10,4_spkTh_6,9_SCORE_0.327/.phy/new_cluster_id.pkl` doesn't exist.[0m
+[90m21:29:44.327 [D] context:209          The file `/snel/share/data/rodent-ephys/open-ephys/monkey/sean-pipeline/session20231202/2022-12-02_10-14-45_myo/sorted_20250624_202249742544_2022-12-02_10-14-45_myo_Th_10,4_spkTh_6,9_SCORE_0.327/.phy/new_cluster_id.pkl` doesn't exist.[0m
+[90m21:29:44.327 [D] context:209          The file `/snel/share/data/rodent-ephys/open-ephys/monkey/sean-pipeline/session20231202/2022-12-02_10-14-45_myo/sorted_20250624_202249742544_2022-12-02_10-14-45_myo_Th_10,4_spkTh_6,9_SCORE_0.327/.phy/spikes_per_cluster.pkl` doesn't exist.[0m
+[90m21:29:44.327 [D] context:209          The file `/snel/share/data/rodent-ephys/open-ephys/monkey/sean-pipeline/session20231202/2022-12-02_10-14-45_myo/sorted_20250624_202249742544_2022-12-02_10-14-45_myo_Th_10,4_spkTh_6,9_SCORE_0.327/.phy/spikes_per_cluster.pkl` doesn't exist.[0m
+[90m21:29:44.333 [D] clustering:237       Recompute spikes_per_cluster manually: this might take a while.[0m
+[90m21:29:44.333 [D] clustering:237       Recompute spikes_per_cluster manually: this might take a while.[0m
+[90m21:29:44.355 [D] context:185          Save data to `/snel/share/data/rodent-ephys/open-ephys/monkey/sean-pipeline/session20231202/2022-12-02_10-14-45_myo/sorted_20250624_202249742544_2022-12-02_10-14-45_myo_Th_10,4_spkTh_6,9_SCORE_0.327/.phy/spikes_per_cluster.pkl`.[0m
+[90m21:29:44.355 [D] context:185          Save data to `/snel/share/data/rodent-ephys/open-ephys/monkey/sean-pipeline/session20231202/2022-12-02_10-14-45_myo/sorted_20250624_202249742544_2022-12-02_10-14-45_myo_Th_10,4_spkTh_6,9_SCORE_0.327/.phy/spikes_per_cluster.pkl`.[0m
+[90m21:29:44.378 [D] gui:463              Creating GUI.[0m
+[90m21:29:44.378 [D] gui:463              Creating GUI.[0m
+[90m21:29:44.391 [D] state:46             Load /home/smoconn/.phy/TemplateGUI/state.json for GUIState.[0m
+[90m21:29:44.391 [D] state:46             Load /home/smoconn/.phy/TemplateGUI/state.json for GUIState.[0m
+[90m21:29:44.752 [D] gui:718              Add view ClusterView to GUI.[0m
+[90m21:29:44.752 [D] gui:718              Add view ClusterView to GUI.[0m
+[90m21:29:44.757 [D] gui:718              Add view SimilarityView to GUI.[0m
+[90m21:29:44.757 [D] gui:718              Add view SimilarityView to GUI.[0m
+[90m21:29:44.797 [D] gui:718              Add view WaveformView to GUI.[0m
+[90m21:29:44.797 [D] gui:718              Add view WaveformView to GUI.[0m
+[90m21:29:44.803 [D] base:337             Set state for WaveformView.[0m
+[90m21:29:44.803 [D] base:337             Set state for WaveformView.[0m
+[90m21:29:44.823 [D] gui:718              Add view WaveformView to GUI.[0m
+[90m21:29:44.823 [D] gui:718              Add view WaveformView to GUI.[0m
+[90m21:29:44.824 [D] base:337             Set state for WaveformView (1).[0m
+[90m21:29:44.824 [D] base:337             Set state for WaveformView (1).[0m
+[90m21:29:44.843 [D] gui:718              Add view WaveformView to GUI.[0m
+[90m21:29:44.843 [D] gui:718              Add view WaveformView to GUI.[0m
+[90m21:29:44.844 [D] base:337             Set state for WaveformView (2).[0m
+[90m21:29:44.844 [D] base:337             Set state for WaveformView (2).[0m
+[90m21:29:44.863 [D] gui:718              Add view WaveformView to GUI.[0m
+[90m21:29:44.863 [D] gui:718              Add view WaveformView to GUI.[0m
+[90m21:29:44.864 [D] base:337             Set state for WaveformView (3).[0m
+[90m21:29:44.864 [D] base:337             Set state for WaveformView (3).[0m
+[90m21:29:44.884 [D] gui:718              Add view WaveformView to GUI.[0m
+[90m21:29:44.884 [D] gui:718              Add view WaveformView to GUI.[0m
+[90m21:29:44.885 [D] base:337             Set state for WaveformView (4).[0m
+[90m21:29:44.885 [D] base:337             Set state for WaveformView (4).[0m
+[90m21:29:44.904 [D] gui:718              Add view WaveformView to GUI.[0m
+[90m21:29:44.904 [D] gui:718              Add view WaveformView to GUI.[0m
+[90m21:29:44.905 [D] base:337             Set state for WaveformView (5).[0m
+[90m21:29:44.905 [D] base:337             Set state for WaveformView (5).[0m
+[90m21:29:44.923 [D] gui:718              Add view WaveformView to GUI.[0m
+[90m21:29:44.923 [D] gui:718              Add view WaveformView to GUI.[0m
+[90m21:29:44.925 [D] base:337             Set state for WaveformView (6).[0m
+[90m21:29:44.925 [D] base:337             Set state for WaveformView (6).[0m
+[90m21:29:44.936 [D] gui:718              Add view CorrelogramView to GUI.[0m
+[90m21:29:44.936 [D] gui:718              Add view CorrelogramView to GUI.[0m
+[90m21:29:44.937 [D] base:337             Set state for CorrelogramView.[0m
+[90m21:29:44.937 [D] base:337             Set state for CorrelogramView.[0m
+[90m21:29:44.960 [D] gui:718              Add view ISIView to GUI.[0m
+[90m21:29:44.960 [D] gui:718              Add view ISIView to GUI.[0m
+[90m21:29:44.961 [D] base:337             Set state for ISIView.[0m
+[90m21:29:44.961 [D] base:337             Set state for ISIView.[0m
+[90m21:29:44.975 [D] gui:718              Add view FeatureView to GUI.[0m
+[90m21:29:44.975 [D] gui:718              Add view FeatureView to GUI.[0m
+[90m21:29:44.976 [D] base:337             Set state for FeatureView.[0m
+[90m21:29:44.976 [D] base:337             Set state for FeatureView.[0m
+[90m21:29:44.999 [D] gui:718              Add view AmplitudeView to GUI.[0m
+[90m21:29:44.999 [D] gui:718              Add view AmplitudeView to GUI.[0m
+[90m21:29:45.000 [D] base:337             Set state for AmplitudeView.[0m
+[90m21:29:45.000 [D] base:337             Set state for AmplitudeView.[0m
+[90m21:29:45.023 [D] gui:718              Add view AmplitudeView to GUI.[0m
+[90m21:29:45.023 [D] gui:718              Add view AmplitudeView to GUI.[0m
+[90m21:29:45.024 [D] base:337             Set state for AmplitudeView (1).[0m
+[90m21:29:45.024 [D] base:337             Set state for AmplitudeView (1).[0m
+[90m21:29:45.047 [D] gui:718              Add view AmplitudeView to GUI.[0m
+[90m21:29:45.047 [D] gui:718              Add view AmplitudeView to GUI.[0m
+[90m21:29:45.048 [D] base:337             Set state for AmplitudeView (2).[0m
+[90m21:29:45.048 [D] base:337             Set state for AmplitudeView (2).[0m
+[90m21:29:45.071 [D] gui:718              Add view AmplitudeView to GUI.[0m
+[90m21:29:45.071 [D] gui:718              Add view AmplitudeView to GUI.[0m
+[90m21:29:45.072 [D] base:337             Set state for AmplitudeView (3).[0m
+[90m21:29:45.072 [D] base:337             Set state for AmplitudeView (3).[0m
+[90m21:29:45.095 [D] gui:718              Add view FiringRateView to GUI.[0m
+[90m21:29:45.095 [D] gui:718              Add view FiringRateView to GUI.[0m
+[90m21:29:45.096 [D] base:337             Set state for FiringRateView.[0m
+[90m21:29:45.096 [D] base:337             Set state for FiringRateView.[0m
+[90m21:29:45.149 [D] gui:718              Add view TraceView to GUI.[0m
+[90m21:29:45.149 [D] gui:718              Add view TraceView to GUI.[0m
+[90m21:29:45.150 [D] base:337             Set state for TraceView.[0m
+[90m21:29:45.150 [D] base:337             Set state for TraceView.[0m
+[90m21:29:45.151 [D] base:494             Set color scheme to random.[0m
+[90m21:29:45.151 [D] base:494             Set color scheme to random.[0m
+[90m21:29:45.158 [D] base:1626            Adding default color schemes to TraceView.[0m
+[90m21:29:45.158 [D] base:1626            Adding default color schemes to TraceView.[0m
+[90m21:29:45.196 [D] gui:718              Add view TemplateView to GUI.[0m
+[90m21:29:45.196 [D] gui:718              Add view TemplateView to GUI.[0m
+[90m21:29:45.198 [D] base:337             Set state for TemplateView.[0m
+[90m21:29:45.198 [D] base:337             Set state for TemplateView.[0m
+[90m21:29:45.199 [D] base:494             Set color scheme to random.[0m
+[90m21:29:45.199 [D] base:494             Set color scheme to random.[0m
+[90m21:29:45.199 [D] base:1626            Adding default color schemes to TemplateView.[0m
+[90m21:29:45.199 [D] base:1626            Adding default color schemes to TemplateView.[0m
+[90m21:29:45.236 [D] gui:519              Load the geometry state.[0m
+[90m21:29:45.236 [D] gui:519              Load the geometry state.[0m
+[90m21:29:52.099 [D] supervisor:817       Clusters selected: [5] (10)[0m
+[90m21:29:52.099 [D] supervisor:817       Clusters selected: [5] (10)[0m
+[90m21:30:05.851 [D] supervisor:817       Clusters selected: [5, 9] (12)[0m
+[90m21:30:05.851 [D] supervisor:817       Clusters selected: [5, 9] (12)[0m
+[90m21:30:13.351 [D] supervisor:817       Clusters selected: [5] (10)[0m
+[90m21:30:13.351 [D] supervisor:817       Clusters selected: [5] (10)[0m
+[90m21:30:15.108 [D] supervisor:817       Clusters selected: [5, 31] (19)[0m
+[90m21:30:15.108 [D] supervisor:817       Clusters selected: [5, 31] (19)[0m
+[90m21:30:23.517 [D] supervisor:817       Clusters selected: [5, 31, 19] (18)[0m
+[90m21:30:23.517 [D] supervisor:817       Clusters selected: [5, 31, 19] (18)[0m
+[90m21:30:29.174 [D] supervisor:817       Clusters selected: [5, 31] (19)[0m
+[90m21:30:29.174 [D] supervisor:817       Clusters selected: [5, 31] (19)[0m
+[90m21:30:31.016 [D] supervisor:817       Clusters selected: [5, 31, 18] (51)[0m
+[90m21:30:31.016 [D] supervisor:817       Clusters selected: [5, 31, 18] (51)[0m
+[90m21:30:35.615 [D] supervisor:817       Clusters selected: [5, 31] (19)[0m
+[90m21:30:35.615 [D] supervisor:817       Clusters selected: [5, 31] (19)[0m
+[90m21:30:37.609 [D] supervisor:817       Clusters selected: [5, 31, 23] (20)[0m
+[90m21:30:37.609 [D] supervisor:817       Clusters selected: [5, 31, 23] (20)[0m
+[90m21:30:42.172 [D] supervisor:817       Clusters selected: [5, 31] (19)[0m
+[90m21:30:42.172 [D] supervisor:817       Clusters selected: [5, 31] (19)[0m
+[90m21:30:44.545 [D] supervisor:817       Clusters selected: [5, 31, 20] (4)[0m
+[90m21:30:44.545 [D] supervisor:817       Clusters selected: [5, 31, 20] (4)[0m
+[90m21:30:50.286 [D] supervisor:817       Clusters selected: [5, 31] (19)[0m
+[90m21:30:50.286 [D] supervisor:817       Clusters selected: [5, 31] (19)[0m
+[90m21:30:52.027 [D] supervisor:817       Clusters selected: [5, 31, 77] (78)[0m
+[90m21:30:52.027 [D] supervisor:817       Clusters selected: [5, 31, 77] (78)[0m
+[90m21:30:59.525 [D] supervisor:817       Clusters selected: [5, 31] (19)[0m
+[90m21:30:59.525 [D] supervisor:817       Clusters selected: [5, 31] (19)[0m
+[90m21:31:01.583 [D] supervisor:817       Clusters selected: [5, 31, 78] (32)[0m
+[90m21:31:01.583 [D] supervisor:817       Clusters selected: [5, 31, 78] (32)[0m
+[90m21:31:13.742 [D] supervisor:817       Clusters selected: [5, 31] (19)[0m
+[90m21:31:13.742 [D] supervisor:817       Clusters selected: [5, 31] (19)[0m
+[90m21:31:18.242 [D] supervisor:817       Clusters selected: [5, 31, 7] (3)[0m
+[90m21:31:18.242 [D] supervisor:817       Clusters selected: [5, 31, 7] (3)[0m
+[90m21:32:08.278 [D] supervisor:817       Clusters selected: [5, 31, 7, 3] (61)[0m
+[90m21:32:08.278 [D] supervisor:817       Clusters selected: [5, 31, 7, 3] (61)[0m
+[90m21:32:14.559 [D] supervisor:817       Clusters selected: [5, 31, 7] (3)[0m
+[90m21:32:14.559 [D] supervisor:817       Clusters selected: [5, 31, 7] (3)[0m
+[90m21:32:19.823 [D] supervisor:817       Clusters selected: [5, 31, 7, 54] (65)[0m
+[90m21:32:19.823 [D] supervisor:817       Clusters selected: [5, 31, 7, 54] (65)[0m
+[90m21:32:33.647 [D] supervisor:817       Clusters selected: [5, 31, 7, 54, 65] (71)[0m
+[90m21:32:33.647 [D] supervisor:817       Clusters selected: [5, 31, 7, 54, 65] (71)[0m
+[90m21:32:38.144 [D] supervisor:817       Clusters selected: [5, 31, 7, 54] (65)[0m
+[90m21:32:38.144 [D] supervisor:817       Clusters selected: [5, 31, 7, 54] (65)[0m
+[90m21:32:40.239 [D] supervisor:817       Clusters selected: [5, 31, 7, 54, 71] (59)[0m
+[90m21:32:40.239 [D] supervisor:817       Clusters selected: [5, 31, 7, 54, 71] (59)[0m
+[90m21:32:44.847 [D] supervisor:817       Clusters selected: [5, 31, 7, 54] (65)[0m
+[90m21:32:44.847 [D] supervisor:817       Clusters selected: [5, 31, 7, 54] (65)[0m
+[90m21:32:50.726 [D] supervisor:817       Clusters selected: [5, 31, 7, 54, 28] (58)[0m
+[90m21:32:50.726 [D] supervisor:817       Clusters selected: [5, 31, 7, 54, 28] (58)[0m
+[90m21:33:05.068 [D] supervisor:817       Clusters selected: [5, 31, 7, 54, 28, 58] (56)[0m
+[90m21:33:05.068 [D] supervisor:817       Clusters selected: [5, 31, 7, 54, 28, 58] (56)[0m
+[90m21:33:10.681 [D] supervisor:817       Clusters selected: [5, 31, 7, 54, 28] (58)[0m
+[90m21:33:10.681 [D] supervisor:817       Clusters selected: [5, 31, 7, 54, 28] (58)[0m
+[90m21:33:13.837 [D] supervisor:817       Clusters selected: [5, 31, 7, 54, 28, 35] (29)[0m
+[90m21:33:13.837 [D] supervisor:817       Clusters selected: [5, 31, 7, 54, 28, 35] (29)[0m
+[90m21:33:35.582 [D] supervisor:817       Clusters selected: [5, 31, 7, 54, 28] (58)[0m
+[90m21:33:35.582 [D] supervisor:817       Clusters selected: [5, 31, 7, 54, 28] (58)[0m
+[90m21:33:56.793 [D] actions:67           Prompting arguments for go_to[0m
+[90m21:33:56.793 [D] actions:67           Prompting arguments for go_to[0m
+[90m21:34:58.234 [D] supervisor:817       Clusters selected: [5, 31, 7, 54, 28, 58] (56)[0m
+[90m21:34:58.234 [D] supervisor:817       Clusters selected: [5, 31, 7, 54, 28, 58] (56)[0m
+[90m21:35:05.376 [D] supervisor:817       Clusters selected: [5, 31, 7, 54, 28] (58)[0m
+[90m21:35:05.376 [D] supervisor:817       Clusters selected: [5, 31, 7, 54, 28] (58)[0m
+[90m21:35:09.961 [D] supervisor:817       Clusters selected: [5, 31, 7, 54, 28, 35] (29)[0m
+[90m21:35:09.961 [D] supervisor:817       Clusters selected: [5, 31, 7, 54, 28, 35] (29)[0m
+[90m21:35:24.374 [D] supervisor:817       Clusters selected: [5, 31, 7, 54, 28] (58)[0m
+[90m21:35:24.374 [D] supervisor:817       Clusters selected: [5, 31, 7, 54, 28] (58)[0m
+[90m21:35:33.148 [D] supervisor:817       Clusters selected: [5, 31, 7, 54, 28, 50] (34)[0m
+[90m21:35:33.148 [D] supervisor:817       Clusters selected: [5, 31, 7, 54, 28, 50] (34)[0m
+[90m21:35:43.440 [D] supervisor:817       Clusters selected: [5, 31, 7, 54, 28] (58)[0m
+[90m21:35:43.440 [D] supervisor:817       Clusters selected: [5, 31, 7, 54, 28] (58)[0m
+[90m21:35:48.379 [D] supervisor:817       Clusters selected: [5, 31, 7, 54, 28, 74] (52)[0m
+[90m21:35:48.379 [D] supervisor:817       Clusters selected: [5, 31, 7, 54, 28, 74] (52)[0m
+[90m21:35:57.847 [D] supervisor:817       Clusters selected: [5, 31, 7, 54, 28] (58)[0m
+[90m21:35:57.847 [D] supervisor:817       Clusters selected: [5, 31, 7, 54, 28] (58)[0m
+[90m21:36:02.462 [D] supervisor:817       Clusters selected: [5, 31, 7, 54, 28, 2] (75)[0m
+[90m21:36:02.462 [D] supervisor:817       Clusters selected: [5, 31, 7, 54, 28, 2] (75)[0m
+[90m21:36:17.606 [D] supervisor:817       Clusters selected: [5, 31, 7, 54, 28] (58)[0m
+[90m21:36:17.606 [D] supervisor:817       Clusters selected: [5, 31, 7, 54, 28] (58)[0m
+[90m21:36:26.446 [D] supervisor:817       Clusters selected: [5, 31, 7, 54, 28, 8] (16)[0m
+[90m21:36:26.446 [D] supervisor:817       Clusters selected: [5, 31, 7, 54, 28, 8] (16)[0m
+[90m21:36:35.768 [D] supervisor:817       Clusters selected: [5, 31, 7, 54, 28, 8, 14] (72)[0m
+[90m21:36:35.768 [D] supervisor:817       Clusters selected: [5, 31, 7, 54, 28, 8, 14] (72)[0m
+[90m21:36:50.401 [D] supervisor:817       Clusters selected: [5, 31, 7, 54, 28, 14] (72)[0m
+[90m21:36:50.401 [D] supervisor:817       Clusters selected: [5, 31, 7, 54, 28, 14] (72)[0m
+[90m21:36:58.268 [D] supervisor:817       Clusters selected: [5, 31, 7, 54, 28, 14, 72] (13)[0m
+[90m21:36:58.268 [D] supervisor:817       Clusters selected: [5, 31, 7, 54, 28, 14, 72] (13)[0m
+[90m21:37:21.009 [D] actions:67           Prompting arguments for go_to[0m
+[90m21:37:21.009 [D] actions:67           Prompting arguments for go_to[0m
+[90m21:37:40.654 [D] supervisor:817       Clusters selected: [5, 31, 7, 54, 28, 14] (72)[0m
+[90m21:37:40.654 [D] supervisor:817       Clusters selected: [5, 31, 7, 54, 28, 14] (72)[0m
+[90m21:37:45.592 [D] supervisor:817       Clusters selected: [5, 31, 7, 54, 28, 14, 15] (None)[0m
+[90m21:37:45.592 [D] supervisor:817       Clusters selected: [5, 31, 7, 54, 28, 14, 15] (None)[0m
+[90m21:38:01.417 [D] supervisor:817       Clusters selected: [5, 31, 7, 54, 28, 14] (72)[0m
+[90m21:38:01.417 [D] supervisor:817       Clusters selected: [5, 31, 7, 54, 28, 14] (72)[0m
+[90m21:38:06.206 [D] supervisor:817       Clusters selected: [5, 31, 7, 54, 28] (58)[0m
+[90m21:38:06.206 [D] supervisor:817       Clusters selected: [5, 31, 7, 54, 28] (58)[0m
+[90m21:57:37.160 [D] actions:67           Prompting arguments for go_to[0m
+[90m21:57:37.160 [D] actions:67           Prompting arguments for go_to[0m
+[90m23:04:46.928 [D] state:171            Update GUI state for ClusterView[0m
+[90m23:04:46.928 [D] state:171            Update GUI state for ClusterView[0m
+[90m23:04:46.931 [D] state:171            Update GUI state for WaveformView[0m
+[90m23:04:46.931 [D] state:171            Update GUI state for WaveformView[0m
+[90m23:04:46.932 [D] state:171            Update GUI state for WaveformView (1)[0m
+[90m23:04:46.932 [D] state:171            Update GUI state for WaveformView (1)[0m
+[90m23:04:46.932 [D] state:171            Update GUI state for WaveformView (2)[0m
+[90m23:04:46.932 [D] state:171            Update GUI state for WaveformView (2)[0m
+[90m23:04:46.932 [D] state:171            Update GUI state for WaveformView (3)[0m
+[90m23:04:46.932 [D] state:171            Update GUI state for WaveformView (3)[0m
+[90m23:04:46.932 [D] state:171            Update GUI state for WaveformView (4)[0m
+[90m23:04:46.932 [D] state:171            Update GUI state for WaveformView (4)[0m
+[90m23:04:46.932 [D] state:171            Update GUI state for WaveformView (5)[0m
+[90m23:04:46.932 [D] state:171            Update GUI state for WaveformView (5)[0m
+[90m23:04:46.932 [D] state:171            Update GUI state for WaveformView (6)[0m
+[90m23:04:46.932 [D] state:171            Update GUI state for WaveformView (6)[0m
+[90m23:04:46.932 [D] state:171            Update GUI state for CorrelogramView[0m
+[90m23:04:46.932 [D] state:171            Update GUI state for CorrelogramView[0m
+[90m23:04:46.932 [D] state:171            Update GUI state for ISIView[0m
+[90m23:04:46.932 [D] state:171            Update GUI state for ISIView[0m
+[90m23:04:46.932 [D] state:171            Update GUI state for FeatureView[0m
+[90m23:04:46.932 [D] state:171            Update GUI state for FeatureView[0m
+[90m23:04:46.932 [D] state:171            Update GUI state for AmplitudeView[0m
+[90m23:04:46.932 [D] state:171            Update GUI state for AmplitudeView[0m
+[90m23:04:46.933 [D] state:171            Update GUI state for AmplitudeView (1)[0m
+[90m23:04:46.933 [D] state:171            Update GUI state for AmplitudeView (1)[0m
+[90m23:04:46.933 [D] state:171            Update GUI state for AmplitudeView (2)[0m
+[90m23:04:46.933 [D] state:171            Update GUI state for AmplitudeView (2)[0m
+[90m23:04:46.933 [D] state:171            Update GUI state for AmplitudeView (3)[0m
+[90m23:04:46.933 [D] state:171            Update GUI state for AmplitudeView (3)[0m
+[90m23:04:46.933 [D] state:171            Update GUI state for FiringRateView[0m
+[90m23:04:46.933 [D] state:171            Update GUI state for FiringRateView[0m
+[90m23:04:46.933 [D] state:171            Update GUI state for TraceView[0m
+[90m23:04:46.933 [D] state:171            Update GUI state for TraceView[0m
+[90m23:04:46.933 [D] state:171            Update GUI state for TemplateView[0m
+[90m23:04:46.933 [D] state:171            Update GUI state for TemplateView[0m
+[90m23:04:46.934 [D] context:138          Save memcache for `phy.apps.base._get_mean_waveforms`.[0m
+[90m23:04:46.934 [D] context:138          Save memcache for `phy.apps.base._get_mean_waveforms`.[0m
+[90m23:04:46.996 [D] context:138          Save memcache for `phy.apps.base._get_template_waveforms`.[0m
+[90m23:04:46.996 [D] context:138          Save memcache for `phy.apps.base._get_template_waveforms`.[0m
+[90m23:04:47.004 [D] context:138          Save memcache for `phy.apps.base.get_mean_spike_template_amplitudes`.[0m
+[90m23:04:47.004 [D] context:138          Save memcache for `phy.apps.base.get_mean_spike_template_amplitudes`.[0m
+[90m23:04:47.005 [D] context:138          Save memcache for `phy.apps.base.get_template_counts`.[0m
+[90m23:04:47.005 [D] context:138          Save memcache for `phy.apps.base.get_template_counts`.[0m
+[90m23:04:47.006 [D] context:138          Save memcache for `phy.apps.base.get_template_for_cluster`.[0m
+[90m23:04:47.006 [D] context:138          Save memcache for `phy.apps.base.get_template_for_cluster`.[0m
+[90m23:04:47.007 [D] context:138          Save memcache for `phy.apps.template.gui.get_template_amplitude`.[0m
+[90m23:04:47.007 [D] context:138          Save memcache for `phy.apps.template.gui.get_template_amplitude`.[0m
+[90m23:04:47.008 [D] context:138          Save memcache for `phy.apps.base.get_cluster_amplitude`.[0m
+[90m23:04:47.008 [D] context:138          Save memcache for `phy.apps.base.get_cluster_amplitude`.[0m
+[90m23:04:47.009 [D] context:138          Save memcache for `phy.apps.base.get_mean_firing_rate`.[0m
+[90m23:04:47.009 [D] context:138          Save memcache for `phy.apps.base.get_mean_firing_rate`.[0m
+[90m23:04:47.009 [D] context:138          Save memcache for `phy.apps.base.get_best_channel`.[0m
+[90m23:04:47.009 [D] context:138          Save memcache for `phy.apps.base.get_best_channel`.[0m
+[90m23:04:47.010 [D] context:138          Save memcache for `phy.apps.template.gui.get_best_channels`.[0m
+[90m23:04:47.010 [D] context:138          Save memcache for `phy.apps.template.gui.get_best_channels`.[0m
+[90m23:04:47.011 [D] context:138          Save memcache for `phy.apps.base.get_channel_shank`.[0m
+[90m23:04:47.011 [D] context:138          Save memcache for `phy.apps.base.get_channel_shank`.[0m
+[90m23:04:47.012 [D] context:138          Save memcache for `phy.apps.base.get_probe_depth`.[0m
+[90m23:04:47.012 [D] context:138          Save memcache for `phy.apps.base.get_probe_depth`.[0m
+[90m23:04:47.012 [D] context:138          Save memcache for `phy.apps.base.peak_channel_similarity`.[0m
+[90m23:04:47.012 [D] context:138          Save memcache for `phy.apps.base.peak_channel_similarity`.[0m
+[90m23:04:47.013 [D] gui:600              Save the geometry state.[0m
+[90m23:04:47.013 [D] gui:600              Save the geometry state.[0m
+[90m23:04:47.013 [D] state:218            Save global GUI state to `/home/smoconn/.phy/TemplateGUI/state.json`.[0m
+[90m23:04:47.013 [D] state:218            Save global GUI state to `/home/smoconn/.phy/TemplateGUI/state.json`.[0m
+[90m23:04:47.016 [D] state:232            Save local GUI state to `/snel/share/data/rodent-ephys/open-ephys/monkey/sean-pipeline/session20231202/2022-12-02_10-14-45_myo/sorted_20250624_202249742544_2022-12-02_10-14-45_myo_Th_10,4_spkTh_6,9_SCORE_0.327/.phy/state.json`.[0m
+[90m23:04:47.016 [D] state:232            Save local GUI state to `/snel/share/data/rodent-ephys/open-ephys/monkey/sean-pipeline/session20231202/2022-12-02_10-14-45_myo/sorted_20250624_202249742544_2022-12-02_10-14-45_myo_Th_10,4_spkTh_6,9_SCORE_0.327/.phy/state.json`.[0m
+[90m23:04:47.029 [D] __init__:87          Stop capturing exceptions.[0m
+[90m23:04:47.029 [D] __init__:87          Stop capturing exceptions.[0m
+[90m20:38:34.639 [D] context:100          Initialize joblib cache dir at `/snel/share/data/rodent-ephys/open-ephys/monkey/sean-pipeline/session20231202/2022-12-02_10-14-45_myo/sorted_20250624_202249742544_2022-12-02_10-14-45_myo_Th_10,4_spkTh_6,9_SCORE_0.327/.phy`.[0m
+[90m20:38:34.639 [D] context:100          Initialize joblib cache dir at `/snel/share/data/rodent-ephys/open-ephys/monkey/sean-pipeline/session20231202/2022-12-02_10-14-45_myo/sorted_20250624_202249742544_2022-12-02_10-14-45_myo_Th_10,4_spkTh_6,9_SCORE_0.327/.phy`.[0m
+[90m20:38:34.640 [D] context:101          Reducing the size of the cache if needed.[0m
+[90m20:38:34.640 [D] context:101          Reducing the size of the cache if needed.[0m
+[90m20:38:35.856 [D] base:102             Add filter `high_pass`.[0m
+[90m20:38:35.856 [D] base:102             Add filter `high_pass`.[0m
+[90m20:38:35.859 [D] config:31            Load config file `/home/smoconn/.phy/phy_config.py`.[0m
+[90m20:38:35.859 [D] config:31            Load config file `/home/smoconn/.phy/phy_config.py`.[0m
+[90m20:38:35.861 [D] plugin:74            Scanning `/home/smoconn/.phy/plugins`.[0m
+[90m20:38:35.861 [D] plugin:74            Scanning `/home/smoconn/.phy/plugins`.[0m
+[90m20:38:35.861 [D] plugin:78            Found plugin module `n_spikes_views.py`.[0m
+[90m20:38:35.861 [D] plugin:78            Found plugin module `n_spikes_views.py`.[0m
+[90m20:38:35.864 [D] plugin:36            Register plugin `n_spikes_views.ExampleNspikesViewsPlugin`.[0m
+[90m20:38:35.864 [D] plugin:36            Register plugin `n_spikes_views.ExampleNspikesViewsPlugin`.[0m
+[90m20:38:35.865 [D] plugin:145           Loading 1 plugins.[0m
+[90m20:38:35.865 [D] plugin:145           Loading 1 plugins.[0m
+[90m20:38:35.865 [D] plugin:156           Attached plugin ExampleNspikesViewsPlugin.[0m
+[90m20:38:35.865 [D] plugin:156           Attached plugin ExampleNspikesViewsPlugin.[0m
+[90m20:38:35.877 [D] context:126          Load memcache for `phy.apps.base._get_mean_waveforms`.[0m
+[90m20:38:35.877 [D] context:126          Load memcache for `phy.apps.base._get_mean_waveforms`.[0m
+[90m20:38:35.882 [D] context:126          Load memcache for `phy.apps.base._get_mean_waveforms`.[0m
+[90m20:38:35.882 [D] context:126          Load memcache for `phy.apps.base._get_mean_waveforms`.[0m
+[90m20:38:35.883 [D] context:126          Load memcache for `phy.apps.base._get_template_waveforms`.[0m
+[90m20:38:35.883 [D] context:126          Load memcache for `phy.apps.base._get_template_waveforms`.[0m
+[90m20:38:35.928 [D] context:126          Load memcache for `phy.apps.base.get_mean_spike_template_amplitudes`.[0m
+[90m20:38:35.928 [D] context:126          Load memcache for `phy.apps.base.get_mean_spike_template_amplitudes`.[0m
+[90m20:38:35.929 [D] context:126          Load memcache for `phy.apps.base.get_template_counts`.[0m
+[90m20:38:35.929 [D] context:126          Load memcache for `phy.apps.base.get_template_counts`.[0m
+[90m20:38:35.931 [D] context:126          Load memcache for `phy.apps.base.get_template_for_cluster`.[0m
+[90m20:38:35.931 [D] context:126          Load memcache for `phy.apps.base.get_template_for_cluster`.[0m
+[90m20:38:35.933 [D] context:126          Load memcache for `phy.apps.template.gui.get_template_amplitude`.[0m
+[90m20:38:35.933 [D] context:126          Load memcache for `phy.apps.template.gui.get_template_amplitude`.[0m
+[90m20:38:35.934 [D] context:126          Load memcache for `phy.apps.base.get_cluster_amplitude`.[0m
+[90m20:38:35.934 [D] context:126          Load memcache for `phy.apps.base.get_cluster_amplitude`.[0m
+[90m20:38:35.935 [D] context:126          Load memcache for `phy.apps.base.get_mean_firing_rate`.[0m
+[90m20:38:35.935 [D] context:126          Load memcache for `phy.apps.base.get_mean_firing_rate`.[0m
+[90m20:38:35.937 [D] context:126          Load memcache for `phy.apps.base.get_best_channel`.[0m
+[90m20:38:35.937 [D] context:126          Load memcache for `phy.apps.base.get_best_channel`.[0m
+[90m20:38:35.938 [D] context:126          Load memcache for `phy.apps.template.gui.get_best_channels`.[0m
+[90m20:38:35.938 [D] context:126          Load memcache for `phy.apps.template.gui.get_best_channels`.[0m
+[90m20:38:35.940 [D] context:126          Load memcache for `phy.apps.base.get_channel_shank`.[0m
+[90m20:38:35.940 [D] context:126          Load memcache for `phy.apps.base.get_channel_shank`.[0m
+[90m20:38:35.941 [D] context:126          Load memcache for `phy.apps.base.get_probe_depth`.[0m
+[90m20:38:35.941 [D] context:126          Load memcache for `phy.apps.base.get_probe_depth`.[0m
+[90m20:38:35.942 [D] context:126          Load memcache for `phy.apps.base.peak_channel_similarity`.[0m
+[90m20:38:35.942 [D] context:126          Load memcache for `phy.apps.base.peak_channel_similarity`.[0m
+[90m20:38:35.944 [D] context:209          The file `/snel/share/data/rodent-ephys/open-ephys/monkey/sean-pipeline/session20231202/2022-12-02_10-14-45_myo/sorted_20250624_202249742544_2022-12-02_10-14-45_myo_Th_10,4_spkTh_6,9_SCORE_0.327/.phy/new_cluster_id.pkl` doesn't exist.[0m
+[90m20:38:35.944 [D] context:209          The file `/snel/share/data/rodent-ephys/open-ephys/monkey/sean-pipeline/session20231202/2022-12-02_10-14-45_myo/sorted_20250624_202249742544_2022-12-02_10-14-45_myo_Th_10,4_spkTh_6,9_SCORE_0.327/.phy/new_cluster_id.pkl` doesn't exist.[0m
+[90m20:38:35.989 [D] context:185          Save data to `/snel/share/data/rodent-ephys/open-ephys/monkey/sean-pipeline/session20231202/2022-12-02_10-14-45_myo/sorted_20250624_202249742544_2022-12-02_10-14-45_myo_Th_10,4_spkTh_6,9_SCORE_0.327/.phy/spikes_per_cluster.pkl`.[0m
+[90m20:38:35.989 [D] context:185          Save data to `/snel/share/data/rodent-ephys/open-ephys/monkey/sean-pipeline/session20231202/2022-12-02_10-14-45_myo/sorted_20250624_202249742544_2022-12-02_10-14-45_myo_Th_10,4_spkTh_6,9_SCORE_0.327/.phy/spikes_per_cluster.pkl`.[0m
+[90m20:38:36.013 [D] gui:463              Creating GUI.[0m
+[90m20:38:36.013 [D] gui:463              Creating GUI.[0m
+[90m20:38:36.042 [D] state:46             Load /home/smoconn/.phy/TemplateGUI/state.json for GUIState.[0m
+[90m20:38:36.042 [D] state:46             Load /home/smoconn/.phy/TemplateGUI/state.json for GUIState.[0m
+[90m20:38:36.044 [D] state:46             Load /snel/share/data/rodent-ephys/open-ephys/monkey/sean-pipeline/session20231202/2022-12-02_10-14-45_myo/sorted_20250624_202249742544_2022-12-02_10-14-45_myo_Th_10,4_spkTh_6,9_SCORE_0.327/.phy/state.json for GUIState.[0m
+[90m20:38:36.044 [D] state:46             Load /snel/share/data/rodent-ephys/open-ephys/monkey/sean-pipeline/session20231202/2022-12-02_10-14-45_myo/sorted_20250624_202249742544_2022-12-02_10-14-45_myo_Th_10,4_spkTh_6,9_SCORE_0.327/.phy/state.json for GUIState.[0m
+[90m20:38:36.418 [D] gui:718              Add view ClusterView to GUI.[0m
+[90m20:38:36.418 [D] gui:718              Add view ClusterView to GUI.[0m
+[90m20:38:36.425 [D] gui:718              Add view SimilarityView to GUI.[0m
+[90m20:38:36.425 [D] gui:718              Add view SimilarityView to GUI.[0m
+[90m20:38:36.486 [D] gui:718              Add view WaveformView to GUI.[0m
+[90m20:38:36.486 [D] gui:718              Add view WaveformView to GUI.[0m
+[90m20:38:36.497 [D] base:337             Set state for WaveformView.[0m
+[90m20:38:36.497 [D] base:337             Set state for WaveformView.[0m
+[90m20:38:36.528 [D] gui:718              Add view WaveformView to GUI.[0m
+[90m20:38:36.528 [D] gui:718              Add view WaveformView to GUI.[0m
+[90m20:38:36.530 [D] base:337             Set state for WaveformView (1).[0m
+[90m20:38:36.530 [D] base:337             Set state for WaveformView (1).[0m
+[90m20:38:36.561 [D] gui:718              Add view WaveformView to GUI.[0m
+[90m20:38:36.561 [D] gui:718              Add view WaveformView to GUI.[0m
+[90m20:38:36.563 [D] base:337             Set state for WaveformView (2).[0m
+[90m20:38:36.563 [D] base:337             Set state for WaveformView (2).[0m
+[90m20:38:36.595 [D] gui:718              Add view WaveformView to GUI.[0m
+[90m20:38:36.595 [D] gui:718              Add view WaveformView to GUI.[0m
+[90m20:38:36.597 [D] base:337             Set state for WaveformView (3).[0m
+[90m20:38:36.597 [D] base:337             Set state for WaveformView (3).[0m
+[90m20:38:36.618 [D] gui:718              Add view WaveformView to GUI.[0m
+[90m20:38:36.618 [D] gui:718              Add view WaveformView to GUI.[0m
+[90m20:38:36.620 [D] base:337             Set state for WaveformView (4).[0m
+[90m20:38:36.620 [D] base:337             Set state for WaveformView (4).[0m
+[90m20:38:36.647 [D] gui:718              Add view WaveformView to GUI.[0m
+[90m20:38:36.647 [D] gui:718              Add view WaveformView to GUI.[0m
+[90m20:38:36.649 [D] base:337             Set state for WaveformView (5).[0m
+[90m20:38:36.649 [D] base:337             Set state for WaveformView (5).[0m
+[90m20:38:36.681 [D] gui:718              Add view WaveformView to GUI.[0m
+[90m20:38:36.681 [D] gui:718              Add view WaveformView to GUI.[0m
+[90m20:38:36.684 [D] base:337             Set state for WaveformView (6).[0m
+[90m20:38:36.684 [D] base:337             Set state for WaveformView (6).[0m
+[90m20:38:36.702 [D] gui:718              Add view CorrelogramView to GUI.[0m
+[90m20:38:36.702 [D] gui:718              Add view CorrelogramView to GUI.[0m
+[90m20:38:36.705 [D] base:337             Set state for CorrelogramView.[0m
+[90m20:38:36.705 [D] base:337             Set state for CorrelogramView.[0m
+[90m20:38:36.745 [D] gui:718              Add view ISIView to GUI.[0m
+[90m20:38:36.745 [D] gui:718              Add view ISIView to GUI.[0m
+[90m20:38:36.747 [D] base:337             Set state for ISIView.[0m
+[90m20:38:36.747 [D] base:337             Set state for ISIView.[0m
+[90m20:38:36.770 [D] gui:718              Add view FeatureView to GUI.[0m
+[90m20:38:36.770 [D] gui:718              Add view FeatureView to GUI.[0m
+[90m20:38:36.772 [D] base:337             Set state for FeatureView.[0m
+[90m20:38:36.772 [D] base:337             Set state for FeatureView.[0m
+[90m20:38:36.812 [D] gui:718              Add view AmplitudeView to GUI.[0m
+[90m20:38:36.812 [D] gui:718              Add view AmplitudeView to GUI.[0m
+[90m20:38:36.815 [D] base:337             Set state for AmplitudeView.[0m
+[90m20:38:36.815 [D] base:337             Set state for AmplitudeView.[0m
+[90m20:38:36.858 [D] gui:718              Add view AmplitudeView to GUI.[0m
+[90m20:38:36.858 [D] gui:718              Add view AmplitudeView to GUI.[0m
+[90m20:38:36.860 [D] base:337             Set state for AmplitudeView (1).[0m
+[90m20:38:36.860 [D] base:337             Set state for AmplitudeView (1).[0m
+[90m20:38:36.895 [D] gui:718              Add view AmplitudeView to GUI.[0m
+[90m20:38:36.895 [D] gui:718              Add view AmplitudeView to GUI.[0m
+[90m20:38:36.898 [D] base:337             Set state for AmplitudeView (2).[0m
+[90m20:38:36.898 [D] base:337             Set state for AmplitudeView (2).[0m
+[90m20:38:36.930 [D] gui:718              Add view AmplitudeView to GUI.[0m
+[90m20:38:36.930 [D] gui:718              Add view AmplitudeView to GUI.[0m
+[90m20:38:36.932 [D] base:337             Set state for AmplitudeView (3).[0m
+[90m20:38:36.932 [D] base:337             Set state for AmplitudeView (3).[0m
+[90m20:38:36.966 [D] gui:718              Add view FiringRateView to GUI.[0m
+[90m20:38:36.966 [D] gui:718              Add view FiringRateView to GUI.[0m
+[90m20:38:36.969 [D] base:337             Set state for FiringRateView.[0m
+[90m20:38:36.969 [D] base:337             Set state for FiringRateView.[0m
+[90m20:38:37.048 [D] gui:718              Add view TraceView to GUI.[0m
+[90m20:38:37.048 [D] gui:718              Add view TraceView to GUI.[0m
+[90m20:38:37.050 [D] base:337             Set state for TraceView.[0m
+[90m20:38:37.050 [D] base:337             Set state for TraceView.[0m
+[90m20:38:37.051 [D] base:494             Set color scheme to random.[0m
+[90m20:38:37.051 [D] base:494             Set color scheme to random.[0m
+[90m20:38:37.324 [D] base:1626            Adding default color schemes to TraceView.[0m
+[90m20:38:37.324 [D] base:1626            Adding default color schemes to TraceView.[0m
+[90m20:38:37.393 [D] gui:718              Add view TemplateView to GUI.[0m
+[90m20:38:37.393 [D] gui:718              Add view TemplateView to GUI.[0m
+[90m20:38:37.395 [D] base:337             Set state for TemplateView.[0m
+[90m20:38:37.395 [D] base:337             Set state for TemplateView.[0m
+[90m20:38:37.395 [D] base:494             Set color scheme to random.[0m
+[90m20:38:37.395 [D] base:494             Set color scheme to random.[0m
+[90m20:38:37.396 [D] base:1626            Adding default color schemes to TemplateView.[0m
+[90m20:38:37.396 [D] base:1626            Adding default color schemes to TemplateView.[0m
+[90m20:38:37.434 [D] gui:519              Load the geometry state.[0m
+[90m20:38:37.434 [D] gui:519              Load the geometry state.[0m
+[90m20:38:39.683 [D] supervisor:817       Clusters selected: [5, 31, 7, 54, 28] (58)[0m
+[90m20:38:39.683 [D] supervisor:817       Clusters selected: [5, 31, 7, 54, 28] (58)[0m
+[31m20:38:45.029 [E] qt:180               Timeout in _block().[0m
+[31m20:38:45.029 [E] qt:180               Timeout in _block().[0m
+[31m20:38:48.263 [E] __init__:62          An error has occurred (RuntimeError): Timeout in _block().
+Traceback (most recent call last):
+  File "/home/smoconn/micromamba/envs/emusort/lib/python3.11/site-packages/phy/apps/base.py", line 1097, in _update_plot
+    view.set_cluster_ids(self.supervisor.shown_cluster_ids)
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/smoconn/micromamba/envs/emusort/lib/python3.11/site-packages/phy/cluster/supervisor.py", line 932, in shown_cluster_ids
+    b.wait()
+  File "/home/smoconn/micromamba/envs/emusort/lib/python3.11/site-packages/phy/gui/widgets.py", line 191, in wait
+    _block(self.have_all_finished)
+  File "/home/smoconn/micromamba/envs/emusort/lib/python3.11/site-packages/phy/gui/qt.py", line 184, in _block
+    raise RuntimeError("Timeout in _block().")
+RuntimeError: Timeout in _block().
+[0m
+[31m20:38:48.263 [E] __init__:62          An error has occurred (RuntimeError): Timeout in _block().
+Traceback (most recent call last):
+  File "/home/smoconn/micromamba/envs/emusort/lib/python3.11/site-packages/phy/apps/base.py", line 1097, in _update_plot
+    view.set_cluster_ids(self.supervisor.shown_cluster_ids)
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/smoconn/micromamba/envs/emusort/lib/python3.11/site-packages/phy/cluster/supervisor.py", line 932, in shown_cluster_ids
+    b.wait()
+  File "/home/smoconn/micromamba/envs/emusort/lib/python3.11/site-packages/phy/gui/widgets.py", line 191, in wait
+    _block(self.have_all_finished)
+  File "/home/smoconn/micromamba/envs/emusort/lib/python3.11/site-packages/phy/gui/qt.py", line 184, in _block
+    raise RuntimeError("Timeout in _block().")
+RuntimeError: Timeout in _block().
+[0m
+[90m16:35:53.087 [D] state:171            Update GUI state for ClusterView[0m
+[90m16:35:53.087 [D] state:171            Update GUI state for ClusterView[0m
+[90m16:35:53.091 [D] state:171            Update GUI state for WaveformView[0m
+[90m16:35:53.091 [D] state:171            Update GUI state for WaveformView[0m
+[90m16:35:53.091 [D] state:171            Update GUI state for WaveformView (1)[0m
+[90m16:35:53.091 [D] state:171            Update GUI state for WaveformView (1)[0m
+[90m16:35:53.091 [D] state:171            Update GUI state for WaveformView (2)[0m
+[90m16:35:53.091 [D] state:171            Update GUI state for WaveformView (2)[0m
+[90m16:35:53.091 [D] state:171            Update GUI state for WaveformView (3)[0m
+[90m16:35:53.091 [D] state:171            Update GUI state for WaveformView (3)[0m
+[90m16:35:53.091 [D] state:171            Update GUI state for WaveformView (4)[0m
+[90m16:35:53.091 [D] state:171            Update GUI state for WaveformView (4)[0m
+[90m16:35:53.091 [D] state:171            Update GUI state for WaveformView (5)[0m
+[90m16:35:53.091 [D] state:171            Update GUI state for WaveformView (5)[0m
+[90m16:35:53.091 [D] state:171            Update GUI state for WaveformView (6)[0m
+[90m16:35:53.091 [D] state:171            Update GUI state for WaveformView (6)[0m
+[90m16:35:53.091 [D] state:171            Update GUI state for CorrelogramView[0m
+[90m16:35:53.091 [D] state:171            Update GUI state for CorrelogramView[0m
+[90m16:35:53.091 [D] state:171            Update GUI state for ISIView[0m
+[90m16:35:53.091 [D] state:171            Update GUI state for ISIView[0m
+[90m16:35:53.091 [D] state:171            Update GUI state for FeatureView[0m
+[90m16:35:53.091 [D] state:171            Update GUI state for FeatureView[0m
+[90m16:35:53.091 [D] state:171            Update GUI state for AmplitudeView[0m
+[90m16:35:53.091 [D] state:171            Update GUI state for AmplitudeView[0m
+[90m16:35:53.091 [D] state:171            Update GUI state for AmplitudeView (1)[0m
+[90m16:35:53.091 [D] state:171            Update GUI state for AmplitudeView (1)[0m
+[90m16:35:53.091 [D] state:171            Update GUI state for AmplitudeView (2)[0m
+[90m16:35:53.091 [D] state:171            Update GUI state for AmplitudeView (2)[0m
+[90m16:35:53.091 [D] state:171            Update GUI state for AmplitudeView (3)[0m
+[90m16:35:53.091 [D] state:171            Update GUI state for AmplitudeView (3)[0m
+[90m16:35:53.091 [D] state:171            Update GUI state for FiringRateView[0m
+[90m16:35:53.091 [D] state:171            Update GUI state for FiringRateView[0m
+[90m16:35:53.092 [D] state:171            Update GUI state for TraceView[0m
+[90m16:35:53.092 [D] state:171            Update GUI state for TraceView[0m
+[90m16:35:53.092 [D] state:171            Update GUI state for TemplateView[0m
+[90m16:35:53.092 [D] state:171            Update GUI state for TemplateView[0m
+[90m16:35:53.093 [D] context:138          Save memcache for `phy.apps.base._get_mean_waveforms`.[0m
+[90m16:35:53.093 [D] context:138          Save memcache for `phy.apps.base._get_mean_waveforms`.[0m
+[90m16:35:53.219 [D] context:138          Save memcache for `phy.apps.base._get_template_waveforms`.[0m
+[90m16:35:53.219 [D] context:138          Save memcache for `phy.apps.base._get_template_waveforms`.[0m
+[90m16:35:53.226 [D] context:138          Save memcache for `phy.apps.base.get_mean_spike_template_amplitudes`.[0m
+[90m16:35:53.226 [D] context:138          Save memcache for `phy.apps.base.get_mean_spike_template_amplitudes`.[0m
+[90m16:35:53.226 [D] context:138          Save memcache for `phy.apps.base.get_template_counts`.[0m
+[90m16:35:53.226 [D] context:138          Save memcache for `phy.apps.base.get_template_counts`.[0m
+[90m16:35:53.227 [D] context:138          Save memcache for `phy.apps.base.get_template_for_cluster`.[0m
+[90m16:35:53.227 [D] context:138          Save memcache for `phy.apps.base.get_template_for_cluster`.[0m
+[90m16:35:53.229 [D] context:138          Save memcache for `phy.apps.template.gui.get_template_amplitude`.[0m
+[90m16:35:53.229 [D] context:138          Save memcache for `phy.apps.template.gui.get_template_amplitude`.[0m
+[90m16:35:53.230 [D] context:138          Save memcache for `phy.apps.base.get_cluster_amplitude`.[0m
+[90m16:35:53.230 [D] context:138          Save memcache for `phy.apps.base.get_cluster_amplitude`.[0m
+[90m16:35:53.230 [D] context:138          Save memcache for `phy.apps.base.get_mean_firing_rate`.[0m
+[90m16:35:53.230 [D] context:138          Save memcache for `phy.apps.base.get_mean_firing_rate`.[0m
+[90m16:35:53.231 [D] context:138          Save memcache for `phy.apps.base.get_best_channel`.[0m
+[90m16:35:53.231 [D] context:138          Save memcache for `phy.apps.base.get_best_channel`.[0m
+[90m16:35:53.232 [D] context:138          Save memcache for `phy.apps.template.gui.get_best_channels`.[0m
+[90m16:35:53.232 [D] context:138          Save memcache for `phy.apps.template.gui.get_best_channels`.[0m
+[90m16:35:53.233 [D] context:138          Save memcache for `phy.apps.base.get_channel_shank`.[0m
+[90m16:35:53.233 [D] context:138          Save memcache for `phy.apps.base.get_channel_shank`.[0m
+[90m16:35:53.233 [D] context:138          Save memcache for `phy.apps.base.get_probe_depth`.[0m
+[90m16:35:53.233 [D] context:138          Save memcache for `phy.apps.base.get_probe_depth`.[0m
+[90m16:35:53.234 [D] context:138          Save memcache for `phy.apps.base.peak_channel_similarity`.[0m
+[90m16:35:53.234 [D] context:138          Save memcache for `phy.apps.base.peak_channel_similarity`.[0m
+[90m16:35:53.235 [D] gui:600              Save the geometry state.[0m
+[90m16:35:53.235 [D] gui:600              Save the geometry state.[0m
+[90m16:35:53.237 [D] state:218            Save global GUI state to `/home/smoconn/.phy/TemplateGUI/state.json`.[0m
+[90m16:35:53.237 [D] state:218            Save global GUI state to `/home/smoconn/.phy/TemplateGUI/state.json`.[0m
+[90m16:35:53.246 [D] state:232            Save local GUI state to `/snel/share/data/rodent-ephys/open-ephys/monkey/sean-pipeline/session20231202/2022-12-02_10-14-45_myo/sorted_20250624_202249742544_2022-12-02_10-14-45_myo_Th_10,4_spkTh_6,9_SCORE_0.327/.phy/state.json`.[0m
+[90m16:35:53.246 [D] state:232            Save local GUI state to `/snel/share/data/rodent-ephys/open-ephys/monkey/sean-pipeline/session20231202/2022-12-02_10-14-45_myo/sorted_20250624_202249742544_2022-12-02_10-14-45_myo_Th_10,4_spkTh_6,9_SCORE_0.327/.phy/state.json`.[0m
+[90m16:35:53.454 [D] __init__:87          Stop capturing exceptions.[0m
+[90m16:35:53.454 [D] __init__:87          Stop capturing exceptions.[0m
+[90m16:29:01.305 [D] context:100          Initialize joblib cache dir at `/snel/share/data/rodent-ephys/open-ephys/monkey/sean-pipeline/session20231202/2022-12-02_10-14-45_myo/sorted_20250624_202249742544_2022-12-02_10-14-45_myo_Th_10,4_spkTh_6,9_SCORE_0.327/.phy`.[0m
+[90m16:29:01.305 [D] context:100          Initialize joblib cache dir at `/snel/share/data/rodent-ephys/open-ephys/monkey/sean-pipeline/session20231202/2022-12-02_10-14-45_myo/sorted_20250624_202249742544_2022-12-02_10-14-45_myo_Th_10,4_spkTh_6,9_SCORE_0.327/.phy`.[0m
+[90m16:29:01.306 [D] context:101          Reducing the size of the cache if needed.[0m
+[90m16:29:01.306 [D] context:101          Reducing the size of the cache if needed.[0m
+[90m16:29:02.172 [D] base:102             Add filter `high_pass`.[0m
+[90m16:29:02.172 [D] base:102             Add filter `high_pass`.[0m
+[90m16:29:02.172 [D] config:31            Load config file `/home/smoconn/.phy/phy_config.py`.[0m
+[90m16:29:02.172 [D] config:31            Load config file `/home/smoconn/.phy/phy_config.py`.[0m
+[90m16:29:02.174 [D] plugin:74            Scanning `/home/smoconn/.phy/plugins`.[0m
+[90m16:29:02.174 [D] plugin:74            Scanning `/home/smoconn/.phy/plugins`.[0m
+[90m16:29:02.174 [D] plugin:78            Found plugin module `n_spikes_views.py`.[0m
+[90m16:29:02.174 [D] plugin:78            Found plugin module `n_spikes_views.py`.[0m
+[90m16:29:02.176 [D] plugin:36            Register plugin `n_spikes_views.ExampleNspikesViewsPlugin`.[0m
+[90m16:29:02.176 [D] plugin:36            Register plugin `n_spikes_views.ExampleNspikesViewsPlugin`.[0m
+[90m16:29:02.176 [D] plugin:145           Loading 1 plugins.[0m
+[90m16:29:02.176 [D] plugin:145           Loading 1 plugins.[0m
+[90m16:29:02.176 [D] plugin:156           Attached plugin ExampleNspikesViewsPlugin.[0m
+[90m16:29:02.176 [D] plugin:156           Attached plugin ExampleNspikesViewsPlugin.[0m
+[90m16:29:02.177 [D] context:126          Load memcache for `phy.apps.base._get_mean_waveforms`.[0m
+[90m16:29:02.177 [D] context:126          Load memcache for `phy.apps.base._get_mean_waveforms`.[0m
+[90m16:29:02.197 [D] context:126          Load memcache for `phy.apps.base._get_mean_waveforms`.[0m
+[90m16:29:02.197 [D] context:126          Load memcache for `phy.apps.base._get_mean_waveforms`.[0m
+[90m16:29:02.199 [D] context:126          Load memcache for `phy.apps.base._get_template_waveforms`.[0m
+[90m16:29:02.199 [D] context:126          Load memcache for `phy.apps.base._get_template_waveforms`.[0m
+[90m16:29:02.266 [D] context:126          Load memcache for `phy.apps.base.get_mean_spike_template_amplitudes`.[0m
+[90m16:29:02.266 [D] context:126          Load memcache for `phy.apps.base.get_mean_spike_template_amplitudes`.[0m
+[90m16:29:02.267 [D] context:126          Load memcache for `phy.apps.base.get_template_counts`.[0m
+[90m16:29:02.267 [D] context:126          Load memcache for `phy.apps.base.get_template_counts`.[0m
+[90m16:29:02.276 [D] context:126          Load memcache for `phy.apps.base.get_template_for_cluster`.[0m
+[90m16:29:02.276 [D] context:126          Load memcache for `phy.apps.base.get_template_for_cluster`.[0m
+[90m16:29:02.289 [D] context:126          Load memcache for `phy.apps.template.gui.get_template_amplitude`.[0m
+[90m16:29:02.289 [D] context:126          Load memcache for `phy.apps.template.gui.get_template_amplitude`.[0m
+[90m16:29:02.290 [D] context:126          Load memcache for `phy.apps.base.get_cluster_amplitude`.[0m
+[90m16:29:02.290 [D] context:126          Load memcache for `phy.apps.base.get_cluster_amplitude`.[0m
+[90m16:29:02.291 [D] context:126          Load memcache for `phy.apps.base.get_mean_firing_rate`.[0m
+[90m16:29:02.291 [D] context:126          Load memcache for `phy.apps.base.get_mean_firing_rate`.[0m
+[90m16:29:02.292 [D] context:126          Load memcache for `phy.apps.base.get_best_channel`.[0m
+[90m16:29:02.292 [D] context:126          Load memcache for `phy.apps.base.get_best_channel`.[0m
+[90m16:29:02.293 [D] context:126          Load memcache for `phy.apps.template.gui.get_best_channels`.[0m
+[90m16:29:02.293 [D] context:126          Load memcache for `phy.apps.template.gui.get_best_channels`.[0m
+[90m16:29:02.294 [D] context:126          Load memcache for `phy.apps.base.get_channel_shank`.[0m
+[90m16:29:02.294 [D] context:126          Load memcache for `phy.apps.base.get_channel_shank`.[0m
+[90m16:29:02.295 [D] context:126          Load memcache for `phy.apps.base.get_probe_depth`.[0m
+[90m16:29:02.295 [D] context:126          Load memcache for `phy.apps.base.get_probe_depth`.[0m
+[90m16:29:02.296 [D] context:126          Load memcache for `phy.apps.base.peak_channel_similarity`.[0m
+[90m16:29:02.296 [D] context:126          Load memcache for `phy.apps.base.peak_channel_similarity`.[0m
+[90m16:29:02.298 [D] context:209          The file `/snel/share/data/rodent-ephys/open-ephys/monkey/sean-pipeline/session20231202/2022-12-02_10-14-45_myo/sorted_20250624_202249742544_2022-12-02_10-14-45_myo_Th_10,4_spkTh_6,9_SCORE_0.327/.phy/new_cluster_id.pkl` doesn't exist.[0m
+[90m16:29:02.298 [D] context:209          The file `/snel/share/data/rodent-ephys/open-ephys/monkey/sean-pipeline/session20231202/2022-12-02_10-14-45_myo/sorted_20250624_202249742544_2022-12-02_10-14-45_myo_Th_10,4_spkTh_6,9_SCORE_0.327/.phy/new_cluster_id.pkl` doesn't exist.[0m
+[90m16:29:02.334 [D] context:185          Save data to `/snel/share/data/rodent-ephys/open-ephys/monkey/sean-pipeline/session20231202/2022-12-02_10-14-45_myo/sorted_20250624_202249742544_2022-12-02_10-14-45_myo_Th_10,4_spkTh_6,9_SCORE_0.327/.phy/spikes_per_cluster.pkl`.[0m
+[90m16:29:02.334 [D] context:185          Save data to `/snel/share/data/rodent-ephys/open-ephys/monkey/sean-pipeline/session20231202/2022-12-02_10-14-45_myo/sorted_20250624_202249742544_2022-12-02_10-14-45_myo_Th_10,4_spkTh_6,9_SCORE_0.327/.phy/spikes_per_cluster.pkl`.[0m
+[90m16:29:02.350 [D] gui:463              Creating GUI.[0m
+[90m16:29:02.350 [D] gui:463              Creating GUI.[0m
+[90m16:29:02.361 [D] state:46             Load /home/smoconn/.phy/TemplateGUI/state.json for GUIState.[0m
+[90m16:29:02.361 [D] state:46             Load /home/smoconn/.phy/TemplateGUI/state.json for GUIState.[0m
+[90m16:29:02.362 [D] state:46             Load /snel/share/data/rodent-ephys/open-ephys/monkey/sean-pipeline/session20231202/2022-12-02_10-14-45_myo/sorted_20250624_202249742544_2022-12-02_10-14-45_myo_Th_10,4_spkTh_6,9_SCORE_0.327/.phy/state.json for GUIState.[0m
+[90m16:29:02.362 [D] state:46             Load /snel/share/data/rodent-ephys/open-ephys/monkey/sean-pipeline/session20231202/2022-12-02_10-14-45_myo/sorted_20250624_202249742544_2022-12-02_10-14-45_myo_Th_10,4_spkTh_6,9_SCORE_0.327/.phy/state.json for GUIState.[0m
+[90m16:29:02.582 [D] gui:718              Add view ClusterView to GUI.[0m
+[90m16:29:02.582 [D] gui:718              Add view ClusterView to GUI.[0m
+[90m16:29:02.587 [D] gui:718              Add view SimilarityView to GUI.[0m
+[90m16:29:02.587 [D] gui:718              Add view SimilarityView to GUI.[0m
+[90m16:29:02.637 [D] gui:718              Add view WaveformView to GUI.[0m
+[90m16:29:02.637 [D] gui:718              Add view WaveformView to GUI.[0m
+[90m16:29:02.643 [D] base:337             Set state for WaveformView.[0m
+[90m16:29:02.643 [D] base:337             Set state for WaveformView.[0m
+[90m16:29:02.672 [D] gui:718              Add view WaveformView to GUI.[0m
+[90m16:29:02.672 [D] gui:718              Add view WaveformView to GUI.[0m
+[90m16:29:02.673 [D] base:337             Set state for WaveformView (1).[0m
+[90m16:29:02.673 [D] base:337             Set state for WaveformView (1).[0m
+[90m16:29:02.695 [D] gui:718              Add view WaveformView to GUI.[0m
+[90m16:29:02.695 [D] gui:718              Add view WaveformView to GUI.[0m
+[90m16:29:02.697 [D] base:337             Set state for WaveformView (2).[0m
+[90m16:29:02.697 [D] base:337             Set state for WaveformView (2).[0m
+[90m16:29:02.719 [D] gui:718              Add view WaveformView to GUI.[0m
+[90m16:29:02.719 [D] gui:718              Add view WaveformView to GUI.[0m
+[90m16:29:02.721 [D] base:337             Set state for WaveformView (3).[0m
+[90m16:29:02.721 [D] base:337             Set state for WaveformView (3).[0m
+[90m16:29:02.742 [D] gui:718              Add view WaveformView to GUI.[0m
+[90m16:29:02.742 [D] gui:718              Add view WaveformView to GUI.[0m
+[90m16:29:02.744 [D] base:337             Set state for WaveformView (4).[0m
+[90m16:29:02.744 [D] base:337             Set state for WaveformView (4).[0m
+[90m16:29:02.766 [D] gui:718              Add view WaveformView to GUI.[0m
+[90m16:29:02.766 [D] gui:718              Add view WaveformView to GUI.[0m
+[90m16:29:02.768 [D] base:337             Set state for WaveformView (5).[0m
+[90m16:29:02.768 [D] base:337             Set state for WaveformView (5).[0m
+[90m16:29:02.790 [D] gui:718              Add view WaveformView to GUI.[0m
+[90m16:29:02.790 [D] gui:718              Add view WaveformView to GUI.[0m
+[90m16:29:02.791 [D] base:337             Set state for WaveformView (6).[0m
+[90m16:29:02.791 [D] base:337             Set state for WaveformView (6).[0m
+[90m16:29:02.806 [D] gui:718              Add view CorrelogramView to GUI.[0m
+[90m16:29:02.806 [D] gui:718              Add view CorrelogramView to GUI.[0m
+[90m16:29:02.807 [D] base:337             Set state for CorrelogramView.[0m
+[90m16:29:02.807 [D] base:337             Set state for CorrelogramView.[0m
+[90m16:29:02.836 [D] gui:718              Add view ISIView to GUI.[0m
+[90m16:29:02.836 [D] gui:718              Add view ISIView to GUI.[0m
+[90m16:29:02.838 [D] base:337             Set state for ISIView.[0m
+[90m16:29:02.838 [D] base:337             Set state for ISIView.[0m
+[90m16:29:02.854 [D] gui:718              Add view FeatureView to GUI.[0m
+[90m16:29:02.854 [D] gui:718              Add view FeatureView to GUI.[0m
+[90m16:29:02.856 [D] base:337             Set state for FeatureView.[0m
+[90m16:29:02.856 [D] base:337             Set state for FeatureView.[0m
+[90m16:29:02.885 [D] gui:718              Add view AmplitudeView to GUI.[0m
+[90m16:29:02.885 [D] gui:718              Add view AmplitudeView to GUI.[0m
+[90m16:29:02.886 [D] base:337             Set state for AmplitudeView.[0m
+[90m16:29:02.886 [D] base:337             Set state for AmplitudeView.[0m
+[90m16:29:02.913 [D] gui:718              Add view AmplitudeView to GUI.[0m
+[90m16:29:02.913 [D] gui:718              Add view AmplitudeView to GUI.[0m
+[90m16:29:02.914 [D] base:337             Set state for AmplitudeView (1).[0m
+[90m16:29:02.914 [D] base:337             Set state for AmplitudeView (1).[0m
+[90m16:29:02.941 [D] gui:718              Add view AmplitudeView to GUI.[0m
+[90m16:29:02.941 [D] gui:718              Add view AmplitudeView to GUI.[0m
+[90m16:29:02.943 [D] base:337             Set state for AmplitudeView (2).[0m
+[90m16:29:02.943 [D] base:337             Set state for AmplitudeView (2).[0m
+[90m16:29:02.969 [D] gui:718              Add view AmplitudeView to GUI.[0m
+[90m16:29:02.969 [D] gui:718              Add view AmplitudeView to GUI.[0m
+[90m16:29:02.971 [D] base:337             Set state for AmplitudeView (3).[0m
+[90m16:29:02.971 [D] base:337             Set state for AmplitudeView (3).[0m
+[90m16:29:02.999 [D] gui:718              Add view FiringRateView to GUI.[0m
+[90m16:29:02.999 [D] gui:718              Add view FiringRateView to GUI.[0m
+[90m16:29:03.000 [D] base:337             Set state for FiringRateView.[0m
+[90m16:29:03.000 [D] base:337             Set state for FiringRateView.[0m
+[90m16:29:03.078 [D] gui:718              Add view TraceView to GUI.[0m
+[90m16:29:03.078 [D] gui:718              Add view TraceView to GUI.[0m
+[90m16:29:03.079 [D] base:337             Set state for TraceView.[0m
+[90m16:29:03.079 [D] base:337             Set state for TraceView.[0m
+[90m16:29:03.079 [D] base:494             Set color scheme to random.[0m
+[90m16:29:03.079 [D] base:494             Set color scheme to random.[0m
+[90m16:29:03.224 [D] base:1626            Adding default color schemes to TraceView.[0m
+[90m16:29:03.224 [D] base:1626            Adding default color schemes to TraceView.[0m
+[90m16:29:03.258 [D] gui:718              Add view TemplateView to GUI.[0m
+[90m16:29:03.258 [D] gui:718              Add view TemplateView to GUI.[0m
+[90m16:29:03.259 [D] base:337             Set state for TemplateView.[0m
+[90m16:29:03.259 [D] base:337             Set state for TemplateView.[0m
+[90m16:29:03.259 [D] base:494             Set color scheme to random.[0m
+[90m16:29:03.259 [D] base:494             Set color scheme to random.[0m
+[90m16:29:03.260 [D] base:1626            Adding default color schemes to TemplateView.[0m
+[90m16:29:03.260 [D] base:1626            Adding default color schemes to TemplateView.[0m
+[90m16:29:03.288 [D] gui:519              Load the geometry state.[0m
+[90m16:29:03.288 [D] gui:519              Load the geometry state.[0m
+[90m16:29:04.433 [D] supervisor:817       Clusters selected: [5, 31, 7, 54, 28] (58)[0m
+[90m16:29:04.433 [D] supervisor:817       Clusters selected: [5, 31, 7, 54, 28] (58)[0m
+[90m16:30:53.064 [D] state:171            Update GUI state for ClusterView[0m
+[90m16:30:53.064 [D] state:171            Update GUI state for ClusterView[0m
+[90m16:30:53.069 [D] state:171            Update GUI state for WaveformView[0m
+[90m16:30:53.069 [D] state:171            Update GUI state for WaveformView[0m
+[90m16:30:53.069 [D] state:171            Update GUI state for WaveformView (1)[0m
+[90m16:30:53.069 [D] state:171            Update GUI state for WaveformView (1)[0m
+[90m16:30:53.070 [D] state:171            Update GUI state for WaveformView (2)[0m
+[90m16:30:53.070 [D] state:171            Update GUI state for WaveformView (2)[0m
+[90m16:30:53.070 [D] state:171            Update GUI state for WaveformView (3)[0m
+[90m16:30:53.070 [D] state:171            Update GUI state for WaveformView (3)[0m
+[90m16:30:53.070 [D] state:171            Update GUI state for WaveformView (4)[0m
+[90m16:30:53.070 [D] state:171            Update GUI state for WaveformView (4)[0m
+[90m16:30:53.070 [D] state:171            Update GUI state for WaveformView (5)[0m
+[90m16:30:53.070 [D] state:171            Update GUI state for WaveformView (5)[0m
+[90m16:30:53.070 [D] state:171            Update GUI state for WaveformView (6)[0m
+[90m16:30:53.070 [D] state:171            Update GUI state for WaveformView (6)[0m
+[90m16:30:53.070 [D] state:171            Update GUI state for CorrelogramView[0m
+[90m16:30:53.070 [D] state:171            Update GUI state for CorrelogramView[0m
+[90m16:30:53.070 [D] state:171            Update GUI state for ISIView[0m
+[90m16:30:53.070 [D] state:171            Update GUI state for ISIView[0m
+[90m16:30:53.070 [D] state:171            Update GUI state for FeatureView[0m
+[90m16:30:53.070 [D] state:171            Update GUI state for FeatureView[0m
+[90m16:30:53.070 [D] state:171            Update GUI state for AmplitudeView[0m
+[90m16:30:53.070 [D] state:171            Update GUI state for AmplitudeView[0m
+[90m16:30:53.070 [D] state:171            Update GUI state for AmplitudeView (1)[0m
+[90m16:30:53.070 [D] state:171            Update GUI state for AmplitudeView (1)[0m
+[90m16:30:53.070 [D] state:171            Update GUI state for AmplitudeView (2)[0m
+[90m16:30:53.070 [D] state:171            Update GUI state for AmplitudeView (2)[0m
+[90m16:30:53.070 [D] state:171            Update GUI state for AmplitudeView (3)[0m
+[90m16:30:53.070 [D] state:171            Update GUI state for AmplitudeView (3)[0m
+[90m16:30:53.070 [D] state:171            Update GUI state for FiringRateView[0m
+[90m16:30:53.070 [D] state:171            Update GUI state for FiringRateView[0m
+[90m16:30:53.071 [D] state:171            Update GUI state for TraceView[0m
+[90m16:30:53.071 [D] state:171            Update GUI state for TraceView[0m
+[90m16:30:53.071 [D] state:171            Update GUI state for TemplateView[0m
+[90m16:30:53.071 [D] state:171            Update GUI state for TemplateView[0m
+[90m16:30:53.071 [D] context:138          Save memcache for `phy.apps.base._get_mean_waveforms`.[0m
+[90m16:30:53.071 [D] context:138          Save memcache for `phy.apps.base._get_mean_waveforms`.[0m
+[90m16:30:53.077 [D] context:138          Save memcache for `phy.apps.base._get_template_waveforms`.[0m
+[90m16:30:53.077 [D] context:138          Save memcache for `phy.apps.base._get_template_waveforms`.[0m
+[90m16:30:53.084 [D] context:138          Save memcache for `phy.apps.base.get_mean_spike_template_amplitudes`.[0m
+[90m16:30:53.084 [D] context:138          Save memcache for `phy.apps.base.get_mean_spike_template_amplitudes`.[0m
+[90m16:30:53.085 [D] context:138          Save memcache for `phy.apps.base.get_template_counts`.[0m
+[90m16:30:53.085 [D] context:138          Save memcache for `phy.apps.base.get_template_counts`.[0m
+[90m16:30:53.087 [D] context:138          Save memcache for `phy.apps.base.get_template_for_cluster`.[0m
+[90m16:30:53.087 [D] context:138          Save memcache for `phy.apps.base.get_template_for_cluster`.[0m
+[90m16:30:53.088 [D] context:138          Save memcache for `phy.apps.template.gui.get_template_amplitude`.[0m
+[90m16:30:53.088 [D] context:138          Save memcache for `phy.apps.template.gui.get_template_amplitude`.[0m
+[90m16:30:53.089 [D] context:138          Save memcache for `phy.apps.base.get_cluster_amplitude`.[0m
+[90m16:30:53.089 [D] context:138          Save memcache for `phy.apps.base.get_cluster_amplitude`.[0m
+[90m16:30:53.090 [D] context:138          Save memcache for `phy.apps.base.get_mean_firing_rate`.[0m
+[90m16:30:53.090 [D] context:138          Save memcache for `phy.apps.base.get_mean_firing_rate`.[0m
+[90m16:30:53.091 [D] context:138          Save memcache for `phy.apps.base.get_best_channel`.[0m
+[90m16:30:53.091 [D] context:138          Save memcache for `phy.apps.base.get_best_channel`.[0m
+[90m16:30:53.092 [D] context:138          Save memcache for `phy.apps.template.gui.get_best_channels`.[0m
+[90m16:30:53.092 [D] context:138          Save memcache for `phy.apps.template.gui.get_best_channels`.[0m
+[90m16:30:53.094 [D] context:138          Save memcache for `phy.apps.base.get_channel_shank`.[0m
+[90m16:30:53.094 [D] context:138          Save memcache for `phy.apps.base.get_channel_shank`.[0m
+[90m16:30:53.094 [D] context:138          Save memcache for `phy.apps.base.get_probe_depth`.[0m
+[90m16:30:53.094 [D] context:138          Save memcache for `phy.apps.base.get_probe_depth`.[0m
+[90m16:30:53.095 [D] context:138          Save memcache for `phy.apps.base.peak_channel_similarity`.[0m
+[90m16:30:53.095 [D] context:138          Save memcache for `phy.apps.base.peak_channel_similarity`.[0m
+[90m16:30:53.096 [D] gui:600              Save the geometry state.[0m
+[90m16:30:53.096 [D] gui:600              Save the geometry state.[0m
+[90m16:30:53.096 [D] state:218            Save global GUI state to `/home/smoconn/.phy/TemplateGUI/state.json`.[0m
+[90m16:30:53.096 [D] state:218            Save global GUI state to `/home/smoconn/.phy/TemplateGUI/state.json`.[0m
+[90m16:30:53.099 [D] state:232            Save local GUI state to `/snel/share/data/rodent-ephys/open-ephys/monkey/sean-pipeline/session20231202/2022-12-02_10-14-45_myo/sorted_20250624_202249742544_2022-12-02_10-14-45_myo_Th_10,4_spkTh_6,9_SCORE_0.327/.phy/state.json`.[0m
+[90m16:30:53.099 [D] state:232            Save local GUI state to `/snel/share/data/rodent-ephys/open-ephys/monkey/sean-pipeline/session20231202/2022-12-02_10-14-45_myo/sorted_20250624_202249742544_2022-12-02_10-14-45_myo_Th_10,4_spkTh_6,9_SCORE_0.327/.phy/state.json`.[0m
+[90m16:30:53.113 [D] __init__:87          Stop capturing exceptions.[0m
+[90m16:30:53.113 [D] __init__:87          Stop capturing exceptions.[0m
+[90m16:32:15.455 [D] context:100          Initialize joblib cache dir at `/snel/share/data/rodent-ephys/open-ephys/monkey/sean-pipeline/session20231202/2022-12-02_10-14-45_myo/sorted_20250624_202249742544_2022-12-02_10-14-45_myo_Th_10,4_spkTh_6,9_SCORE_0.327/.phy`.[0m
+[90m16:32:15.455 [D] context:100          Initialize joblib cache dir at `/snel/share/data/rodent-ephys/open-ephys/monkey/sean-pipeline/session20231202/2022-12-02_10-14-45_myo/sorted_20250624_202249742544_2022-12-02_10-14-45_myo_Th_10,4_spkTh_6,9_SCORE_0.327/.phy`.[0m
+[90m16:32:15.456 [D] context:101          Reducing the size of the cache if needed.[0m
+[90m16:32:15.456 [D] context:101          Reducing the size of the cache if needed.[0m
+[90m16:32:15.834 [D] base:102             Add filter `high_pass`.[0m
+[90m16:32:15.834 [D] base:102             Add filter `high_pass`.[0m
+[90m16:32:15.835 [D] config:31            Load config file `/home/smoconn/.phy/phy_config.py`.[0m
+[90m16:32:15.835 [D] config:31            Load config file `/home/smoconn/.phy/phy_config.py`.[0m
+[90m16:32:15.837 [D] plugin:74            Scanning `/home/smoconn/.phy/plugins`.[0m
+[90m16:32:15.837 [D] plugin:74            Scanning `/home/smoconn/.phy/plugins`.[0m
+[90m16:32:15.837 [D] plugin:78            Found plugin module `n_spikes_views.py`.[0m
+[90m16:32:15.837 [D] plugin:78            Found plugin module `n_spikes_views.py`.[0m
+[90m16:32:15.839 [D] plugin:36            Register plugin `n_spikes_views.ExampleNspikesViewsPlugin`.[0m
+[90m16:32:15.839 [D] plugin:36            Register plugin `n_spikes_views.ExampleNspikesViewsPlugin`.[0m
+[90m16:32:15.840 [D] plugin:145           Loading 1 plugins.[0m
+[90m16:32:15.840 [D] plugin:145           Loading 1 plugins.[0m
+[90m16:32:15.840 [D] plugin:156           Attached plugin ExampleNspikesViewsPlugin.[0m
+[90m16:32:15.840 [D] plugin:156           Attached plugin ExampleNspikesViewsPlugin.[0m
+[90m16:32:15.841 [D] context:126          Load memcache for `phy.apps.base._get_mean_waveforms`.[0m
+[90m16:32:15.841 [D] context:126          Load memcache for `phy.apps.base._get_mean_waveforms`.[0m
+[90m16:32:15.842 [D] context:126          Load memcache for `phy.apps.base._get_mean_waveforms`.[0m
+[90m16:32:15.842 [D] context:126          Load memcache for `phy.apps.base._get_mean_waveforms`.[0m
+[90m16:32:15.844 [D] context:126          Load memcache for `phy.apps.base._get_template_waveforms`.[0m
+[90m16:32:15.844 [D] context:126          Load memcache for `phy.apps.base._get_template_waveforms`.[0m
+[90m16:32:15.851 [D] context:126          Load memcache for `phy.apps.base.get_mean_spike_template_amplitudes`.[0m
+[90m16:32:15.851 [D] context:126          Load memcache for `phy.apps.base.get_mean_spike_template_amplitudes`.[0m
+[90m16:32:15.851 [D] context:126          Load memcache for `phy.apps.base.get_template_counts`.[0m
+[90m16:32:15.851 [D] context:126          Load memcache for `phy.apps.base.get_template_counts`.[0m
+[90m16:32:15.852 [D] context:126          Load memcache for `phy.apps.base.get_template_for_cluster`.[0m
+[90m16:32:15.852 [D] context:126          Load memcache for `phy.apps.base.get_template_for_cluster`.[0m
+[90m16:32:15.853 [D] context:126          Load memcache for `phy.apps.template.gui.get_template_amplitude`.[0m
+[90m16:32:15.853 [D] context:126          Load memcache for `phy.apps.template.gui.get_template_amplitude`.[0m
+[90m16:32:15.854 [D] context:126          Load memcache for `phy.apps.base.get_cluster_amplitude`.[0m
+[90m16:32:15.854 [D] context:126          Load memcache for `phy.apps.base.get_cluster_amplitude`.[0m
+[90m16:32:15.854 [D] context:126          Load memcache for `phy.apps.base.get_mean_firing_rate`.[0m
+[90m16:32:15.854 [D] context:126          Load memcache for `phy.apps.base.get_mean_firing_rate`.[0m
+[90m16:32:15.855 [D] context:126          Load memcache for `phy.apps.base.get_best_channel`.[0m
+[90m16:32:15.855 [D] context:126          Load memcache for `phy.apps.base.get_best_channel`.[0m
+[90m16:32:15.855 [D] context:126          Load memcache for `phy.apps.template.gui.get_best_channels`.[0m
+[90m16:32:15.855 [D] context:126          Load memcache for `phy.apps.template.gui.get_best_channels`.[0m
+[90m16:32:15.856 [D] context:126          Load memcache for `phy.apps.base.get_channel_shank`.[0m
+[90m16:32:15.856 [D] context:126          Load memcache for `phy.apps.base.get_channel_shank`.[0m
+[90m16:32:15.857 [D] context:126          Load memcache for `phy.apps.base.get_probe_depth`.[0m
+[90m16:32:15.857 [D] context:126          Load memcache for `phy.apps.base.get_probe_depth`.[0m
+[90m16:32:15.857 [D] context:126          Load memcache for `phy.apps.base.peak_channel_similarity`.[0m
+[90m16:32:15.857 [D] context:126          Load memcache for `phy.apps.base.peak_channel_similarity`.[0m
+[90m16:32:15.859 [D] context:209          The file `/snel/share/data/rodent-ephys/open-ephys/monkey/sean-pipeline/session20231202/2022-12-02_10-14-45_myo/sorted_20250624_202249742544_2022-12-02_10-14-45_myo_Th_10,4_spkTh_6,9_SCORE_0.327/.phy/new_cluster_id.pkl` doesn't exist.[0m
+[90m16:32:15.859 [D] context:209          The file `/snel/share/data/rodent-ephys/open-ephys/monkey/sean-pipeline/session20231202/2022-12-02_10-14-45_myo/sorted_20250624_202249742544_2022-12-02_10-14-45_myo_Th_10,4_spkTh_6,9_SCORE_0.327/.phy/new_cluster_id.pkl` doesn't exist.[0m
+[90m16:32:15.905 [D] context:185          Save data to `/snel/share/data/rodent-ephys/open-ephys/monkey/sean-pipeline/session20231202/2022-12-02_10-14-45_myo/sorted_20250624_202249742544_2022-12-02_10-14-45_myo_Th_10,4_spkTh_6,9_SCORE_0.327/.phy/spikes_per_cluster.pkl`.[0m
+[90m16:32:15.905 [D] context:185          Save data to `/snel/share/data/rodent-ephys/open-ephys/monkey/sean-pipeline/session20231202/2022-12-02_10-14-45_myo/sorted_20250624_202249742544_2022-12-02_10-14-45_myo_Th_10,4_spkTh_6,9_SCORE_0.327/.phy/spikes_per_cluster.pkl`.[0m
+[90m16:32:16.057 [D] gui:463              Creating GUI.[0m
+[90m16:32:16.057 [D] gui:463              Creating GUI.[0m
+[90m16:32:16.076 [D] state:46             Load /home/smoconn/.phy/TemplateGUI/state.json for GUIState.[0m
+[90m16:32:16.076 [D] state:46             Load /home/smoconn/.phy/TemplateGUI/state.json for GUIState.[0m
+[90m16:32:16.077 [D] state:46             Load /snel/share/data/rodent-ephys/open-ephys/monkey/sean-pipeline/session20231202/2022-12-02_10-14-45_myo/sorted_20250624_202249742544_2022-12-02_10-14-45_myo_Th_10,4_spkTh_6,9_SCORE_0.327/.phy/state.json for GUIState.[0m
+[90m16:32:16.077 [D] state:46             Load /snel/share/data/rodent-ephys/open-ephys/monkey/sean-pipeline/session20231202/2022-12-02_10-14-45_myo/sorted_20250624_202249742544_2022-12-02_10-14-45_myo_Th_10,4_spkTh_6,9_SCORE_0.327/.phy/state.json for GUIState.[0m
+[90m16:32:16.355 [D] gui:718              Add view ClusterView to GUI.[0m
+[90m16:32:16.355 [D] gui:718              Add view ClusterView to GUI.[0m
+[90m16:32:16.358 [D] gui:718              Add view SimilarityView to GUI.[0m
+[90m16:32:16.358 [D] gui:718              Add view SimilarityView to GUI.[0m
+[90m16:32:16.395 [D] gui:718              Add view WaveformView to GUI.[0m
+[90m16:32:16.395 [D] gui:718              Add view WaveformView to GUI.[0m
+[90m16:32:16.399 [D] base:337             Set state for WaveformView.[0m
+[90m16:32:16.399 [D] base:337             Set state for WaveformView.[0m
+[90m16:32:16.420 [D] gui:718              Add view WaveformView to GUI.[0m
+[90m16:32:16.420 [D] gui:718              Add view WaveformView to GUI.[0m
+[90m16:32:16.421 [D] base:337             Set state for WaveformView (1).[0m
+[90m16:32:16.421 [D] base:337             Set state for WaveformView (1).[0m
+[90m16:32:16.442 [D] gui:718              Add view WaveformView to GUI.[0m
+[90m16:32:16.442 [D] gui:718              Add view WaveformView to GUI.[0m
+[90m16:32:16.444 [D] base:337             Set state for WaveformView (2).[0m
+[90m16:32:16.444 [D] base:337             Set state for WaveformView (2).[0m
+[90m16:32:16.466 [D] gui:718              Add view WaveformView to GUI.[0m
+[90m16:32:16.466 [D] gui:718              Add view WaveformView to GUI.[0m
+[90m16:32:16.467 [D] base:337             Set state for WaveformView (3).[0m
+[90m16:32:16.467 [D] base:337             Set state for WaveformView (3).[0m
+[90m16:32:16.488 [D] gui:718              Add view WaveformView to GUI.[0m
+[90m16:32:16.488 [D] gui:718              Add view WaveformView to GUI.[0m
+[90m16:32:16.489 [D] base:337             Set state for WaveformView (4).[0m
+[90m16:32:16.489 [D] base:337             Set state for WaveformView (4).[0m
+[90m16:32:16.510 [D] gui:718              Add view WaveformView to GUI.[0m
+[90m16:32:16.510 [D] gui:718              Add view WaveformView to GUI.[0m
+[90m16:32:16.511 [D] base:337             Set state for WaveformView (5).[0m
+[90m16:32:16.511 [D] base:337             Set state for WaveformView (5).[0m
+[90m16:32:16.532 [D] gui:718              Add view WaveformView to GUI.[0m
+[90m16:32:16.532 [D] gui:718              Add view WaveformView to GUI.[0m
+[90m16:32:16.534 [D] base:337             Set state for WaveformView (6).[0m
+[90m16:32:16.534 [D] base:337             Set state for WaveformView (6).[0m
+[90m16:32:16.547 [D] gui:718              Add view CorrelogramView to GUI.[0m
+[90m16:32:16.547 [D] gui:718              Add view CorrelogramView to GUI.[0m
+[90m16:32:16.548 [D] base:337             Set state for CorrelogramView.[0m
+[90m16:32:16.548 [D] base:337             Set state for CorrelogramView.[0m
+[90m16:32:16.567 [D] gui:718              Add view ISIView to GUI.[0m
+[90m16:32:16.567 [D] gui:718              Add view ISIView to GUI.[0m
+[90m16:32:16.568 [D] base:337             Set state for ISIView.[0m
+[90m16:32:16.568 [D] base:337             Set state for ISIView.[0m
+[90m16:32:16.579 [D] gui:718              Add view FeatureView to GUI.[0m
+[90m16:32:16.579 [D] gui:718              Add view FeatureView to GUI.[0m
+[90m16:32:16.580 [D] base:337             Set state for FeatureView.[0m
+[90m16:32:16.580 [D] base:337             Set state for FeatureView.[0m
+[90m16:32:16.616 [D] gui:718              Add view AmplitudeView to GUI.[0m
+[90m16:32:16.616 [D] gui:718              Add view AmplitudeView to GUI.[0m
+[90m16:32:16.617 [D] base:337             Set state for AmplitudeView.[0m
+[90m16:32:16.617 [D] base:337             Set state for AmplitudeView.[0m
+[90m16:32:16.641 [D] gui:718              Add view AmplitudeView to GUI.[0m
+[90m16:32:16.641 [D] gui:718              Add view AmplitudeView to GUI.[0m
+[90m16:32:16.642 [D] base:337             Set state for AmplitudeView (1).[0m
+[90m16:32:16.642 [D] base:337             Set state for AmplitudeView (1).[0m
+[90m16:32:16.668 [D] gui:718              Add view AmplitudeView to GUI.[0m
+[90m16:32:16.668 [D] gui:718              Add view AmplitudeView to GUI.[0m
+[90m16:32:16.669 [D] base:337             Set state for AmplitudeView (2).[0m
+[90m16:32:16.669 [D] base:337             Set state for AmplitudeView (2).[0m
+[90m16:32:16.695 [D] gui:718              Add view AmplitudeView to GUI.[0m
+[90m16:32:16.695 [D] gui:718              Add view AmplitudeView to GUI.[0m
+[90m16:32:16.696 [D] base:337             Set state for AmplitudeView (3).[0m
+[90m16:32:16.696 [D] base:337             Set state for AmplitudeView (3).[0m
+[90m16:32:16.724 [D] gui:718              Add view FiringRateView to GUI.[0m
+[90m16:32:16.724 [D] gui:718              Add view FiringRateView to GUI.[0m
+[90m16:32:16.725 [D] base:337             Set state for FiringRateView.[0m
+[90m16:32:16.725 [D] base:337             Set state for FiringRateView.[0m
+[90m16:32:16.767 [D] gui:718              Add view TraceView to GUI.[0m
+[90m16:32:16.767 [D] gui:718              Add view TraceView to GUI.[0m
+[90m16:32:16.768 [D] base:337             Set state for TraceView.[0m
+[90m16:32:16.768 [D] base:337             Set state for TraceView.[0m
+[90m16:32:16.768 [D] base:494             Set color scheme to random.[0m
+[90m16:32:16.768 [D] base:494             Set color scheme to random.[0m
+[90m16:32:16.874 [D] base:1626            Adding default color schemes to TraceView.[0m
+[90m16:32:16.874 [D] base:1626            Adding default color schemes to TraceView.[0m
+[90m16:32:16.909 [D] gui:718              Add view TemplateView to GUI.[0m
+[90m16:32:16.909 [D] gui:718              Add view TemplateView to GUI.[0m
+[90m16:32:16.910 [D] base:337             Set state for TemplateView.[0m
+[90m16:32:16.910 [D] base:337             Set state for TemplateView.[0m
+[90m16:32:16.910 [D] base:494             Set color scheme to random.[0m
+[90m16:32:16.910 [D] base:494             Set color scheme to random.[0m
+[90m16:32:16.911 [D] base:1626            Adding default color schemes to TemplateView.[0m
+[90m16:32:16.911 [D] base:1626            Adding default color schemes to TemplateView.[0m
+[90m16:32:16.939 [D] gui:519              Load the geometry state.[0m
+[90m16:32:16.939 [D] gui:519              Load the geometry state.[0m
+[90m16:32:18.129 [D] supervisor:817       Clusters selected: [5, 31, 7, 54, 28] (58)[0m
+[90m16:32:18.129 [D] supervisor:817       Clusters selected: [5, 31, 7, 54, 28] (58)[0m
+[90m18:06:51.116 [D] state:171            Update GUI state for ClusterView[0m
+[90m18:06:51.116 [D] state:171            Update GUI state for ClusterView[0m
+[90m18:06:51.123 [D] state:171            Update GUI state for WaveformView[0m
+[90m18:06:51.123 [D] state:171            Update GUI state for WaveformView[0m
+[90m18:06:51.123 [D] state:171            Update GUI state for WaveformView (1)[0m
+[90m18:06:51.123 [D] state:171            Update GUI state for WaveformView (1)[0m
+[90m18:06:51.123 [D] state:171            Update GUI state for WaveformView (2)[0m
+[90m18:06:51.123 [D] state:171            Update GUI state for WaveformView (2)[0m
+[90m18:06:51.123 [D] state:171            Update GUI state for WaveformView (3)[0m
+[90m18:06:51.123 [D] state:171            Update GUI state for WaveformView (3)[0m
+[90m18:06:51.123 [D] state:171            Update GUI state for WaveformView (4)[0m
+[90m18:06:51.123 [D] state:171            Update GUI state for WaveformView (4)[0m
+[90m18:06:51.123 [D] state:171            Update GUI state for WaveformView (5)[0m
+[90m18:06:51.123 [D] state:171            Update GUI state for WaveformView (5)[0m
+[90m18:06:51.123 [D] state:171            Update GUI state for WaveformView (6)[0m
+[90m18:06:51.123 [D] state:171            Update GUI state for WaveformView (6)[0m
+[90m18:06:51.123 [D] state:171            Update GUI state for CorrelogramView[0m
+[90m18:06:51.123 [D] state:171            Update GUI state for CorrelogramView[0m
+[90m18:06:51.123 [D] state:171            Update GUI state for ISIView[0m
+[90m18:06:51.123 [D] state:171            Update GUI state for ISIView[0m
+[90m18:06:51.129 [D] state:171            Update GUI state for FeatureView[0m
+[90m18:06:51.129 [D] state:171            Update GUI state for FeatureView[0m
+[90m18:06:51.129 [D] state:171            Update GUI state for AmplitudeView[0m
+[90m18:06:51.129 [D] state:171            Update GUI state for AmplitudeView[0m
+[90m18:06:51.129 [D] state:171            Update GUI state for AmplitudeView (1)[0m
+[90m18:06:51.129 [D] state:171            Update GUI state for AmplitudeView (1)[0m
+[90m18:06:51.129 [D] state:171            Update GUI state for AmplitudeView (2)[0m
+[90m18:06:51.129 [D] state:171            Update GUI state for AmplitudeView (2)[0m
+[90m18:06:51.129 [D] state:171            Update GUI state for AmplitudeView (3)[0m
+[90m18:06:51.129 [D] state:171            Update GUI state for AmplitudeView (3)[0m
+[90m18:06:51.129 [D] state:171            Update GUI state for FiringRateView[0m
+[90m18:06:51.129 [D] state:171            Update GUI state for FiringRateView[0m
+[90m18:06:51.129 [D] state:171            Update GUI state for TraceView[0m
+[90m18:06:51.129 [D] state:171            Update GUI state for TraceView[0m
+[90m18:06:51.129 [D] state:171            Update GUI state for TemplateView[0m
+[90m18:06:51.129 [D] state:171            Update GUI state for TemplateView[0m
+[90m18:06:51.130 [D] context:138          Save memcache for `phy.apps.base._get_mean_waveforms`.[0m
+[90m18:06:51.130 [D] context:138          Save memcache for `phy.apps.base._get_mean_waveforms`.[0m
+[90m18:06:51.192 [D] context:138          Save memcache for `phy.apps.base._get_template_waveforms`.[0m
+[90m18:06:51.192 [D] context:138          Save memcache for `phy.apps.base._get_template_waveforms`.[0m
+[90m18:06:51.271 [D] context:138          Save memcache for `phy.apps.base.get_mean_spike_template_amplitudes`.[0m
+[90m18:06:51.271 [D] context:138          Save memcache for `phy.apps.base.get_mean_spike_template_amplitudes`.[0m
+[90m18:06:51.273 [D] context:138          Save memcache for `phy.apps.base.get_template_counts`.[0m
+[90m18:06:51.273 [D] context:138          Save memcache for `phy.apps.base.get_template_counts`.[0m
+[90m18:06:51.275 [D] context:138          Save memcache for `phy.apps.base.get_template_for_cluster`.[0m
+[90m18:06:51.275 [D] context:138          Save memcache for `phy.apps.base.get_template_for_cluster`.[0m
+[90m18:06:51.277 [D] context:138          Save memcache for `phy.apps.template.gui.get_template_amplitude`.[0m
+[90m18:06:51.277 [D] context:138          Save memcache for `phy.apps.template.gui.get_template_amplitude`.[0m
+[90m18:06:51.279 [D] context:138          Save memcache for `phy.apps.base.get_cluster_amplitude`.[0m
+[90m18:06:51.279 [D] context:138          Save memcache for `phy.apps.base.get_cluster_amplitude`.[0m
+[90m18:06:51.280 [D] context:138          Save memcache for `phy.apps.base.get_mean_firing_rate`.[0m
+[90m18:06:51.280 [D] context:138          Save memcache for `phy.apps.base.get_mean_firing_rate`.[0m
+[90m18:06:51.281 [D] context:138          Save memcache for `phy.apps.base.get_best_channel`.[0m
+[90m18:06:51.281 [D] context:138          Save memcache for `phy.apps.base.get_best_channel`.[0m
+[90m18:06:51.282 [D] context:138          Save memcache for `phy.apps.template.gui.get_best_channels`.[0m
+[90m18:06:51.282 [D] context:138          Save memcache for `phy.apps.template.gui.get_best_channels`.[0m
+[90m18:06:51.284 [D] context:138          Save memcache for `phy.apps.base.get_channel_shank`.[0m
+[90m18:06:51.284 [D] context:138          Save memcache for `phy.apps.base.get_channel_shank`.[0m
+[90m18:06:51.285 [D] context:138          Save memcache for `phy.apps.base.get_probe_depth`.[0m
+[90m18:06:51.285 [D] context:138          Save memcache for `phy.apps.base.get_probe_depth`.[0m
+[90m18:06:51.286 [D] context:138          Save memcache for `phy.apps.base.peak_channel_similarity`.[0m
+[90m18:06:51.286 [D] context:138          Save memcache for `phy.apps.base.peak_channel_similarity`.[0m
+[90m18:06:51.287 [D] gui:600              Save the geometry state.[0m
+[90m18:06:51.287 [D] gui:600              Save the geometry state.[0m
+[90m18:06:51.288 [D] state:218            Save global GUI state to `/home/smoconn/.phy/TemplateGUI/state.json`.[0m
+[90m18:06:51.288 [D] state:218            Save global GUI state to `/home/smoconn/.phy/TemplateGUI/state.json`.[0m
+[90m18:06:51.441 [D] state:232            Save local GUI state to `/snel/share/data/rodent-ephys/open-ephys/monkey/sean-pipeline/session20231202/2022-12-02_10-14-45_myo/sorted_20250624_202249742544_2022-12-02_10-14-45_myo_Th_10,4_spkTh_6,9_SCORE_0.327/.phy/state.json`.[0m
+[90m18:06:51.441 [D] state:232            Save local GUI state to `/snel/share/data/rodent-ephys/open-ephys/monkey/sean-pipeline/session20231202/2022-12-02_10-14-45_myo/sorted_20250624_202249742544_2022-12-02_10-14-45_myo_Th_10,4_spkTh_6,9_SCORE_0.327/.phy/state.json`.[0m
+[90m18:06:51.501 [D] __init__:87          Stop capturing exceptions.[0m
+[90m18:06:51.501 [D] __init__:87          Stop capturing exceptions.[0m
