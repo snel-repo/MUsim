@@ -228,33 +228,9 @@ print(shape_jitter_amount)
 print(cuda_device_number)
 
 
-# random seeds used for the EMUsort benchmarking in the paper
-# random_seed_entropy = 17750944332329041344095472642137516706  # rat # 218530072159092100005306709809425040261  # 75092699954400878964964014863999053929  # None
-
-# random seeds used for the public LITMUS datasets
-if shape_jitter_amount == 0.00:
-    random_seed_entropy = 295921216980200951702345820409845315428  # 0.00 noise rat
-elif shape_jitter_amount == 2.00:
-    random_seed_entropy = 295921216980200951702345820409845315428  # 2.00 noise rat
-elif shape_jitter_amount == 4.00:
-    random_seed_entropy = 295921216980200951702345820409845315428  # 4.00 noise rat
-else:
-    random_seed_entropy = 295921216980200951702345820409845315428
-    # random_seed_entropy = 29592121698020095170234582040
-    # raise ValueError("random_seed_entropy not set for this shape_jitter_amount")
-
-# set None for random behavior, or a previous entropy int value to reproduce
-# if random_seed_entropy is None:
-#     random_seed_entropy = np.random.SeedSequence().entropy
-
-## apply random seeds
-# ensure fixed seed for numpy for determinism
+# random seeds used for the EMUsort paper
+random_seed_entropy = 295921216980200951702345820409845315428
 RNG = np.random.default_rng(random_seed_entropy)  # create a random number generator
-
-# ensure fixed seed for torch for determinism ## DOESN'T work due to implementation
-# torch.use_deterministic_algorithms(True)
-# torch.manual_seed(42)
-# torch.cuda.manual_seed(42)
 
 # add eventplot of spike times to the last subplot, vertically spacing times and coloring by unit
 MU_colors = [
@@ -590,166 +566,14 @@ orig_spike_history_kernel_path = Path(__file__).parent.joinpath(
 # MU_spike_history_kernel_df = pd.read_csv(MU_spike_history_kernel_path)
 orig_spike_history_kernel_df = pd.read_csv(orig_spike_history_kernel_path)
 
-# if show_plotly_figures:
-#     # now use plotly express to plot the two dataframes in two subplots
-#     # make first subplot be the original spike history kernel,
-#     # and second subplot be the MU spike history kernel
-#     fig = subplots.make_subplots(rows=2, cols=1, shared_xaxes=True)
-
-#     # add the original spike history kernel to the top subplot
-#     for ii, iCol in enumerate(orig_spike_history_kernel_df.columns):
-#         fig.add_trace(
-#             go.Scatter(
-#                 x=orig_spike_history_kernel_df.index / ephys_fs * 1000,
-#                 y=orig_spike_history_kernel_df[iCol],
-#                 name=f"Component {ii}",
-#             ),
-#             row=1,
-#             col=1,
-#         )
-
-#     # add the MU spike history kernel to the bottom subplot
-#     for ii, iCol in enumerate(MU_spike_history_kernel_df.columns):
-#         fig.add_trace(
-#             go.Scatter(
-#                 x=MU_spike_history_kernel_df.index / ephys_fs * 1000,
-#                 y=MU_spike_history_kernel_df[iCol],
-#                 name=f"Component {ii}",
-#             ),
-#             row=2,
-#             col=1,
-#         )
-
-#     # add title and axis labels, make sure x-axis title is only on bottom subplot
-#     fig.update_layout(
-#         title="<b>Spike History Kernel Bases</b>",
-#         template=plot_template,
-#     )
-#     fig.update_yaxes(title_text="Original Kernel Values", row=1, col=1)
-#     fig.update_yaxes(title_text="Motor Unit Kernel Values", row=2, col=1)
-#     fig.update_xaxes(title_text="Time (ms)", row=2, col=1)
-#     fig.show()
-
-## load proc.dat from a sort for each rat including 16 channels (zeroed-out channels replace noisy ones)
-# paths to the folders containing the Kilosort data
-# paths_to_proc_dat = [
-#     Path(
-#         "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/godzilla/session20221117/2022-11-17_17-08-07_myo/sorted0_20231027_163931_rec-1,2,4,5,6_chans-2,3,5,6,13,14,15,16_12-good-of-43-total_Th,[10,2]"
-#     ),
-#     # Path(
-#     #     "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/inkblot/session20230323/2023-03-23_14-41-46_myo/sorted0_20231218_202453598454_rec-3,5,7,8,9,10_Th,[10,4],spkTh,[-6]"
-#     # ),
-#     # Path(
-#     #     "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/kitkat/session20230420/2023-04-20_14-12-09_myo/sorted0_20231218_203140625455_rec-1,2,3,4,5,7,8,9,11,12,14,15,16,17,19,20,21"
-#     # ),
-#     # Path(
-#     #     "/snel/share/data/rodent-ephys/open-ephys/monkey/sean-pipeline/session20231202/2022-12-02_10-14-45_myo/sorted0_20240131_172133542034_rec-1_11-good-of-20-total_Th,[10,4],spkTh,[-6]"
-#     # ),
-# ]
-
-# ## load Kilosort data
-# # paths to the folders containing the Kilosort data
-# paths_to_KS_session_folders = [
-#     Path(
-#         # "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/godzilla/session20221116/"
-#         "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/godzilla/session20221117/"
-#     ),
-#     # Path(
-#     #     "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/inkblot/session20230323/"
-#     # ),
-#     # Path(
-#     #     "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/kitkat/session20230420/"
-#     # ),
-#     # Path(
-#     #     "/snel/share/data/rodent-ephys/open-ephys/monkey/sean-pipeline/session20231202/"
-#     # ),
-# ]
-# sorts_from_each_path_to_load = [
-#     "20231027_163931",  # godzilla
-#     # "20231218_181442825759",  # inkblot
-#     # "20231214_104534576438",  # kitkat
-#     # "20240131_172133542034",  # monkey
-# ]  # ["20230924_151421"]  # , ["20230923_125645"], ["20230923_125645"]]
-
-if "monkey" in session_name:
-    # load the Kilosort data
-    paths_to_proc_dat = [
-        Path(
-            "/snel/share/data/rodent-ephys/open-ephys/monkey/sean-pipeline/session20231202/2022-12-02_10-14-45_myo/sorted0_20240131_172133542034_rec-1_11-good-of-20-total_Th,[10,4],spkTh,[-6]"
-        )
-    ]
-    paths_to_KS_session_folders = [
-        Path(
-            "/snel/share/data/rodent-ephys/open-ephys/monkey/sean-pipeline/session20231202/"
-        )
-    ]
-    sorts_from_each_path_to_load = ["20240131_172133542034"]
-elif "human" in session_name:
-    # load the Kilosort data
-    paths_to_proc_dat = [
-        Path(
-            # "/snel/share/data/rodent-ephys/open-ephys/human-finger/sean-pipeline/session20231003/sorted_20250214_001445260129_session20231003_Th_2,1_spkTh_6,9,12,15_SCORE_0.400"
-            # "/snel/share/data/rodent-ephys/open-ephys/human-finger/sean-pipeline/session20231003/sorted_20250217_211253048998_session20231003_Th_2,1_spkTh_6,12_SCORE_0.481"
-            # "/snel/share/data/rodent-ephys/open-ephys/human-finger/sean-pipeline/session20231003/sorted_20250218_171800359130_session20231003_Th_2,1_spkTh_5,10,15_SCORE_0.480"
-            "/snel/share/data/rodent-ephys/open-ephys/human-finger/sean-pipeline/session20231003/sorted_20250318_154600379420_session20231003_SCORE_0.360"  # 16CH, 10MU dataset
-        )
-    ]
-    paths_to_KS_session_folders = [
-        Path(
-            "/snel/share/data/rodent-ephys/open-ephys/human-finger/sean-pipeline/session20231003/"
-        )
-    ]
-    sorts_from_each_path_to_load = [
-        "20250318_154600379420"
-        # "20250218_171800359130"
-        # "20250217_211253048998"
-    ]  # ["20250214_001445260129"]
-else:  # rat
-    # load the Kilosort data
-    ephys_folder = Path(__file__).parent / "ephys" / "2022-11-16_16-19-28"
-    paths_to_proc_dat = [
-        ephys_folder
-        / "sorted_20250429_195641681545_2022-11-16_16-19-28_Th_10,4_spkTh_6,9,12,15_SCORE_0.287"
-        # Path(
-        # "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/godzilla/session20221116/2022-11-16_16-19-28_myo/sorted_20250428_230658753364_2022-11-16_16-19-28_myo_Th_9,8_spkTh_6,9_SCORE_0.302" # new godzilla 8CH, 10MU
-        # "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/godzilla/session20221116/2022-11-16_16-19-28_myo/sorted_20250428_122217500160_2022-11-16_16-19-28_myo_Th_5,2_spkTh_3,6,9_SCORE_0.356"  # new godzilla 14CH, 12MU
-        # "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/godzilla/session20221116/2022-11-16_16-19-28_myo/sorted_20250429_195641681545_2022-11-16_16-19-28_myo_Th_10,4_spkTh_6,9,12,15_SCORE_0.287"  # new godzilla 8CH, 10MU (orig CHs)
-        # "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/godzilla/session20221116/2022-11-16_16-19-28_myo/sorted_20250425_200543699599_2022-11-16_16-19-28_myo_Th_7,3_spkTh_6,9,12,15_SCORE_0.387"
-        # )
-        # Path(
-        #     "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/godzilla/session20221117/2022-11-17_17-08-07_myo/sorted0_20231027_163931_rec-1,2,4,5,6_chans-2,3,5,6,13,14,15,16_12-good-of-43-total_Th,[10,2]"
-        # )
-        # Path(
-        #     "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/inkblot/session20230323/"
-        # )
-        # Path(
-        #     "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/kitkat/session20230420/"
-        # )
-    ]
-    paths_to_KS_session_folders = [
-        ephys_folder
-        # Path(
-        #     "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/godzilla/session20221116/2022-11-16_16-19-28_myo"  # new godzilla 14CH, 12MU and 8CH,10MU
-        # )
-        # Path(
-        #     "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/godzilla/session20221117/"
-        # )
-        # Path(
-        #     "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/inkblot/session20230323/"
-        # )
-        # Path(
-        #     "/snel/share/data/rodent-ephys/open-ephys/treadmill/sean-pipeline/kitkat/session20230420/"
-        # )
-    ]
-    sorts_from_each_path_to_load = [
-        "20250429_195641681545"  # new godzilla 8CH, 10MU
-        # "20250428_230658753364"  # new godzilla 8CH, 10MU
-        # "20250428_122217500160"  # new godzilla 14CH, 12MU
-        # "20250425_200543699599",  # new godzilla # didn't have Wall.npy...
-        # "20231027_163931", # godzilla old KS3
-        # "20231218_181442825759",  # inkblot
-        # "20231214_104534576438",  # kitkat
-    ]
+# load the Kilosort data
+ephys_folder = Path(__file__).parent / "ephys" / "2022-11-16_16-19-28"
+paths_to_proc_dat = [
+    ephys_folder
+    / "sorted_20250429_195641681545_2022-11-16_16-19-28_Th_10,4_spkTh_6,9,12,15_SCORE_0.287"
+]
+paths_to_KS_session_folders = [ephys_folder]
+sorts_from_each_path_to_load = ["20250429_195641681545"]  # new godzilla 8CH, 10MU
 
 if sorter == "ks3":
     # find the folder name which ends in _myo and append to the paths_to_session_folders
@@ -872,26 +696,9 @@ elif sorter == "ks4":
 
 # list of lists of good clusters to take from each rez_list
 # place units in order of total spike count, from highest to lowest
-if "monkey" in session_name:
-    clusters_to_take_from = [[6, 13, 24, 1, 23, 14]]  # monkey, 20240131_172133542034
-elif "human" in session_name:
-    # clusters_to_take_from = [[13, 29, 24, 25, 56, 57, 28, 53, 59, 65, 49, 5, 34]], 20250214_001445260129
-    clusters_to_take_from = [
-        # [18, 23, 28, 11, 12, 22, 54, 43, 42, 14, 47, 44, 64]
-        [16, 8, 4, 31, 10, 9, 21, 34, 30, 27]
-    ]  # human, 20250218_171800359130
-    # [[18, 23, 7, 9, 8 , 17, 48, 25, 19, 47, 40, 67, 65, 3]] # best human, 20250217_211253048998
-else:
-    clusters_to_take_from = [
-        [21, 7, 22, 15, 12, 3, 16, 19, 1, 0],  # new godzilla 8CH, 10MU (orig CHs)
-        # [15, 7, 14, 25, 23, 3, 20, 2, 27, 1],  # new godzilla 8CH, 10MU
-        # [22,59,21,29,33,0,48,4,15,55],  # new godzilla 14CH, 10MU
-        # [22, 23, 59, 21, 29, 33, 0, 34, 48, 4, 15, 55],  # new godzilla 14CH, 12MU
-        # [21, 54, 26, 53, 3, 44, 6, 51, 50, 36], # godzilla, didn't have Wall.npy
-        # [26, 13, 10, 3, 22, 32, 1, 15, 40, 27],  # godzilla, old, 20231027_163931
-        # [9, 7, 8, 13],  # [12, 8, 14, 1, 13],  # inkblot, 20231218_181442825759
-        # [15, 52, 9, 20, 16, 5, 14, 23, 13, 8],  # kitkat, 20231214_104534576438
-    ]  # [[25, 3, 1, 5, 17, 18, 0, 22, 20, 30]]  # [[18, 2, 11, 0, 4, 10, 1, 9]]
+clusters_to_take_from = [
+    [21, 7, 22, 15, 12, 3, 16, 19, 1, 0],  # new godzilla 8CH, 10MU (orig CHs)
+]
 
 num_motor_units = sum([len(i) for i in clusters_to_take_from])
 last_unit_count = 0
@@ -909,16 +716,14 @@ def sample_MUsim_obj(seed):
         "exponential"  # set the distribution of motor unit thresholds
     )
     mu.MUspike_dynamics = "spike_history"
-    mu.kernel_interpolation_factor = 1.25  # 2 if "monkey" or "human" in session_name else 1 # newest dataset for godzilla used 1.5
+    mu.kernel_interpolation_factor = 1.25
     mu.sample_rate = ephys_fs  # 30000 Hz
     # fixed minimum force threshold for the generated units' response curves. Tune this for lower
     # bound of force thresholds sampled in the distribution of MUs during MU_sample()
-    mu.threshmin = np.percentile(
-        interp_final_force_array, 40
-    )  # 40 for rat, 35 for monkey
+    mu.threshmin = np.percentile(interp_final_force_array, 40)
     # fixed maximum force threshold for the generated units' response curves. Tune this for upper
     # bound of force thresholds sampled in the distribution of MUs during MU_sample()
-    mu.threshmax = 2 * np.max(  # 2.0 for rat, 2.5 for monkey
+    mu.threshmax = 2 * np.max(
         interp_final_force_array
     )  # np.percentile(interp_final_force_array, 99)
     mu.sample_MUs()
@@ -935,81 +740,17 @@ mu_real.load_MUs(
     load_type="kilosort",
 )
 mu_real.spikes[-1] = mu_real.spikes[-1][:, clusters_to_take_from[0]]
+
+# search for the desired number of spikes by updating the random seed
 while (
     iTrial
     < 1  # not (
     # last_unit_count <= 1000 * time_frame[1] and last_unit_count >= 500 * time_frame[1]
 ):
+    # if iTrial > 0:
+    #     random_seed_entropy = np.random.SeedSequence().entropy
     iTrial += 1
-    # mu = sample_MUsim_obj(random_seed_entropy)
 
-    ## using multiprocess can introduce refractory period violations,
-    ## so now using multithreading in MUsim instead
-    # if False:  # multiprocess:
-    #     import multiprocessing
-
-    #     chunk_size = (
-    #         6 * 7500
-    #     )  # number of samples to process in each multiprocessing process
-    #     N_processes = int(
-    #         np.ceil(np.hstack(chosen_bodypart_arrays).shape[0] / chunk_size)
-    #     )
-    #     if N_processes > 1:
-    #         print(f"Using {N_processes} processes to simulate spikes in parallel")
-    #     else:
-    #         print(f"Using {N_processes} process to simulate spikes")
-
-    #     # identical copies of the MUsim object, each multiprocessing process will have its own copy
-    #     mu_list = [mu.deepcopy() for i in range(N_processes)]
-
-    #     interp_final_force_array_segments = np.array_split(
-    #         interp_final_force_array, N_processes
-    #     )
-    #     with multiprocessing.Pool(processes=N_processes) as pool:
-    #         # cut interp_final_force_array into N processes segments
-    #         # use starmap to pass multiple arguments to the batch_run_MUsim function
-    #         results = pool.starmap(
-    #             batch_run_MUsim,
-    #             zip(
-    #                 mu_list,
-    #                 interp_final_force_array_segments,
-    #                 range(N_processes),
-    #             ),
-    #         )
-
-    #     # now combine the results from each process into a single MUsim object
-    #     mu = MUsim(random_seed_entropy)
-    #     mu.num_units = num_motor_units
-    #     mu.MUspike_dynamics = "spike_history"
-    #     mu.force_profile = np.hstack([i.force_profile.flatten() for i in results])
-    #     # make sure all units have the same thresholds (units[0])
-    #     assert all([np.all(i.units[0] == results[0].units[0]) for i in results])
-    #     mu.units[0] = results[0].units[
-    #         0
-    #     ]  # then use the first units[0] as the new units[0]
-    #     try:
-    #         mu.units[1] = np.hstack(
-    #             [i.units[1] for i in results]
-    #         )  # stack the unit response curves
-    #     except ValueError:
-    #         # concatenate the unit response curves if they are different lengths using minimum length
-    #         min_length = min([len(i.units[1]) for i in results])
-    #         mu.units[1] = np.hstack([i.units[1][:min_length] for i in results])
-
-    #     # make sure all units have the same poisson lambdas (units[2])
-    #     assert all([np.all(i.units[2] == results[0].units[2]) for i in results])
-    #     mu.units[2] = np.hstack(
-    #         [i.units[2] for i in results]
-    #     )  # stack the poisson lambdas
-    #     mu.spikes = np.hstack([i.spikes for i in results])  # stack the spike responses
-    # else:
-    #     for ii in range(int(shape_jitter_amount + 1)):
-    #         mu = batch_run_MUsim(
-    #             mu,
-    #             interp_final_force_array[: interp_final_force_array.shape[0] // 20],
-    #             0,
-    #         )
-    #         mu = batch_run_MUsim(mu, interp_final_force_array, 0)
     # print number of spikes in each unit
     mu = batch_run_MUsim(mu, interp_final_force_array, 0)
     print(f"Number of spikes in each unit:\n {mu.spikes[-1].sum(axis=0)}")
@@ -1022,7 +763,6 @@ while (
     # raise SystemExit
     del o_frac_real, o_fracs_real, mu_real
     last_unit_count = mu.spikes[-1].sum(axis=0)[-1]
-    # random_seed_entropy += 1
 else:
     # working_random_seed = random_seed_entropy - 1
     # print(f"Random seed used: {working_random_seed}")
@@ -1037,16 +777,6 @@ if show_matplotlib_figures:
         "Press Enter to close all figures, save data, and exit... (Ctrl+C to exit without saving)"
     )
 
-# save spikes from simulation if user does not ^C
-# session_name = "_".join(
-#     (
-#         kinematic_csv_file_paths[0].stem.split("-")[0],
-#         kinematic_csv_file_paths[0].stem.split("_")[1],
-#     )
-# )  # just get the date and rat name
-# session_name = "_".join(
-#     sorts_from_each_path_to_load[0], str(paths_to_KS_session_folders[0]).split("/")[5]
-# )
 if use_KS_templates:
     method = "KS_templates"
 elif median_waveforms:
@@ -1114,30 +844,29 @@ if use_KS_templates and sorter == "ks3":
     # and put each unit's channels on different rows of the subplot
     # resulting in a grid with dimensions (num_chans, num_units) (in this case 9x20)
     # using plotly  express
-    if False:
-        fig = subplots.make_subplots(
-            rows=U.shape[2],
-            cols=W.shape[1],
-            shared_xaxes=True,
-            shared_yaxes=True,
-            subplot_titles=[
-                f"Unit {iUnit} Channel {iChan}"
-                for iUnit, iChan in zip(range(W.shape[1]), range(U.shape[2]))
-            ],
-        )
-        for iUnit in range(W.shape[1]):
-            for iChan in range(U.shape[2]):
-                fig.add_trace(
-                    go.Scatter(
-                        x=np.arange(nt0),
-                        y=np.dot(W[:, iUnit, :], U[:, iUnit, iChan]),
-                        name=f"Unit {iUnit} Channel {iChan}",
-                    ),
-                    row=iChan + 1,
-                    col=iUnit + 1,
-                )
-        fig.show()
-        set_trace()
+    # fig = subplots.make_subplots(
+    #     rows=U.shape[2],
+    #     cols=W.shape[1],
+    #     shared_xaxes=True,
+    #     shared_yaxes=True,
+    #     subplot_titles=[
+    #         f"Unit {iUnit} Channel {iChan}"
+    #         for iUnit, iChan in zip(range(W.shape[1]), range(U.shape[2]))
+    #     ],
+    # )
+    # for iUnit in range(W.shape[1]):
+    #     for iChan in range(U.shape[2]):
+    #         fig.add_trace(
+    #             go.Scatter(
+    #                 x=np.arange(nt0),
+    #                 y=np.dot(W[:, iUnit, :], U[:, iUnit, iChan]),
+    #                 name=f"Unit {iUnit} Channel {iChan}",
+    #             ),
+    #             row=iChan + 1,
+    #             col=iUnit + 1,
+    #         )
+    # fig.show()
+    # set_trace()
 
     W_good = []
     U_good = []
@@ -2020,49 +1749,6 @@ if show_final_plotly_figure or save_final_plotly_figure:
         )
 
     # add eventplot of spike times to the last subplot, vertically spacing times and coloring by unit
-    MU_colors = [
-        "royalblue",
-        "firebrick",
-        "forestgreen",
-        "darkorange",
-        "darkorchid",
-        "darkgreen",
-        "lightcoral",
-        "rgb(116, 77, 37)",
-        "cyan",
-        "mediumpurple",
-        "lightslategray",
-        "gold",
-        "lightpink",
-        "darkturquoise",
-        "darkkhaki",
-        "darkviolet",
-        "darkslategray",
-        "darkgoldenrod",
-        "darkmagenta",
-        "darkcyan",
-        "darkred",
-        "darkblue",
-        "darkslateblue",
-        "darkolivegreen",
-        "darkgray",
-        "darkseagreen",
-        "darkslateblue",
-        "darkslategray",
-        "maroon",
-        "mediumblue",
-        "mediumorchid",
-        "mediumseagreen",
-        "mediumslateblue",
-        "mediumturquoise",
-        "magenta",
-        "forestgreen",
-        "mediumvioletred",
-        "midnightblue",
-        "navy",
-        "olive",
-        "olivedrab",
-    ]
     # flatten clusters_to_take_from into a single list
     clusters_to_take_from = [i for j in clusters_to_take_from for i in j]
     for iUnit in range(mu.num_units):
