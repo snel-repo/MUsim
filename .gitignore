@@ -17,3 +17,5 @@
 .vscode/
 __pycache__/
 /plot*
+!EMUsort_paper_supplements/*
+!EMUsort_paper_supplements/raw_outputs/*
